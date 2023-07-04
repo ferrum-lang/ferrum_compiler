@@ -22,7 +22,6 @@ impl SyntaxCompiler<ir::RustIR> for RustSyntaxCompiler {
         };
 
         dbg!("TODO");
-
         return ir::RustIR { files: vec![] };
     }
 }

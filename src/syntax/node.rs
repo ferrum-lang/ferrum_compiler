@@ -1,10 +1,11 @@
 use std::cell::RefCell;
+use std::marker::PhantomData;
 use std::rc::Rc;
 
-#[derive(Debug, Clone)]
-pub struct NodeId(Rc<RefCell<usize>>);
+#[derive(Debug, Clone, PartialEq)]
+pub struct NodeId<T>(Rc<RefCell<usize>>, PhantomData<T>);
 
-impl NodeId {
+impl<T> NodeId<T> {
     pub fn gen() -> Self {
         static mut NEXT_ID: usize = 0;
 
@@ -14,10 +15,10 @@ impl NodeId {
             id
         };
 
-        return Self(Rc::new(RefCell::new(id)));
+        return Self(Rc::new(RefCell::new(id)), PhantomData);
     }
 }
 
-pub trait Node {
-    fn node_id(&self) -> &NodeId;
+pub trait Node<T> {
+    fn node_id(&self) -> &NodeId<T>;
 }
