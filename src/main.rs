@@ -1,12 +1,16 @@
-use ferrum_compiler::*;
+use ferrum_compiler::syntax::*;
 
 fn main() {
-    let syn = SyntaxTree {
-        uses: vec![],
-        declarations: vec![],
-    };
-    dbg!(&syn);
+    let pkg = FePackage::File(FeFile {
+        name: PackageName("_main".to_string()),
+        path: "src/_main.fe".into(),
+        syntax: SyntaxTree {
+            uses: vec![],
+            decls: vec![],
+        },
+    });
+    dbg!(&pkg);
 
-    let res = compile_syntax_tree(syn);
+    let res = RustSyntaxCompiler::compile_package(pkg);
     dbg!(&res);
 }
