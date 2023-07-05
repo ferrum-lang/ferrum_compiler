@@ -18,6 +18,7 @@ pub enum TokenType {
 
     // Keywords
     Fn,
+    Pub,
     Use,
 
     // Literals

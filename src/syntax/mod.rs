@@ -16,13 +16,15 @@ pub use stmt::*;
 mod r#use;
 pub use r#use::*;
 
+use crate::result::Result;
+
 use std::cell::RefCell;
 use std::collections::HashMap;
 use std::path::PathBuf;
 use std::rc::Rc;
 
 pub trait SyntaxCompiler<IR> {
-    fn compile_package(entry: FePackage) -> IR;
+    fn compile_package(entry: Rc<RefCell<FePackage>>) -> Result<IR>;
 }
 
 #[derive(Debug, Clone)]
@@ -35,7 +37,7 @@ pub enum FePackage {
 pub struct FeFile {
     pub name: PackageName,
     pub path: PathBuf,
-    pub syntax: SyntaxTree,
+    pub syntax: Rc<RefCell<SyntaxTree>>,
 }
 
 #[derive(Debug, Clone)]
@@ -43,7 +45,7 @@ pub struct FeDir {
     pub name: PackageName,
     pub path: PathBuf,
     pub entry_file: FeFile,
-    pub local_packages: HashMap<PackageName, FePackage>,
+    pub local_packages: HashMap<PackageName, Rc<RefCell<FePackage>>>,
 }
 
 #[derive(Debug, Clone, Hash, PartialEq)]

@@ -72,3 +72,26 @@ pub struct CodeBlock {
     pub stmts: Vec<Stmt>,
     pub end_semicolon_token: Token,
 }
+
+// Visitor pattern
+pub trait DeclVisitor<R = ()> {
+    fn visit_function_decl(&mut self, decl: &mut FnDecl) -> R;
+}
+
+pub trait DeclAccept<R, V: DeclVisitor<R>> {
+    fn accept(&mut self, visitor: &mut V) -> R;
+}
+
+impl<R, V: DeclVisitor<R>> DeclAccept<R, V> for Decl {
+    fn accept(&mut self, visitor: &mut V) -> R {
+        return match self {
+            Self::Fn(decl) => decl.accept(visitor),
+        };
+    }
+}
+
+impl<R, V: DeclVisitor<R>> DeclAccept<R, V> for FnDecl {
+    fn accept(&mut self, visitor: &mut V) -> R {
+        return visitor.visit_function_decl(self);
+    }
+}

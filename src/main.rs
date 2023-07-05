@@ -8,14 +8,14 @@ fn main() {
     /*
     use ::fe::print
 
-    fn main()
+    pub fn main()
         print("Hello, World!")
     ;
     */
-    let pkg = FePackage::File(FeFile {
+    let pkg = Rc::new(RefCell::new(FePackage::File(FeFile {
         name: PackageName("_main".into()),
         path: "src/_main.fe".into(),
-        syntax: SyntaxTree {
+        syntax: Rc::new(RefCell::new(SyntaxTree {
             uses: vec![Rc::new(RefCell::new(Use {
                 id: NodeId::gen(),
                 use_token: Token {
@@ -54,7 +54,11 @@ fn main() {
             }))],
             decls: vec![Rc::new(RefCell::new(Decl::Fn(FnDecl {
                 id: NodeId::gen(),
-                decl_mod: None,
+                decl_mod: Some(DeclMod::Pub(Token {
+                    token_type: TokenType::Pub,
+                    lexeme: "pub".into(),
+                    span: Span::zero(),
+                })),
                 fn_token: Token {
                     token_type: TokenType::Fn,
                     lexeme: "fn".into(),
@@ -122,8 +126,8 @@ fn main() {
                     },
                 }),
             })))],
-        },
-    });
+        })),
+    })));
     dbg!(&pkg);
 
     let res = RustSyntaxCompiler::compile_package(pkg);
