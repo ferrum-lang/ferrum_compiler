@@ -69,3 +69,42 @@ impl Node<Expr> for StringLiteralExpr {
         return &self.id;
     }
 }
+
+// Visitor pattern
+pub trait ExprVisitor<R = ()> {
+    fn visit_ident_expr(&mut self, expr: &mut IdentExpr) -> R;
+    fn visit_call_expr(&mut self, expr: &mut CallExpr) -> R;
+    fn visit_string_literal_expr(&mut self, expr: &mut StringLiteralExpr) -> R;
+}
+
+pub trait ExprAccept<R, V: ExprVisitor<R>> {
+    fn accept(&mut self, visitor: &mut V) -> R;
+}
+
+impl<R, V: ExprVisitor<R>> ExprAccept<R, V> for Expr {
+    fn accept(&mut self, visitor: &mut V) -> R {
+        return match self {
+            Self::Ident(expr) => expr.accept(visitor),
+            Self::Call(expr) => expr.accept(visitor),
+            Self::StringLiteral(expr) => expr.accept(visitor),
+        };
+    }
+}
+
+impl<R, V: ExprVisitor<R>> ExprAccept<R, V> for IdentExpr {
+    fn accept(&mut self, visitor: &mut V) -> R {
+        return visitor.visit_ident_expr(self);
+    }
+}
+
+impl<R, V: ExprVisitor<R>> ExprAccept<R, V> for CallExpr {
+    fn accept(&mut self, visitor: &mut V) -> R {
+        return visitor.visit_call_expr(self);
+    }
+}
+
+impl<R, V: ExprVisitor<R>> ExprAccept<R, V> for StringLiteralExpr {
+    fn accept(&mut self, visitor: &mut V) -> R {
+        return visitor.visit_string_literal_expr(self);
+    }
+}
