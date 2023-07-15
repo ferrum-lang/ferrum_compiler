@@ -199,7 +199,7 @@ impl StmtVisitor<Result<Vec<ir::RustIRStmt>>> for RustSyntaxCompiler {
 
 impl ExprVisitor<Result<ir::RustIRExpr>> for RustSyntaxCompiler {
     fn visit_ident_expr(&mut self, expr: &mut IdentExpr) -> Result<ir::RustIRExpr> {
-        return Ok(ir::RustIRExpr::Ident(ir::RustIRIdent {
+        return Ok(ir::RustIRExpr::Ident(ir::RustIRIdentExpr {
             ident: expr.ident.lexeme.clone(),
         }));
     }
@@ -216,14 +216,14 @@ impl ExprVisitor<Result<ir::RustIRExpr>> for RustSyntaxCompiler {
             args.push(arg_ir);
         }
 
-        return Ok(ir::RustIRExpr::Call(ir::RustIRCall { callee, args }));
+        return Ok(ir::RustIRExpr::Call(ir::RustIRCallExpr { callee, args }));
     }
 
     fn visit_string_literal_expr(
         &mut self,
         expr: &mut StringLiteralExpr,
     ) -> Result<ir::RustIRExpr> {
-        return Ok(ir::RustIRExpr::StringLiteral(ir::RustIRStringLiteral {
+        return Ok(ir::RustIRExpr::StringLiteral(ir::RustIRStringLiteralExpr {
             literal: expr.literal.lexeme.clone(),
         }));
     }

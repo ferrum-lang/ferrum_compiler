@@ -38,3 +38,18 @@ pub struct RustIRUseStaticPathNextMany {
 pub struct RustIRUseStaticPathNextManyItem {
     pub path: RustIRUseStaticPath,
 }
+
+// Visitor pattern
+pub trait RustIRUseVisitor<R = ()> {
+    fn visit_use(&mut self, use_decl: &mut RustIRUse) -> R;
+}
+
+pub trait RustIRUseAccept<R, V: RustIRUseVisitor<R>> {
+    fn accept(&mut self, visitor: &mut V) -> R;
+}
+
+impl<R, V: RustIRUseVisitor<R>> RustIRUseAccept<R, V> for RustIRUse {
+    fn accept(&mut self, visitor: &mut V) -> R {
+        return visitor.visit_use(self);
+    }
+}

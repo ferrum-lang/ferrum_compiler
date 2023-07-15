@@ -1,10 +1,11 @@
+use ferrum_compiler::code_gen::*;
 use ferrum_compiler::syntax::*;
 use ferrum_compiler::token::*;
 
 use std::cell::RefCell;
 use std::rc::Rc;
 
-fn main() {
+fn main() -> ferrum_compiler::result::Result {
     /*
     use ::fe::print
 
@@ -20,10 +21,14 @@ fn main() {
                 id: NodeId::gen(),
                 use_token: Token {
                     token_type: TokenType::Use,
-                    lexeme: "use".into(),
+                    lexeme: "".into(),
                     span: Span::zero(),
                 },
-                use_mod: None,
+                use_mod: Some(UseMod::Pub(Token {
+                    token_type: TokenType::Pub,
+                    lexeme: "".into(),
+                    span: Span::zero(),
+                })),
                 pre_double_colon_token: Some(Token {
                     token_type: TokenType::DoubleColon,
                     lexeme: "::".into(),
@@ -38,7 +43,7 @@ fn main() {
                     next: Some(UseStaticPathNext::Single(UseStaticPathNextSingle {
                         double_colon_token: Token {
                             token_type: TokenType::DoubleColon,
-                            lexeme: "::".into(),
+                            lexeme: "".into(),
                             span: Span::zero(),
                         },
                         path: Box::new(UseStaticPath {
@@ -130,6 +135,13 @@ fn main() {
     })));
     dbg!(&pkg);
 
-    let res = RustSyntaxCompiler::compile_package(pkg);
-    dbg!(&res);
+    let rust_ir = Rc::new(RefCell::new(RustSyntaxCompiler::compile_package(pkg)?));
+    dbg!(&rust_ir);
+
+    let rust_code = RustCodeGen::generate_code(rust_ir)?;
+    dbg!(&rust_code);
+
+    println!("\n\nRUST CODE:\n\n{}\n\n", rust_code.files[0].content);
+
+    return Ok(());
 }
