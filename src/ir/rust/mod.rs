@@ -7,7 +7,11 @@ pub use stmt::*;
 mod expr;
 pub use expr::*;
 
-use std::{path::PathBuf, rc::Rc};
+mod r#use;
+pub use r#use::*;
+
+use std::path::PathBuf;
+use std::sync::Arc;
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct RustIR {
@@ -20,9 +24,6 @@ pub struct RustIRFile {
     pub uses: Vec<RustIRUse>,
     pub decls: Vec<RustIRDecl>,
 }
-
-#[derive(Debug, Clone, PartialEq)]
-pub enum RustIRUse {}
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct RustIRMacro {}

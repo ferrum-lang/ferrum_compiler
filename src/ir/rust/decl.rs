@@ -16,7 +16,7 @@ pub struct RustIRFnDecl {
     pub decl_mod: Option<RustIRDeclMod>,
     pub is_async: bool,
     pub generics: Option<RustIRFnGenerics>,
-    pub name: Rc<str>,
+    pub name: Arc<str>,
     pub params: Vec<RustIRFnParam>,
     pub return_type: Option<RustIRStaticType>,
     pub body: RustIRCodeBlock,

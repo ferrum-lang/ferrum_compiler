@@ -1,9 +1,9 @@
-use std::rc::Rc;
+use std::sync::Arc;
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct Token {
     pub token_type: TokenType,
-    pub lexeme: Rc<str>,
+    pub lexeme: Arc<str>,
     pub span: Span,
 }
 

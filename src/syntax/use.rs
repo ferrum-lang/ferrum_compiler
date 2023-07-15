@@ -53,3 +53,18 @@ pub struct UseStaticPathNextManyItem {
 pub enum UseMod {
     Pub(Token),
 }
+
+// Visitor pattern
+pub trait UseVisitor<R = ()> {
+    fn visit_use(&mut self, use_decl: &mut Use) -> R;
+}
+
+pub trait UseAccept<R, V: UseVisitor<R>> {
+    fn accept(&mut self, visitor: &mut V) -> R;
+}
+
+impl<R, V: UseVisitor<R>> UseAccept<R, V> for Use {
+    fn accept(&mut self, visitor: &mut V) -> R {
+        return visitor.visit_use(self);
+    }
+}

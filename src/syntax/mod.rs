@@ -22,6 +22,7 @@ use std::cell::RefCell;
 use std::collections::HashMap;
 use std::path::PathBuf;
 use std::rc::Rc;
+use std::sync::Arc;
 
 pub trait SyntaxCompiler<IR> {
     fn compile_package(entry: Rc<RefCell<FePackage>>) -> Result<IR>;
@@ -49,7 +50,7 @@ pub struct FeDir {
 }
 
 #[derive(Debug, Clone, Hash, PartialEq)]
-pub struct PackageName(pub Rc<str>);
+pub struct PackageName(pub Arc<str>);
 
 #[derive(Debug, Clone)]
 pub struct SyntaxTree {
