@@ -13,6 +13,7 @@ fn main() -> ferrum_compiler::result::Result {
         print("Hello, World!")
     ;
     */
+
     let pkg = Rc::new(RefCell::new(FePackage::File(FeFile {
         name: PackageName("_main".into()),
         path: "src/_main.fe".into(),
@@ -24,11 +25,7 @@ fn main() -> ferrum_compiler::result::Result {
                     lexeme: "".into(),
                     span: Span::zero(),
                 },
-                use_mod: Some(UseMod::Pub(Token {
-                    token_type: TokenType::Pub,
-                    lexeme: "".into(),
-                    span: Span::zero(),
-                })),
+                use_mod: None,
                 pre_double_colon_token: Some(Token {
                     token_type: TokenType::DoubleColon,
                     lexeme: "::".into(),

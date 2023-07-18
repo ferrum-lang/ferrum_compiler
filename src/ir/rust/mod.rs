@@ -30,8 +30,3 @@ pub struct RustIRMacro {}
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct RustIRStaticType {}
-
-#[derive(Debug, Clone, PartialEq)]
-pub struct RustIRCodeBlock {
-    pub stmts: Vec<RustIRStmt>,
-}

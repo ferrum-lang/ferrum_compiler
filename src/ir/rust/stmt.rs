@@ -2,6 +2,8 @@ use super::*;
 
 #[derive(Debug, Clone, PartialEq)]
 pub enum RustIRStmt {
+    ImplicitReturn(Box<RustIRStmt>),
+
     Expr(RustIRExprStmt),
 }
 
@@ -22,6 +24,7 @@ pub trait RustIRStmtAccept<R, V: RustIRStmtVisitor<R>> {
 impl<R, V: RustIRStmtVisitor<R>> RustIRStmtAccept<R, V> for RustIRStmt {
     fn accept(&mut self, visitor: &mut V) -> R {
         return match self {
+            Self::ImplicitReturn(stmt) => stmt.accept(visitor),
             Self::Expr(stmt) => stmt.accept(visitor),
         };
     }

@@ -5,8 +5,10 @@ use crate::ir::{self, RustIRDeclAccept, RustIRExprAccept, RustIRStmtAccept, Rust
 use std::sync::Arc;
 
 pub struct RustCodeGen {
-    pub entry: Rc<RefCell<ir::RustIR>>,
-    pub out: RustCode,
+    entry: Rc<RefCell<ir::RustIR>>,
+    out: RustCode,
+
+    indent: usize,
 }
 
 #[derive(Debug, Clone)]
@@ -34,6 +36,8 @@ impl RustCodeGen {
         return Self {
             entry,
             out: RustCode { files: vec![] },
+
+            indent: 0,
         };
     }
 
@@ -46,7 +50,7 @@ impl RustCodeGen {
         for use_decl in &mut file.uses {
             let code = use_decl.accept(&mut self)?;
             content.push_str(&code);
-            content.push('\n');
+            content.push_str(&self.new_line());
         }
 
         content.push('\n');
@@ -54,7 +58,7 @@ impl RustCodeGen {
         for decl in &mut file.decls {
             let code = decl.accept(&mut self)?;
             content.push_str(&code);
-            content.push('\n');
+            content.push_str(&self.new_line());
         }
 
         self.out.files.push(RustCodeFile {
@@ -83,6 +87,25 @@ impl RustCodeGen {
         }
 
         return Ok(out.into());
+    }
+
+    fn translate_static_type(
+        &mut self,
+        static_type: &mut ir::RustIRStaticType,
+    ) -> Result<Arc<str>> {
+        // TODO
+
+        return Ok("".into());
+    }
+
+    fn new_line(&self) -> String {
+        let mut out = format!("\n");
+
+        for _ in 0..self.indent {
+            out.push_str("    ");
+        }
+
+        return out;
     }
 }
 
@@ -113,29 +136,112 @@ impl ir::RustIRUseVisitor<Result<Arc<str>>> for RustCodeGen {
 
 impl ir::RustIRDeclVisitor<Result<Arc<str>>> for RustCodeGen {
     fn visit_fn_decl(&mut self, decl: &mut ir::RustIRFnDecl) -> Result<Arc<str>> {
-        return Ok("...".into());
+        let mut out = String::new();
+
+        // TODO: Handle proc-macros
+
+        match &decl.decl_mod {
+            Some(ir::RustIRDeclMod::Pub) => out.push_str("pub "),
+
+            None => {}
+        }
+
+        if decl.is_async {
+            out.push_str("async ");
+        }
+
+        // TODO: Handle generics
+
+        out.push_str(&format!("fn {}(", decl.name));
+
+        for param in &decl.params {
+            // TODO: Handle params
+        }
+
+        out.push_str(") ");
+
+        if let Some(return_type) = &mut decl.return_type {
+            out.push_str("-> ");
+
+            let code = self.translate_static_type(return_type)?;
+            out.push_str(&code);
+
+            out.push(' ');
+        }
+
+        let code = decl.body.accept(self)?;
+        out.push_str(&code);
+
+        return Ok(out.into());
     }
 }
 
 impl ir::RustIRStmtVisitor<Result<Arc<str>>> for RustCodeGen {
     fn visit_expr_stmt(&mut self, stmt: &mut ir::RustIRExprStmt) -> Result<Arc<str>> {
-        todo!()
+        let mut out = String::new();
+
+        let code = stmt.expr.accept(self)?;
+        out.push_str(&code);
+
+        out.push(';');
+
+        return Ok(out.into());
     }
 }
 
 impl ir::RustIRExprVisitor<Result<Arc<str>>> for RustCodeGen {
     fn visit_ident_expr(&mut self, expr: &mut ir::RustIRIdentExpr) -> Result<Arc<str>> {
-        todo!()
+        return Ok(expr.ident.clone());
     }
 
     fn visit_call_expr(&mut self, expr: &mut ir::RustIRCallExpr) -> Result<Arc<str>> {
-        todo!()
+        let mut out = String::new();
+
+        let code = expr.callee.accept(self)?;
+        out.push_str(&code);
+
+        out.push('(');
+
+        let args_code = expr
+            .args
+            .iter_mut()
+            .map(|arg| arg.accept(self))
+            .collect::<Result<Vec<Arc<str>>>>()?
+            .join(", ");
+
+        out.push_str(&args_code);
+
+        out.push(')');
+
+        return Ok(out.into());
+    }
+
+    fn visit_block_expr(&mut self, expr: &mut ir::RustIRBlockExpr) -> Result<Arc<str>> {
+        let mut out = String::new();
+
+        self.indent += 1;
+        out.push('{');
+        out.push_str(&self.new_line());
+
+        let stmts_code = expr
+            .stmts
+            .iter_mut()
+            .map(|stmt| stmt.accept(self))
+            .collect::<Result<Vec<Arc<str>>>>()?
+            .join(&self.new_line());
+        out.push_str(&stmts_code);
+
+        self.indent -= 1;
+        out.push_str(&self.new_line());
+        out.push('}');
+
+        return Ok(out.into());
     }
 
     fn visit_string_literal_expr(
         &mut self,
         expr: &mut ir::RustIRStringLiteralExpr,
     ) -> Result<Arc<str>> {
-        todo!()
+        return Ok(expr.literal.clone());
     }
 }

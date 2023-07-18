@@ -85,8 +85,8 @@ impl RustSyntaxCompiler {
         todo!();
     }
 
-    fn translate_fn_body(&mut self, body: &mut FnDeclBody) -> Result<ir::RustIRCodeBlock> {
-        let mut block_ir = ir::RustIRCodeBlock { stmts: vec![] };
+    fn translate_fn_body(&mut self, body: &mut FnDeclBody) -> Result<ir::RustIRBlockExpr> {
+        let mut block_ir = ir::RustIRBlockExpr { stmts: vec![] };
 
         match body {
             FnDeclBody::Short(short) => todo!(),

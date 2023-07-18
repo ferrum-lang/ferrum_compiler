@@ -19,7 +19,7 @@ pub struct RustIRFnDecl {
     pub name: Arc<str>,
     pub params: Vec<RustIRFnParam>,
     pub return_type: Option<RustIRStaticType>,
-    pub body: RustIRCodeBlock,
+    pub body: RustIRBlockExpr,
 }
 
 #[derive(Debug, Clone, PartialEq)]
