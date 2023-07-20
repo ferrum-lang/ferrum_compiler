@@ -1,6 +1,6 @@
 use crate::result::Result;
-use crate::syntax::{Decl, FeSyntaxPackage, SyntaxTree, Use, UseMod};
-use crate::token::{FeTokenPackage, Token, TokenType};
+use crate::syntax::*;
+use crate::token::*;
 
 use std::sync::{Arc, Mutex};
 
@@ -83,7 +83,9 @@ impl FeTokenSyntaxParser {
             }
 
             match self.use_declaration() {
-                Ok(use_decl) => {
+                Ok(None) => break,
+
+                Ok(Some(use_decl)) => {
                     self.out.lock().unwrap().uses.push(use_decl);
 
                     if !self.is_at_end() {
@@ -119,25 +121,66 @@ impl FeTokenSyntaxParser {
         return Ok(());
     }
 
-    fn use_declaration(&mut self) -> Result<Arc<Mutex<Use>>> {
+    fn use_declaration(&mut self) -> Result<Option<Arc<Mutex<Use>>>> {
         let use_mod = self.use_mod();
 
-        todo!()
+        let Some(use_token) = self.match_any(&[TokenType::Use], WithNewlines::None) else {
+            match use_mod {
+                Some(UseMod::Pub(_)) => {
+                    self.backtrack();
+                },
+
+                None => {}
+            }
+
+            return Ok(None);
+        };
+
+        let pre_double_colon_token = self.match_any(&[TokenType::DoubleColon], WithNewlines::None);
+        let path = self.use_static_path()?;
+
+        let use_decl = Use {
+            id: NodeId::gen(),
+            use_mod,
+            use_token,
+            pre_double_colon_token,
+            path,
+        };
+
+        return Ok(Some(Arc::new(Mutex::new(use_decl))));
     }
 
     fn use_mod(&mut self) -> Option<UseMod> {
-        if self.match_any(&[TokenType::Pub], WithNewlines::None) {
-            let token = self.previous().unwrap();
-
+        if let Some(token) = self.match_any(&[TokenType::Pub], WithNewlines::None) {
             return Some(UseMod::Pub(token));
         }
 
         return None;
     }
 
+    fn use_static_path(&mut self) -> Result<UseStaticPath> {
+        let name = self.consume(&TokenType::Ident, "Expect name of import")?;
+
+        let next = if let Some(double_colon_token) =
+            self.match_any(&[TokenType::DoubleColon], WithNewlines::None)
+        {
+            // TODO: Handle case of 'many'
+
+            let path = self.use_static_path()?;
+
+            Some(UseStaticPathNext::Single(UseStaticPathNextSingle {
+                double_colon_token,
+                path: Box::new(path),
+            }))
+        } else {
+            None
+        };
+
+        return Ok(UseStaticPath { name, next });
+    }
+
     fn declaration(&mut self) -> Result<Arc<Mutex<Decl>>> {
-        self.advance();
-        todo!()
+        todo!("{:#?}", self.out);
     }
 
     fn consume(
@@ -178,10 +221,16 @@ impl FeTokenSyntaxParser {
     }
 
     fn allow_one_newline(&mut self) -> bool {
-        return self.match_any(&[TokenType::Newline], WithNewlines::None);
+        return self
+            .match_any(&[TokenType::Newline], WithNewlines::None)
+            .is_some();
     }
 
-    fn match_any(&mut self, token_types: &[TokenType], with_newlines: WithNewlines) -> bool {
+    fn match_any(
+        &mut self,
+        token_types: &[TokenType],
+        with_newlines: WithNewlines,
+    ) -> Option<Arc<Token>> {
         let newlines: usize = match with_newlines {
             WithNewlines::None => 0,
             WithNewlines::One => {
@@ -197,9 +246,7 @@ impl FeTokenSyntaxParser {
 
         for token_type in token_types {
             if self.check(token_type) {
-                self.advance();
-
-                return true;
+                return self.advance();
             }
         }
 
@@ -207,7 +254,7 @@ impl FeTokenSyntaxParser {
             self.backtrack();
         }
 
-        return false;
+        return None;
     }
 
     fn check(&self, token_type: &TokenType) -> bool {

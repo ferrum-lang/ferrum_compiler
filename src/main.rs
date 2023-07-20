@@ -7,7 +7,7 @@ use std::sync::{Arc, Mutex};
 
 fn main() -> ferrum_compiler::result::Result {
     /*
-    use ::fe::print
+    pub use ::fe::print
 
     pub fn main()
         print("Hello, World!")
@@ -18,6 +18,11 @@ fn main() -> ferrum_compiler::result::Result {
         name: TokenPackageName("_main".into()),
         path: "src/_main.fe".into(),
         tokens: Arc::new(Mutex::new(vec![
+            Arc::new(Token {
+                token_type: TokenType::Pub,
+                lexeme: "pub".into(),
+                span: Span::zero(),
+            }),
             Arc::new(Token {
                 token_type: TokenType::Use,
                 lexeme: "use".into(),
