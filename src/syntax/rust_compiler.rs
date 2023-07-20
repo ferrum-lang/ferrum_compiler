@@ -6,18 +6,18 @@ use std::cell::RefCell;
 use std::rc::Rc;
 
 pub struct RustSyntaxCompiler {
-    entry: Rc<RefCell<FePackage>>,
+    entry: Rc<RefCell<FeSyntaxPackage>>,
     out: ir::RustIR,
 }
 
 impl SyntaxCompiler<ir::RustIR> for RustSyntaxCompiler {
-    fn compile_package(entry: Rc<RefCell<FePackage>>) -> Result<ir::RustIR> {
+    fn compile_package(entry: Rc<RefCell<FeSyntaxPackage>>) -> Result<ir::RustIR> {
         return Self::new(entry).compile();
     }
 }
 
 impl RustSyntaxCompiler {
-    fn new(entry: Rc<RefCell<FePackage>>) -> Self {
+    fn new(entry: Rc<RefCell<FeSyntaxPackage>>) -> Self {
         return Self {
             entry,
             out: ir::RustIR {
@@ -36,13 +36,13 @@ impl RustSyntaxCompiler {
         return Ok(self.out);
     }
 
-    fn compile_package(&mut self, package: &mut FePackage) -> Result {
+    fn compile_package(&mut self, package: &mut FeSyntaxPackage) -> Result {
         match package {
-            FePackage::File(file) => {
+            FeSyntaxPackage::File(file) => {
                 self.compile_file(file)?;
             }
 
-            FePackage::Dir(dir) => {
+            FeSyntaxPackage::Dir(dir) => {
                 self.compile_file(&mut dir.entry_file)?;
 
                 for (_name, package) in &dir.local_packages {
@@ -54,7 +54,7 @@ impl RustSyntaxCompiler {
         return Ok(());
     }
 
-    fn compile_file(&mut self, file: &mut FeFile) -> Result {
+    fn compile_file(&mut self, file: &mut FeSyntaxFile) -> Result {
         let mut syntax = file.syntax.borrow_mut();
 
         for use_decl in &mut syntax.uses {

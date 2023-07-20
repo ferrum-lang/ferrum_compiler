@@ -4,6 +4,7 @@ use crate::ir::{self, RustIRDeclAccept, RustIRExprAccept, RustIRStmtAccept, Rust
 
 use std::sync::Arc;
 
+#[derive(Debug, Clone)]
 pub struct RustCodeGen {
     entry: Rc<RefCell<ir::RustIR>>,
     out: RustCode,

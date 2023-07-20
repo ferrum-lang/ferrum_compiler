@@ -1,4 +1,5 @@
 use ferrum_compiler::code_gen::*;
+use ferrum_compiler::parser::*;
 use ferrum_compiler::syntax::*;
 use ferrum_compiler::token::*;
 
@@ -14,7 +15,106 @@ fn main() -> ferrum_compiler::result::Result {
     ;
     */
 
-    let pkg = Rc::new(RefCell::new(FePackage::File(FeFile {
+    let tokens = Rc::new(RefCell::new(FeTokenPackage::File(FeTokenFile {
+        name: TokenPackageName("_main".into()),
+        path: "src/_main.fe".into(),
+        tokens: Rc::new(RefCell::new(vec![
+            Rc::new(Token {
+                token_type: TokenType::Use,
+                lexeme: "use".into(),
+                span: Span::zero(),
+            }),
+            Rc::new(Token {
+                token_type: TokenType::DoubleColon,
+                lexeme: "::".into(),
+                span: Span::zero(),
+            }),
+            Rc::new(Token {
+                token_type: TokenType::Ident,
+                lexeme: "fe".into(),
+                span: Span::zero(),
+            }),
+            Rc::new(Token {
+                token_type: TokenType::DoubleColon,
+                lexeme: "::".into(),
+                span: Span::zero(),
+            }),
+            Rc::new(Token {
+                token_type: TokenType::Ident,
+                lexeme: "print".into(),
+                span: Span::zero(),
+            }),
+            Rc::new(Token {
+                token_type: TokenType::Newline,
+                lexeme: "\n".into(),
+                span: Span::zero(),
+            }),
+            Rc::new(Token {
+                token_type: TokenType::Newline,
+                lexeme: "\n".into(),
+                span: Span::zero(),
+            }),
+            Rc::new(Token {
+                token_type: TokenType::Pub,
+                lexeme: "pub".into(),
+                span: Span::zero(),
+            }),
+            Rc::new(Token {
+                token_type: TokenType::Fn,
+                lexeme: "fn".into(),
+                span: Span::zero(),
+            }),
+            Rc::new(Token {
+                token_type: TokenType::Ident,
+                lexeme: "main".into(),
+                span: Span::zero(),
+            }),
+            Rc::new(Token {
+                token_type: TokenType::OpenParen,
+                lexeme: "(".into(),
+                span: Span::zero(),
+            }),
+            Rc::new(Token {
+                token_type: TokenType::CloseParen,
+                lexeme: ")".into(),
+                span: Span::zero(),
+            }),
+            Rc::new(Token {
+                token_type: TokenType::Newline,
+                lexeme: "\n".into(),
+                span: Span::zero(),
+            }),
+            Rc::new(Token {
+                token_type: TokenType::Ident,
+                lexeme: "print".into(),
+                span: Span::zero(),
+            }),
+            Rc::new(Token {
+                token_type: TokenType::OpenParen,
+                lexeme: "(".into(),
+                span: Span::zero(),
+            }),
+            Rc::new(Token {
+                token_type: TokenType::StringLiteral,
+                lexeme: r#""Hello, World!""#.into(),
+                span: Span::zero(),
+            }),
+            Rc::new(Token {
+                token_type: TokenType::CloseParen,
+                lexeme: ")".into(),
+                span: Span::zero(),
+            }),
+            Rc::new(Token {
+                token_type: TokenType::Semicolon,
+                lexeme: ";".into(),
+                span: Span::zero(),
+            }),
+        ])),
+    })));
+
+    let pkg = Rc::new(RefCell::new(FeSyntaxParser::parse_package(tokens)?));
+    /*
+    let pkg = Rc::new(RefCell::new(FeSyntaxPackage::File(FeSyntaxFile {
         name: PackageName("_main".into()),
         path: "src/_main.fe".into(),
         syntax: Rc::new(RefCell::new(SyntaxTree {
@@ -130,6 +230,7 @@ fn main() -> ferrum_compiler::result::Result {
             })))],
         })),
     })));
+    */
     dbg!(&pkg);
 
     let rust_ir = Rc::new(RefCell::new(RustSyntaxCompiler::compile_package(pkg)?));
