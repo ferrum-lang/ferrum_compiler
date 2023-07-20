@@ -2,22 +2,21 @@ use super::*;
 
 use crate::ir;
 
-use std::cell::RefCell;
-use std::rc::Rc;
+use std::sync::{Arc, Mutex};
 
 pub struct RustSyntaxCompiler {
-    entry: Rc<RefCell<FeSyntaxPackage>>,
+    entry: Arc<Mutex<FeSyntaxPackage>>,
     out: ir::RustIR,
 }
 
 impl SyntaxCompiler<ir::RustIR> for RustSyntaxCompiler {
-    fn compile_package(entry: Rc<RefCell<FeSyntaxPackage>>) -> Result<ir::RustIR> {
+    fn compile_package(entry: Arc<Mutex<FeSyntaxPackage>>) -> Result<ir::RustIR> {
         return Self::new(entry).compile();
     }
 }
 
 impl RustSyntaxCompiler {
-    fn new(entry: Rc<RefCell<FeSyntaxPackage>>) -> Self {
+    fn new(entry: Arc<Mutex<FeSyntaxPackage>>) -> Self {
         return Self {
             entry,
             out: ir::RustIR {
@@ -31,7 +30,7 @@ impl RustSyntaxCompiler {
     }
 
     fn compile(mut self) -> Result<ir::RustIR> {
-        self.compile_package(&mut Rc::clone(&self.entry).borrow_mut())?;
+        self.compile_package(&mut Arc::clone(&self.entry).lock().unwrap())?;
 
         return Ok(self.out);
     }
@@ -46,7 +45,7 @@ impl RustSyntaxCompiler {
                 self.compile_file(&mut dir.entry_file)?;
 
                 for (_name, package) in &dir.local_packages {
-                    self.compile_package(&mut package.borrow_mut())?;
+                    self.compile_package(&mut package.lock().unwrap())?;
                 }
             }
         };
@@ -55,14 +54,14 @@ impl RustSyntaxCompiler {
     }
 
     fn compile_file(&mut self, file: &mut FeSyntaxFile) -> Result {
-        let mut syntax = file.syntax.borrow_mut();
+        let mut syntax = file.syntax.lock().unwrap();
 
         for use_decl in &mut syntax.uses {
-            use_decl.borrow_mut().accept(self)?;
+            use_decl.lock().unwrap().accept(self)?;
         }
 
         for decl in &mut syntax.decls {
-            decl.borrow_mut().accept(self)?;
+            decl.lock().unwrap().accept(self)?;
         }
 
         return Ok(());

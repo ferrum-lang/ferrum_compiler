@@ -2,11 +2,9 @@ use super::*;
 
 use crate::ir::{self, RustIRDeclAccept, RustIRExprAccept, RustIRStmtAccept, RustIRUseAccept};
 
-use std::sync::Arc;
-
 #[derive(Debug, Clone)]
 pub struct RustCodeGen {
-    entry: Rc<RefCell<ir::RustIR>>,
+    entry: Arc<Mutex<ir::RustIR>>,
     out: RustCode,
 
     indent: usize,
@@ -27,13 +25,13 @@ impl IRToCode for ir::RustIR {
 }
 
 impl CodeGen<ir::RustIR> for RustCodeGen {
-    fn generate_code(entry: Rc<RefCell<ir::RustIR>>) -> Result<RustCode> {
+    fn generate_code(entry: Arc<Mutex<ir::RustIR>>) -> Result<RustCode> {
         return Self::new(entry).generate();
     }
 }
 
 impl RustCodeGen {
-    fn new(entry: Rc<RefCell<ir::RustIR>>) -> Self {
+    fn new(entry: Arc<Mutex<ir::RustIR>>) -> Self {
         return Self {
             entry,
             out: RustCode { files: vec![] },
@@ -44,7 +42,7 @@ impl RustCodeGen {
 
     fn generate(mut self) -> Result<RustCode> {
         let entry = self.entry.clone();
-        let file = &mut entry.borrow_mut().files[0];
+        let file = &mut entry.lock().unwrap().files[0];
 
         let mut content = String::new();
 

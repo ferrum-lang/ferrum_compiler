@@ -1,35 +1,34 @@
 use crate::result::Result;
-use crate::syntax::{Decl, FeSyntaxPackage, SyntaxTree, Use};
+use crate::syntax::{Decl, FeSyntaxPackage, SyntaxTree, Use, UseMod};
 use crate::token::{FeTokenPackage, Token, TokenType};
 
-use std::cell::RefCell;
-use std::rc::Rc;
+use std::sync::{Arc, Mutex};
 
 use thiserror::Error;
 
 #[derive(Debug, Clone)]
 pub struct FeSyntaxParser {
-    token_pkg: Rc<RefCell<FeTokenPackage>>,
+    token_pkg: Arc<Mutex<FeTokenPackage>>,
 
     out: FeSyntaxPackage,
 }
 
 impl FeSyntaxParser {
-    pub fn parse_package(token_pkg: Rc<RefCell<FeTokenPackage>>) -> Result<FeSyntaxPackage> {
+    pub fn parse_package(token_pkg: Arc<Mutex<FeTokenPackage>>) -> Result<FeSyntaxPackage> {
         return Self::new(token_pkg).parse();
     }
 
-    pub fn new(token_pkg: Rc<RefCell<FeTokenPackage>>) -> Self {
-        let out = token_pkg.borrow().clone().into();
+    pub fn new(token_pkg: Arc<Mutex<FeTokenPackage>>) -> Self {
+        let out = token_pkg.lock().unwrap().clone().into();
 
         return Self { token_pkg, out };
     }
 
     pub fn parse(mut self) -> Result<FeSyntaxPackage> {
-        match (&*self.token_pkg.borrow(), &mut self.out) {
+        match (&*self.token_pkg.lock().unwrap(), &mut self.out) {
             (FeTokenPackage::File(token_file), FeSyntaxPackage::File(syntax_file)) => {
                 FeTokenSyntaxParser::parse_syntax(
-                    token_file.tokens.borrow().clone(),
+                    token_file.tokens.lock().unwrap().clone(),
                     syntax_file.syntax.clone(),
                 )?;
             }
@@ -43,8 +42,8 @@ impl FeSyntaxParser {
 }
 
 struct FeTokenSyntaxParser {
-    tokens: Vec<Rc<Token>>,
-    out: Rc<RefCell<SyntaxTree>>,
+    tokens: Vec<Arc<Token>>,
+    out: Arc<Mutex<SyntaxTree>>,
 
     current_idx: usize,
 }
@@ -64,11 +63,11 @@ pub enum WithNewlines {
 }
 
 impl FeTokenSyntaxParser {
-    fn parse_syntax(tokens: Vec<Rc<Token>>, syntax_tree: Rc<RefCell<SyntaxTree>>) -> Result {
+    fn parse_syntax(tokens: Vec<Arc<Token>>, syntax_tree: Arc<Mutex<SyntaxTree>>) -> Result {
         return Self::new(tokens, syntax_tree).parse();
     }
 
-    fn new(tokens: Vec<Rc<Token>>, syntax_tree: Rc<RefCell<SyntaxTree>>) -> Self {
+    fn new(tokens: Vec<Arc<Token>>, syntax_tree: Arc<Mutex<SyntaxTree>>) -> Self {
         return Self {
             tokens,
             out: syntax_tree,
@@ -83,12 +82,17 @@ impl FeTokenSyntaxParser {
                 continue;
             }
 
-            if let Some(use_decl) = self.use_declaration() {
-                self.out.borrow_mut().uses.push(use_decl);
+            match self.use_declaration() {
+                Ok(use_decl) => {
+                    self.out.lock().unwrap().uses.push(use_decl);
 
-                if !self.is_at_end() {
-                    let _ = self.consume(&TokenType::Newline, "Expect newline after use");
+                    if !self.is_at_end() {
+                        let _ = self.consume(&TokenType::Newline, "Expect newline after use");
+                    }
                 }
+
+                // TODO: Improve compiling around errors and error reporting
+                Err(e) => return Err(e),
             }
         }
 
@@ -97,29 +101,50 @@ impl FeTokenSyntaxParser {
                 continue;
             }
 
-            if let Some(decl) = self.declaration() {
-                self.out.borrow_mut().decls.push(decl);
+            match self.declaration() {
+                Ok(decl) => {
+                    self.out.lock().unwrap().decls.push(decl);
 
-                if !self.is_at_end() {
-                    let _ = self.consume(&TokenType::Newline, "Expect newline after declaration");
+                    if !self.is_at_end() {
+                        let _ =
+                            self.consume(&TokenType::Newline, "Expect newline after declaration");
+                    }
                 }
+
+                // TODO: Improve compiling around errors and error reporting
+                Err(e) => return Err(e),
             }
         }
 
         return Ok(());
     }
 
-    fn use_declaration(&mut self) -> Option<Rc<RefCell<Use>>> {
-        self.advance();
+    fn use_declaration(&mut self) -> Result<Arc<Mutex<Use>>> {
+        let use_mod = self.use_mod();
+
+        todo!()
+    }
+
+    fn use_mod(&mut self) -> Option<UseMod> {
+        if self.match_any(&[TokenType::Pub], WithNewlines::None) {
+            let token = self.previous().unwrap();
+
+            return Some(UseMod::Pub(token));
+        }
+
         return None;
     }
 
-    fn declaration(&mut self) -> Option<Rc<RefCell<Decl>>> {
+    fn declaration(&mut self) -> Result<Arc<Mutex<Decl>>> {
         self.advance();
-        return None;
+        todo!()
     }
 
-    fn consume(&mut self, token_type: &TokenType, err_msg: impl Into<String>) -> Result<Rc<Token>> {
+    fn consume(
+        &mut self,
+        token_type: &TokenType,
+        err_msg: impl Into<String>,
+    ) -> Result<Arc<Token>> {
         if self.check(token_type) {
             return self.advance().ok_or_else(|| unreachable!());
         }
@@ -136,7 +161,7 @@ impl FeTokenSyntaxParser {
         return ParserError::Error { message };
     }
 
-    fn error(&mut self, message: String, t: Rc<Token>) -> ParserError {
+    fn error(&mut self, message: String, t: Arc<Token>) -> ParserError {
         // self.error_ctx.token_error(t, message.clone());
 
         return ParserError::Error { message };
@@ -197,7 +222,7 @@ impl FeTokenSyntaxParser {
             .unwrap_or(false);
     }
 
-    fn advance(&mut self) -> Option<Rc<Token>> {
+    fn advance(&mut self) -> Option<Arc<Token>> {
         if !self.is_at_end() {
             self.current_idx += 1;
         }
@@ -205,7 +230,7 @@ impl FeTokenSyntaxParser {
         return self.previous();
     }
 
-    fn backtrack(&mut self) -> Option<Rc<Token>> {
+    fn backtrack(&mut self) -> Option<Arc<Token>> {
         if self.current_idx == 0 {
             return None;
         }
@@ -219,11 +244,11 @@ impl FeTokenSyntaxParser {
         return self.current_idx >= self.tokens.len();
     }
 
-    fn peek(&self) -> Option<Rc<Token>> {
+    fn peek(&self) -> Option<Arc<Token>> {
         return self.tokens.get(self.current_idx).cloned();
     }
 
-    fn previous(&self) -> Option<Rc<Token>> {
+    fn previous(&self) -> Option<Arc<Token>> {
         if self.current_idx == 0 {
             return None;
         }

@@ -3,8 +3,7 @@ use ferrum_compiler::parser::*;
 use ferrum_compiler::syntax::*;
 use ferrum_compiler::token::*;
 
-use std::cell::RefCell;
-use std::rc::Rc;
+use std::sync::{Arc, Mutex};
 
 fn main() -> ferrum_compiler::result::Result {
     /*
@@ -15,96 +14,96 @@ fn main() -> ferrum_compiler::result::Result {
     ;
     */
 
-    let tokens = Rc::new(RefCell::new(FeTokenPackage::File(FeTokenFile {
+    let tokens = Arc::new(Mutex::new(FeTokenPackage::File(FeTokenFile {
         name: TokenPackageName("_main".into()),
         path: "src/_main.fe".into(),
-        tokens: Rc::new(RefCell::new(vec![
-            Rc::new(Token {
+        tokens: Arc::new(Mutex::new(vec![
+            Arc::new(Token {
                 token_type: TokenType::Use,
                 lexeme: "use".into(),
                 span: Span::zero(),
             }),
-            Rc::new(Token {
+            Arc::new(Token {
                 token_type: TokenType::DoubleColon,
                 lexeme: "::".into(),
                 span: Span::zero(),
             }),
-            Rc::new(Token {
+            Arc::new(Token {
                 token_type: TokenType::Ident,
                 lexeme: "fe".into(),
                 span: Span::zero(),
             }),
-            Rc::new(Token {
+            Arc::new(Token {
                 token_type: TokenType::DoubleColon,
                 lexeme: "::".into(),
                 span: Span::zero(),
             }),
-            Rc::new(Token {
+            Arc::new(Token {
                 token_type: TokenType::Ident,
                 lexeme: "print".into(),
                 span: Span::zero(),
             }),
-            Rc::new(Token {
+            Arc::new(Token {
                 token_type: TokenType::Newline,
                 lexeme: "\n".into(),
                 span: Span::zero(),
             }),
-            Rc::new(Token {
+            Arc::new(Token {
                 token_type: TokenType::Newline,
                 lexeme: "\n".into(),
                 span: Span::zero(),
             }),
-            Rc::new(Token {
+            Arc::new(Token {
                 token_type: TokenType::Pub,
                 lexeme: "pub".into(),
                 span: Span::zero(),
             }),
-            Rc::new(Token {
+            Arc::new(Token {
                 token_type: TokenType::Fn,
                 lexeme: "fn".into(),
                 span: Span::zero(),
             }),
-            Rc::new(Token {
+            Arc::new(Token {
                 token_type: TokenType::Ident,
                 lexeme: "main".into(),
                 span: Span::zero(),
             }),
-            Rc::new(Token {
+            Arc::new(Token {
                 token_type: TokenType::OpenParen,
                 lexeme: "(".into(),
                 span: Span::zero(),
             }),
-            Rc::new(Token {
+            Arc::new(Token {
                 token_type: TokenType::CloseParen,
                 lexeme: ")".into(),
                 span: Span::zero(),
             }),
-            Rc::new(Token {
+            Arc::new(Token {
                 token_type: TokenType::Newline,
                 lexeme: "\n".into(),
                 span: Span::zero(),
             }),
-            Rc::new(Token {
+            Arc::new(Token {
                 token_type: TokenType::Ident,
                 lexeme: "print".into(),
                 span: Span::zero(),
             }),
-            Rc::new(Token {
+            Arc::new(Token {
                 token_type: TokenType::OpenParen,
                 lexeme: "(".into(),
                 span: Span::zero(),
             }),
-            Rc::new(Token {
+            Arc::new(Token {
                 token_type: TokenType::StringLiteral,
                 lexeme: r#""Hello, World!""#.into(),
                 span: Span::zero(),
             }),
-            Rc::new(Token {
+            Arc::new(Token {
                 token_type: TokenType::CloseParen,
                 lexeme: ")".into(),
                 span: Span::zero(),
             }),
-            Rc::new(Token {
+            Arc::new(Token {
                 token_type: TokenType::Semicolon,
                 lexeme: ";".into(),
                 span: Span::zero(),
@@ -112,13 +111,13 @@ fn main() -> ferrum_compiler::result::Result {
         ])),
     })));
 
-    let pkg = Rc::new(RefCell::new(FeSyntaxParser::parse_package(tokens)?));
+    let pkg = Arc::new(Mutex::new(FeSyntaxParser::parse_package(tokens)?));
     /*
-    let pkg = Rc::new(RefCell::new(FeSyntaxPackage::File(FeSyntaxFile {
+    let pkg = Arc::new(Mutex::new(FeSyntaxPackage::File(FeSyntaxFile {
         name: PackageName("_main".into()),
         path: "src/_main.fe".into(),
-        syntax: Rc::new(RefCell::new(SyntaxTree {
-            uses: vec![Rc::new(RefCell::new(Use {
+        syntax: Arc::new(Mutex::new(SyntaxTree {
+            uses: vec![Arc::new(Mutex::new(Use {
                 id: NodeId::gen(),
                 use_token: Token {
                     token_type: TokenType::Use,
@@ -154,7 +153,7 @@ fn main() -> ferrum_compiler::result::Result {
                     })),
                 },
             }))],
-            decls: vec![Rc::new(RefCell::new(Decl::Fn(FnDecl {
+            decls: vec![Arc::new(Mutex::new(Decl::Fn(FnDecl {
                 id: NodeId::gen(),
                 decl_mod: Some(DeclMod::Pub(Token {
                     token_type: TokenType::Pub,
@@ -233,7 +232,7 @@ fn main() -> ferrum_compiler::result::Result {
     */
     dbg!(&pkg);
 
-    let rust_ir = Rc::new(RefCell::new(RustSyntaxCompiler::compile_package(pkg)?));
+    let rust_ir = Arc::new(Mutex::new(RustSyntaxCompiler::compile_package(pkg)?));
     dbg!(&rust_ir);
 
     let rust_code = RustCodeGen::generate_code(rust_ir)?;

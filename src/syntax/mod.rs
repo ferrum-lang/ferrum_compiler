@@ -19,14 +19,12 @@ pub use r#use::*;
 use crate::result::Result;
 use crate::token;
 
-use std::cell::RefCell;
 use std::collections::HashMap;
 use std::path::PathBuf;
-use std::rc::Rc;
-use std::sync::Arc;
+use std::sync::{Arc, Mutex};
 
 pub trait SyntaxCompiler<IR> {
-    fn compile_package(entry: Rc<RefCell<FeSyntaxPackage>>) -> Result<IR>;
+    fn compile_package(entry: Arc<Mutex<FeSyntaxPackage>>) -> Result<IR>;
 }
 
 #[derive(Debug, Clone)]
@@ -48,7 +46,7 @@ impl From<token::FeTokenPackage> for FeSyntaxPackage {
 pub struct FeSyntaxFile {
     pub name: SyntaxPackageName,
     pub path: PathBuf,
-    pub syntax: Rc<RefCell<SyntaxTree>>,
+    pub syntax: Arc<Mutex<SyntaxTree>>,
 }
 
 impl From<token::FeTokenFile> for FeSyntaxFile {
@@ -56,7 +54,7 @@ impl From<token::FeTokenFile> for FeSyntaxFile {
         return Self {
             name: value.name.into(),
             path: value.path,
-            syntax: Rc::new(RefCell::new(SyntaxTree {
+            syntax: Arc::new(Mutex::new(SyntaxTree {
                 uses: vec![],
                 decls: vec![],
             })),
@@ -69,7 +67,7 @@ pub struct FeSyntaxDir {
     pub name: SyntaxPackageName,
     pub path: PathBuf,
     pub entry_file: FeSyntaxFile,
-    pub local_packages: HashMap<SyntaxPackageName, Rc<RefCell<FeSyntaxPackage>>>,
+    pub local_packages: HashMap<SyntaxPackageName, Arc<Mutex<FeSyntaxPackage>>>,
 }
 
 impl From<token::FeTokenDir> for FeSyntaxDir {
@@ -84,9 +82,9 @@ impl From<token::FeTokenDir> for FeSyntaxDir {
                 .map(|(name, pkg)| {
                     let name: SyntaxPackageName = name.into();
 
-                    let pkg: &token::FeTokenPackage = &pkg.borrow();
+                    let pkg: &token::FeTokenPackage = &pkg.lock().unwrap();
                     let pkg: FeSyntaxPackage = pkg.clone().into();
-                    let pkg = Rc::new(RefCell::new(pkg));
+                    let pkg = Arc::new(Mutex::new(pkg));
 
                     return (name, pkg);
                 })
@@ -106,6 +104,6 @@ impl From<token::TokenPackageName> for SyntaxPackageName {
 
 #[derive(Debug, Clone)]
 pub struct SyntaxTree {
-    pub uses: Vec<Rc<RefCell<Use>>>,
-    pub decls: Vec<Rc<RefCell<Decl>>>,
+    pub uses: Vec<Arc<Mutex<Use>>>,
+    pub decls: Vec<Arc<Mutex<Decl>>>,
 }

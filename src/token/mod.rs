@@ -1,8 +1,6 @@
-use std::cell::RefCell;
 use std::collections::HashMap;
 use std::path::PathBuf;
-use std::rc::Rc;
-use std::sync::Arc;
+use std::sync::{Arc, Mutex};
 
 #[derive(Debug, Clone)]
 pub enum FeTokenPackage {
@@ -14,7 +12,7 @@ pub enum FeTokenPackage {
 pub struct FeTokenFile {
     pub name: TokenPackageName,
     pub path: PathBuf,
-    pub tokens: Rc<RefCell<Vec<Rc<Token>>>>,
+    pub tokens: Arc<Mutex<Vec<Arc<Token>>>>,
 }
 
 #[derive(Debug, Clone)]
@@ -22,7 +20,7 @@ pub struct FeTokenDir {
     pub name: TokenPackageName,
     pub path: PathBuf,
     pub entry_file: FeTokenFile,
-    pub local_packages: HashMap<TokenPackageName, Rc<RefCell<FeTokenPackage>>>,
+    pub local_packages: HashMap<TokenPackageName, Arc<Mutex<FeTokenPackage>>>,
 }
 
 #[derive(Debug, Clone, Hash, PartialEq)]

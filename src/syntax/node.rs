@@ -1,9 +1,7 @@
-use std::cell::RefCell;
 use std::marker::PhantomData;
-use std::rc::Rc;
 
 #[derive(Debug, Clone, PartialEq)]
-pub struct NodeId<T>(Rc<RefCell<usize>>, PhantomData<T>);
+pub struct NodeId<T>(usize, PhantomData<T>);
 
 impl<T> NodeId<T> {
     pub fn gen() -> Self {
@@ -15,7 +13,7 @@ impl<T> NodeId<T> {
             id
         };
 
-        return Self(Rc::new(RefCell::new(id)), PhantomData);
+        return Self(id, PhantomData);
     }
 }
 

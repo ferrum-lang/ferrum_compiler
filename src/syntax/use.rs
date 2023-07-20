@@ -5,8 +5,8 @@ use crate::token::Token;
 #[derive(Debug, Clone, PartialEq)]
 pub struct Use {
     pub id: NodeId<Use>,
-    pub use_token: Token,
-    pub pre_double_colon_token: Option<Token>,
+    pub use_token: Arc<Token>,
+    pub pre_double_colon_token: Option<Arc<Token>>,
     pub use_mod: Option<UseMod>,
     pub path: UseStaticPath,
 }
@@ -19,7 +19,7 @@ impl Node<Use> for Use {
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct UseStaticPath {
-    pub name: Token,
+    pub name: Arc<Token>,
     pub next: Option<UseStaticPathNext>,
 }
 
@@ -31,27 +31,27 @@ pub enum UseStaticPathNext {
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct UseStaticPathNextSingle {
-    pub double_colon_token: Token,
+    pub double_colon_token: Arc<Token>,
     pub path: Box<UseStaticPath>,
 }
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct UseStaticPathNextMany {
-    pub double_colon_token: Token,
-    pub open_brace: Token,
+    pub double_colon_token: Arc<Token>,
+    pub open_brace: Arc<Token>,
     pub nexts: Vec<UseStaticPathNextManyItem>,
-    pub close_brace: Token,
+    pub close_brace: Arc<Token>,
 }
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct UseStaticPathNextManyItem {
     pub path: UseStaticPath,
-    pub comma_token: Option<Token>,
+    pub comma_token: Option<Arc<Token>>,
 }
 
 #[derive(Debug, Clone, PartialEq)]
 pub enum UseMod {
-    Pub(Token),
+    Pub(Arc<Token>),
 }
 
 // Visitor pattern
