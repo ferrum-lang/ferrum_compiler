@@ -36,6 +36,8 @@ pub struct Token {
 #[derive(Debug, Clone, PartialEq)]
 pub enum TokenType {
     // Symbols
+    Comma,      // ,
+    Colon,      // :
     Semicolon,  // ;
     OpenParen,  // (
     CloseParen, // )
@@ -44,11 +46,15 @@ pub enum TokenType {
 
     // Keywords
     Fn,
+    Norm,
     Pub,
+    Pure,
+    Risk,
+    Safe,
     Use,
 
     // Literals
-    StringLiteral,
+    PlainString,
 
     // Other
     Ident,

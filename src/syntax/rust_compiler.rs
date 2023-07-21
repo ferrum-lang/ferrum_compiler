@@ -91,7 +91,7 @@ impl RustSyntaxCompiler {
             FnDeclBody::Short(short) => todo!(),
             FnDeclBody::Block(block) => {
                 for stmt in &mut block.stmts {
-                    let stmt_ir = stmt.accept(self)?;
+                    let stmt_ir = stmt.lock().unwrap().accept(self)?;
 
                     block_ir.stmts.extend(stmt_ir);
                 }
@@ -190,7 +190,7 @@ impl DeclVisitor<Result> for RustSyntaxCompiler {
 
 impl StmtVisitor<Result<Vec<ir::RustIRStmt>>> for RustSyntaxCompiler {
     fn visit_expr_stmt(&mut self, stmt: &mut ExprStmt) -> Result<Vec<ir::RustIRStmt>> {
-        let expr = stmt.expr.accept(self)?;
+        let expr = stmt.expr.lock().unwrap().accept(self)?;
 
         return Ok(vec![ir::RustIRStmt::Expr(ir::RustIRExprStmt { expr })]);
     }
@@ -204,13 +204,15 @@ impl ExprVisitor<Result<ir::RustIRExpr>> for RustSyntaxCompiler {
     }
 
     fn visit_call_expr(&mut self, expr: &mut CallExpr) -> Result<ir::RustIRExpr> {
-        let callee = Box::new(expr.callee.accept(self)?);
+        let mut callee = expr.callee.0.lock().unwrap();
+        let callee = Box::new(callee.accept(self)?);
 
         let mut args = vec![];
 
         // TODO: Handle named, variadic, optional, etc params
         for arg in &mut expr.args {
-            let arg_ir = arg.value.accept(self)?;
+            let mut value = arg.value.0.lock().unwrap();
+            let arg_ir = value.accept(self)?;
 
             args.push(arg_ir);
         }
@@ -218,9 +220,9 @@ impl ExprVisitor<Result<ir::RustIRExpr>> for RustSyntaxCompiler {
         return Ok(ir::RustIRExpr::Call(ir::RustIRCallExpr { callee, args }));
     }
 
-    fn visit_string_literal_expr(
+    fn visit_plain_string_literal_expr(
         &mut self,
-        expr: &mut StringLiteralExpr,
+        expr: &mut PlainStringLiteralExpr,
     ) -> Result<ir::RustIRExpr> {
         return Ok(ir::RustIRExpr::StringLiteral(ir::RustIRStringLiteralExpr {
             literal: expr.literal.lexeme.clone(),

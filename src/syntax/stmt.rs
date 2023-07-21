@@ -5,10 +5,31 @@ pub enum Stmt {
     Expr(ExprStmt),
 }
 
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone)]
 pub struct ExprStmt {
     pub id: NodeId<Stmt>,
-    pub expr: Expr,
+    pub expr: Arc<Mutex<Expr>>,
+}
+
+impl PartialEq for ExprStmt {
+    fn eq(&self, other: &Self) -> bool {
+        if self.id != other.id {
+            return false;
+        }
+
+        let expr = {
+            let locked = self.expr.lock().unwrap();
+            locked.clone()
+        };
+
+        let other = other.expr.lock().unwrap();
+
+        if expr != *other {
+            return false;
+        }
+
+        return true;
+    }
 }
 
 // Visitor pattern
