@@ -750,7 +750,9 @@ impl FeTokenSyntaxParser {
                 }
 
                 let value = NestedExpr(self.expression()?);
+                self.allow_many_newlines();
                 let post_comma_token = self.match_any(&[TokenType::Comma], WithNewlines::Many);
+                self.allow_many_newlines();
 
                 args.push(CallArg {
                     param_name: None,

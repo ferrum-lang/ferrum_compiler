@@ -1,3 +1,5 @@
+use crate::source;
+
 use std::collections::HashMap;
 use std::path::PathBuf;
 use std::sync::{Arc, Mutex};
@@ -8,11 +10,30 @@ pub enum FeTokenPackage {
     Dir(FeTokenDir),
 }
 
+impl From<source::FeSourcePackage> for FeTokenPackage {
+    fn from(value: source::FeSourcePackage) -> Self {
+        match value {
+            source::FeSourcePackage::File(file) => return FeTokenPackage::File(file.into()),
+            source::FeSourcePackage::Dir(dir) => return FeTokenPackage::Dir(dir.into()),
+        };
+    }
+}
+
 #[derive(Debug, Clone)]
 pub struct FeTokenFile {
     pub name: TokenPackageName,
     pub path: PathBuf,
     pub tokens: Arc<Mutex<Vec<Arc<Token>>>>,
+}
+
+impl From<source::FeSourceFile> for FeTokenFile {
+    fn from(value: source::FeSourceFile) -> Self {
+        return Self {
+            name: value.name.into(),
+            path: value.path,
+            tokens: Arc::new(Mutex::new(vec![])),
+        };
+    }
 }
 
 #[derive(Debug, Clone)]
@@ -23,8 +44,37 @@ pub struct FeTokenDir {
     pub local_packages: HashMap<TokenPackageName, Arc<Mutex<FeTokenPackage>>>,
 }
 
-#[derive(Debug, Clone, Hash, PartialEq)]
+impl From<source::FeSourceDir> for FeTokenDir {
+    fn from(value: source::FeSourceDir) -> Self {
+        return Self {
+            name: value.name.into(),
+            path: value.path,
+            entry_file: value.entry_file.into(),
+            local_packages: value
+                .local_packages
+                .into_iter()
+                .map(|(name, pkg)| {
+                    let name: TokenPackageName = name.into();
+
+                    let pkg: &source::FeSourcePackage = &pkg.lock().unwrap();
+                    let pkg: FeTokenPackage = pkg.clone().into();
+                    let pkg = Arc::new(Mutex::new(pkg));
+
+                    return (name, pkg);
+                })
+                .collect(),
+        };
+    }
+}
+
+#[derive(Debug, Clone, Hash, PartialEq, Eq)]
 pub struct TokenPackageName(pub Arc<str>);
+
+impl From<source::SourcePackageName> for TokenPackageName {
+    fn from(value: source::SourcePackageName) -> Self {
+        return Self(value.0);
+    }
+}
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct Token {
@@ -36,12 +86,13 @@ pub struct Token {
 #[derive(Debug, Clone, PartialEq)]
 pub enum TokenType {
     // Symbols
-    Comma,      // ,
-    Colon,      // :
-    Semicolon,  // ;
+    Comma,     // ,
+    Semicolon, // ;
+
     OpenParen,  // (
     CloseParen, // )
 
+    Colon,       // :
     DoubleColon, // ::
 
     // Keywords
