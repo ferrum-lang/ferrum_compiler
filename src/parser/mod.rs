@@ -175,7 +175,11 @@ impl FeTokenSyntaxParser {
             None
         };
 
-        return Ok(UseStaticPath { name, next });
+        return Ok(UseStaticPath {
+            name,
+            next,
+            resolved_type: (),
+        });
     }
 
     fn declaration(&mut self) -> Result<Arc<Mutex<Decl>>> {
@@ -758,6 +762,7 @@ impl FeTokenSyntaxParser {
                     param_name: None,
                     value,
                     post_comma_token: post_comma_token.clone(),
+                    resolved_type: (),
                 });
 
                 if post_comma_token.is_none() {
@@ -778,6 +783,7 @@ impl FeTokenSyntaxParser {
             pre_comma_token,
             args,
             close_paren_token,
+            resolved_type: (),
         }))));
     }
 
@@ -788,6 +794,7 @@ impl FeTokenSyntaxParser {
                     PlainStringLiteralExpr {
                         id: NodeId::gen(),
                         literal: t,
+                        resolved_type: (),
                     },
                 ))))
             }
@@ -882,6 +889,7 @@ impl FeTokenSyntaxParser {
                 return Ok(Arc::new(Mutex::new(Expr::Ident(IdentExpr {
                     id: NodeId::gen(),
                     ident: t,
+                    resolved_type: (),
                 }))));
             }
 

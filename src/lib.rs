@@ -6,4 +6,6 @@ pub mod result;
 pub mod source;
 pub mod syntax;
 pub mod token;
+pub mod r#type;
+pub mod type_resolver;
 pub mod utils;

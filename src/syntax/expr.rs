@@ -3,10 +3,10 @@ use super::*;
 use crate::token::Token;
 
 #[derive(Debug, Clone, PartialEq)]
-pub enum Expr {
-    PlainStringLiteral(PlainStringLiteralExpr),
-    Ident(IdentExpr),
-    Call(CallExpr),
+pub enum Expr<T: ResolvedType = ()> {
+    PlainStringLiteral(PlainStringLiteralExpr<T>),
+    Ident(IdentExpr<T>),
+    Call(CallExpr<T>),
 }
 
 impl Node<Expr> for Expr {
@@ -20,8 +20,8 @@ impl Node<Expr> for Expr {
 }
 
 #[derive(Debug, Clone)]
-pub struct NestedExpr(pub Arc<Mutex<Expr>>);
-impl PartialEq for NestedExpr {
+pub struct NestedExpr<T: ResolvedType = ()>(pub Arc<Mutex<Expr<T>>>);
+impl<T: ResolvedType> PartialEq for NestedExpr<T> {
     fn eq(&self, other: &Self) -> bool {
         let cloned = {
             let locked = self.0.lock().unwrap();
@@ -35,9 +35,10 @@ impl PartialEq for NestedExpr {
 }
 
 #[derive(Debug, Clone, PartialEq)]
-pub struct PlainStringLiteralExpr {
+pub struct PlainStringLiteralExpr<T: ResolvedType = ()> {
     pub id: NodeId<Expr>,
     pub literal: Arc<Token>,
+    pub resolved_type: T,
 }
 
 impl Node<Expr> for PlainStringLiteralExpr {
@@ -47,9 +48,10 @@ impl Node<Expr> for PlainStringLiteralExpr {
 }
 
 #[derive(Debug, Clone, PartialEq)]
-pub struct IdentExpr {
+pub struct IdentExpr<T: ResolvedType = ()> {
     pub id: NodeId<Expr>,
     pub ident: Arc<Token>,
+    pub resolved_type: T,
 }
 
 impl Node<Expr> for IdentExpr {
@@ -59,13 +61,14 @@ impl Node<Expr> for IdentExpr {
 }
 
 #[derive(Debug, Clone, PartialEq)]
-pub struct CallExpr {
+pub struct CallExpr<T: ResolvedType = ()> {
     pub id: NodeId<Expr>,
-    pub callee: NestedExpr,
+    pub callee: NestedExpr<T>,
     pub open_paren_token: Arc<Token>,
     pub pre_comma_token: Option<Arc<Token>>,
-    pub args: Vec<CallArg>,
+    pub args: Vec<CallArg<T>>,
     pub close_paren_token: Arc<Token>,
+    pub resolved_type: T,
 }
 
 impl Node<Expr> for CallExpr {
@@ -75,10 +78,11 @@ impl Node<Expr> for CallExpr {
 }
 
 #[derive(Debug, Clone, PartialEq)]
-pub struct CallArg {
+pub struct CallArg<T: ResolvedType = ()> {
     pub param_name: Option<CallArgParamName>,
-    pub value: NestedExpr,
+    pub value: NestedExpr<T>,
     pub post_comma_token: Option<Arc<Token>>,
+    pub resolved_type: T,
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -88,17 +92,17 @@ pub struct CallArgParamName {
 }
 
 // Visitor pattern
-pub trait ExprVisitor<R = ()> {
-    fn visit_ident_expr(&mut self, expr: &mut IdentExpr) -> R;
-    fn visit_call_expr(&mut self, expr: &mut CallExpr) -> R;
-    fn visit_plain_string_literal_expr(&mut self, expr: &mut PlainStringLiteralExpr) -> R;
+pub trait ExprVisitor<T: ResolvedType, R = ()> {
+    fn visit_ident_expr(&mut self, expr: &mut IdentExpr<T>) -> R;
+    fn visit_call_expr(&mut self, expr: &mut CallExpr<T>) -> R;
+    fn visit_plain_string_literal_expr(&mut self, expr: &mut PlainStringLiteralExpr<T>) -> R;
 }
 
-pub trait ExprAccept<R, V: ExprVisitor<R>> {
+pub trait ExprAccept<T: ResolvedType, R, V: ExprVisitor<T, R>> {
     fn accept(&mut self, visitor: &mut V) -> R;
 }
 
-impl<R, V: ExprVisitor<R>> ExprAccept<R, V> for Expr {
+impl<T: ResolvedType, R, V: ExprVisitor<T, R>> ExprAccept<T, R, V> for Expr<T> {
     fn accept(&mut self, visitor: &mut V) -> R {
         return match self {
             Self::Ident(expr) => expr.accept(visitor),
@@ -108,19 +112,19 @@ impl<R, V: ExprVisitor<R>> ExprAccept<R, V> for Expr {
     }
 }
 
-impl<R, V: ExprVisitor<R>> ExprAccept<R, V> for IdentExpr {
+impl<T: ResolvedType, R, V: ExprVisitor<T, R>> ExprAccept<T, R, V> for IdentExpr<T> {
     fn accept(&mut self, visitor: &mut V) -> R {
         return visitor.visit_ident_expr(self);
     }
 }
 
-impl<R, V: ExprVisitor<R>> ExprAccept<R, V> for CallExpr {
+impl<T: ResolvedType, R, V: ExprVisitor<T, R>> ExprAccept<T, R, V> for CallExpr<T> {
     fn accept(&mut self, visitor: &mut V) -> R {
         return visitor.visit_call_expr(self);
     }
 }
 
-impl<R, V: ExprVisitor<R>> ExprAccept<R, V> for PlainStringLiteralExpr {
+impl<T: ResolvedType, R, V: ExprVisitor<T, R>> ExprAccept<T, R, V> for PlainStringLiteralExpr<T> {
     fn accept(&mut self, visitor: &mut V) -> R {
         return visitor.visit_plain_string_literal_expr(self);
     }

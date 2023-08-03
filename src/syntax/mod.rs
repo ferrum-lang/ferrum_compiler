@@ -16,6 +16,7 @@ pub use stmt::*;
 mod r#use;
 pub use r#use::*;
 
+use crate::r#type::FeType;
 use crate::result::Result;
 use crate::token;
 
@@ -24,13 +25,13 @@ use std::path::PathBuf;
 use std::sync::{Arc, Mutex};
 
 pub trait SyntaxCompiler<IR> {
-    fn compile_package(entry: Arc<Mutex<FeSyntaxPackage>>) -> Result<IR>;
+    fn compile_package(entry: Arc<Mutex<FeSyntaxPackage<FeType>>>) -> Result<IR>;
 }
 
 #[derive(Debug, Clone)]
-pub enum FeSyntaxPackage {
-    File(FeSyntaxFile),
-    Dir(FeSyntaxDir),
+pub enum FeSyntaxPackage<T: ResolvedType = ()> {
+    File(FeSyntaxFile<T>),
+    Dir(FeSyntaxDir<T>),
 }
 
 impl From<token::FeTokenPackage> for FeSyntaxPackage {
@@ -43,10 +44,10 @@ impl From<token::FeTokenPackage> for FeSyntaxPackage {
 }
 
 #[derive(Debug, Clone)]
-pub struct FeSyntaxFile {
+pub struct FeSyntaxFile<T: ResolvedType = ()> {
     pub name: SyntaxPackageName,
     pub path: PathBuf,
-    pub syntax: Arc<Mutex<SyntaxTree>>,
+    pub syntax: Arc<Mutex<SyntaxTree<T>>>,
 }
 
 impl From<token::FeTokenFile> for FeSyntaxFile {
@@ -63,11 +64,11 @@ impl From<token::FeTokenFile> for FeSyntaxFile {
 }
 
 #[derive(Debug, Clone)]
-pub struct FeSyntaxDir {
+pub struct FeSyntaxDir<T: ResolvedType = ()> {
     pub name: SyntaxPackageName,
     pub path: PathBuf,
-    pub entry_file: FeSyntaxFile,
-    pub local_packages: HashMap<SyntaxPackageName, Arc<Mutex<FeSyntaxPackage>>>,
+    pub entry_file: FeSyntaxFile<T>,
+    pub local_packages: HashMap<SyntaxPackageName, Arc<Mutex<FeSyntaxPackage<T>>>>,
 }
 
 impl From<token::FeTokenDir> for FeSyntaxDir {
@@ -103,7 +104,12 @@ impl From<token::TokenPackageName> for SyntaxPackageName {
 }
 
 #[derive(Debug, Clone)]
-pub struct SyntaxTree {
-    pub uses: Vec<Arc<Mutex<Use>>>,
-    pub decls: Vec<Arc<Mutex<Decl>>>,
+pub struct SyntaxTree<T: ResolvedType = ()> {
+    pub uses: Vec<Arc<Mutex<Use<T>>>>,
+    pub decls: Vec<Arc<Mutex<Decl<T>>>>,
 }
+
+pub trait ResolvedType: std::fmt::Debug + Clone + PartialEq {}
+impl ResolvedType for () {}
+impl ResolvedType for Option<FeType> {}
+impl ResolvedType for FeType {}

@@ -3,8 +3,8 @@ use super::*;
 use crate::token::Token;
 
 #[derive(Debug, Clone, PartialEq)]
-pub enum Decl {
-    Fn(FnDecl),
+pub enum Decl<T: ResolvedType = ()> {
+    Fn(FnDecl<T>),
 }
 
 impl Node<Decl> for Decl {
@@ -21,18 +21,18 @@ pub enum DeclMod {
 }
 
 #[derive(Debug, Clone, PartialEq)]
-pub struct FnDecl {
+pub struct FnDecl<T: ResolvedType = ()> {
     pub id: NodeId<Decl>,
     pub decl_mod: Option<DeclMod>,
     pub fn_mod: Option<FnMod>,
     pub fn_token: Arc<Token>,
     pub name: Arc<Token>,
-    pub generics: Option<FnDeclGenerics>,
+    pub generics: Option<FnDeclGenerics<T>>,
     pub open_paren_token: Arc<Token>,
-    pub params: Vec<FnDeclParam>,
+    pub params: Vec<FnDeclParam<T>>,
     pub close_paren_token: Arc<Token>,
-    pub return_type: Option<FnDeclReturnType>,
-    pub body: FnDeclBody,
+    pub return_type: Option<FnDeclReturnType<T>>,
+    pub body: FnDeclBody<T>,
 }
 
 impl Node<Decl> for FnDecl {
@@ -50,30 +50,38 @@ pub enum FnMod {
 }
 
 #[derive(Debug, Clone, PartialEq)]
-pub struct FnDeclGenerics {}
-
-#[derive(Debug, Clone, PartialEq)]
-pub struct FnDeclParam {}
-
-#[derive(Debug, Clone, PartialEq)]
-pub struct FnDeclReturnType {}
-
-#[derive(Debug, Clone, PartialEq)]
-pub enum FnDeclBody {
-    Short(FnDeclBodyShort),
-    Block(CodeBlock),
+pub struct FnDeclGenerics<T: ResolvedType = ()> {
+    pub resolved_type: T,
 }
 
 #[derive(Debug, Clone, PartialEq)]
-pub struct FnDeclBodyShort {}
+pub struct FnDeclParam<T: ResolvedType = ()> {
+    pub resolved_type: T,
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub struct FnDeclReturnType<T: ResolvedType = ()> {
+    pub resolved_type: T,
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub enum FnDeclBody<T: ResolvedType = ()> {
+    Short(FnDeclBodyShort<T>),
+    Block(CodeBlock<T>),
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub struct FnDeclBodyShort<T: ResolvedType = ()> {
+    pub resolved_type: T,
+}
 
 #[derive(Debug, Clone)]
-pub struct CodeBlock {
-    pub stmts: Vec<Arc<Mutex<Stmt>>>,
+pub struct CodeBlock<T: ResolvedType = ()> {
+    pub stmts: Vec<Arc<Mutex<Stmt<T>>>>,
     pub end_semicolon_token: Arc<Token>,
 }
 
-impl PartialEq for CodeBlock {
+impl<T: ResolvedType> PartialEq for CodeBlock<T> {
     fn eq(&self, other: &Self) -> bool {
         if self.end_semicolon_token != other.end_semicolon_token {
             return false;
@@ -101,15 +109,15 @@ impl PartialEq for CodeBlock {
 }
 
 // Visitor pattern
-pub trait DeclVisitor<R = ()> {
-    fn visit_function_decl(&mut self, decl: &mut FnDecl) -> R;
+pub trait DeclVisitor<T: ResolvedType, R = ()> {
+    fn visit_function_decl(&mut self, decl: &mut FnDecl<T>) -> R;
 }
 
-pub trait DeclAccept<R, V: DeclVisitor<R>> {
+pub trait DeclAccept<T: ResolvedType, R, V: DeclVisitor<T, R>> {
     fn accept(&mut self, visitor: &mut V) -> R;
 }
 
-impl<R, V: DeclVisitor<R>> DeclAccept<R, V> for Decl {
+impl<T: ResolvedType, R, V: DeclVisitor<T, R>> DeclAccept<T, R, V> for Decl<T> {
     fn accept(&mut self, visitor: &mut V) -> R {
         return match self {
             Self::Fn(decl) => decl.accept(visitor),
@@ -117,7 +125,7 @@ impl<R, V: DeclVisitor<R>> DeclAccept<R, V> for Decl {
     }
 }
 
-impl<R, V: DeclVisitor<R>> DeclAccept<R, V> for FnDecl {
+impl<T: ResolvedType, R, V: DeclVisitor<T, R>> DeclAccept<T, R, V> for FnDecl<T> {
     fn accept(&mut self, visitor: &mut V) -> R {
         return visitor.visit_function_decl(self);
     }

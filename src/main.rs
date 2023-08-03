@@ -3,6 +3,7 @@ use ferrum_compiler::lexer::*;
 use ferrum_compiler::parser::*;
 use ferrum_compiler::source::*;
 use ferrum_compiler::syntax::*;
+use ferrum_compiler::type_resolver::*;
 
 use std::sync::{Arc, Mutex};
 
@@ -26,7 +27,10 @@ fn main() -> ferrum_compiler::result::Result {
     let pkg = Arc::new(Mutex::new(FeSyntaxParser::parse_package(tokens)?));
     // dbg!(&pkg);
 
-    let rust_ir = Arc::new(Mutex::new(RustSyntaxCompiler::compile_package(pkg)?));
+    let typed_pkg = Arc::new(Mutex::new(FeTypeResolver::resolve_package(pkg)?));
+    // dbg!(&typed_pkg);
+
+    let rust_ir = Arc::new(Mutex::new(RustSyntaxCompiler::compile_package(typed_pkg)?));
     // dbg!(&rust_ir);
 
     let rust_code = RustCodeGen::generate_code(rust_ir)?;

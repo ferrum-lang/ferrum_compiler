@@ -5,18 +5,18 @@ use crate::ir;
 use std::sync::{Arc, Mutex};
 
 pub struct RustSyntaxCompiler {
-    entry: Arc<Mutex<FeSyntaxPackage>>,
+    entry: Arc<Mutex<FeSyntaxPackage<FeType>>>,
     out: ir::RustIR,
 }
 
 impl SyntaxCompiler<ir::RustIR> for RustSyntaxCompiler {
-    fn compile_package(entry: Arc<Mutex<FeSyntaxPackage>>) -> Result<ir::RustIR> {
+    fn compile_package(entry: Arc<Mutex<FeSyntaxPackage<FeType>>>) -> Result<ir::RustIR> {
         return Self::new(entry).compile();
     }
 }
 
 impl RustSyntaxCompiler {
-    fn new(entry: Arc<Mutex<FeSyntaxPackage>>) -> Self {
+    fn new(entry: Arc<Mutex<FeSyntaxPackage<FeType>>>) -> Self {
         return Self {
             entry,
             out: ir::RustIR {
@@ -35,7 +35,7 @@ impl RustSyntaxCompiler {
         return Ok(self.out);
     }
 
-    fn compile_package(&mut self, package: &mut FeSyntaxPackage) -> Result {
+    fn compile_package(&mut self, package: &mut FeSyntaxPackage<FeType>) -> Result {
         match package {
             FeSyntaxPackage::File(file) => {
                 self.compile_file(file)?;
@@ -53,7 +53,7 @@ impl RustSyntaxCompiler {
         return Ok(());
     }
 
-    fn compile_file(&mut self, file: &mut FeSyntaxFile) -> Result {
+    fn compile_file(&mut self, file: &mut FeSyntaxFile<FeType>) -> Result {
         let mut syntax = file.syntax.lock().unwrap();
 
         for use_decl in &mut syntax.uses {
@@ -73,18 +73,18 @@ impl RustSyntaxCompiler {
         }
     }
 
-    fn translate_fn_param(&mut self, param: &mut FnDeclParam) -> ir::RustIRFnParam {
+    fn translate_fn_param(&mut self, param: &mut FnDeclParam<FeType>) -> ir::RustIRFnParam {
         todo!();
     }
 
     fn translate_fn_return_type(
         &mut self,
-        return_type: &mut FnDeclReturnType,
+        return_type: &mut FnDeclReturnType<FeType>,
     ) -> Result<ir::RustIRStaticType> {
         todo!();
     }
 
-    fn translate_fn_body(&mut self, body: &mut FnDeclBody) -> Result<ir::RustIRBlockExpr> {
+    fn translate_fn_body(&mut self, body: &mut FnDeclBody<FeType>) -> Result<ir::RustIRBlockExpr> {
         let mut block_ir = ir::RustIRBlockExpr { stmts: vec![] };
 
         match body {
@@ -109,7 +109,7 @@ impl RustSyntaxCompiler {
 
     fn translate_use_static_path(
         &mut self,
-        path: &mut UseStaticPath,
+        path: &mut UseStaticPath<FeType>,
     ) -> Result<ir::RustIRUseStaticPath> {
         let next = match &mut path.next {
             Some(UseStaticPathNext::Single(ref mut single)) => Some(
@@ -132,8 +132,8 @@ impl RustSyntaxCompiler {
     }
 }
 
-impl UseVisitor<Result> for RustSyntaxCompiler {
-    fn visit_use(&mut self, use_decl: &mut Use) -> Result {
+impl UseVisitor<FeType, Result> for RustSyntaxCompiler {
+    fn visit_use(&mut self, use_decl: &mut Use<FeType>) -> Result {
         let use_mod = use_decl
             .use_mod
             .as_ref()
@@ -152,8 +152,8 @@ impl UseVisitor<Result> for RustSyntaxCompiler {
     }
 }
 
-impl DeclVisitor<Result> for RustSyntaxCompiler {
-    fn visit_function_decl(&mut self, decl: &mut FnDecl) -> Result {
+impl DeclVisitor<FeType, Result> for RustSyntaxCompiler {
+    fn visit_function_decl(&mut self, decl: &mut FnDecl<FeType>) -> Result {
         let fn_ir = ir::RustIRFnDecl {
             macros: vec![],
 
@@ -188,22 +188,22 @@ impl DeclVisitor<Result> for RustSyntaxCompiler {
     }
 }
 
-impl StmtVisitor<Result<Vec<ir::RustIRStmt>>> for RustSyntaxCompiler {
-    fn visit_expr_stmt(&mut self, stmt: &mut ExprStmt) -> Result<Vec<ir::RustIRStmt>> {
+impl StmtVisitor<FeType, Result<Vec<ir::RustIRStmt>>> for RustSyntaxCompiler {
+    fn visit_expr_stmt(&mut self, stmt: &mut ExprStmt<FeType>) -> Result<Vec<ir::RustIRStmt>> {
         let expr = stmt.expr.lock().unwrap().accept(self)?;
 
         return Ok(vec![ir::RustIRStmt::Expr(ir::RustIRExprStmt { expr })]);
     }
 }
 
-impl ExprVisitor<Result<ir::RustIRExpr>> for RustSyntaxCompiler {
-    fn visit_ident_expr(&mut self, expr: &mut IdentExpr) -> Result<ir::RustIRExpr> {
+impl ExprVisitor<FeType, Result<ir::RustIRExpr>> for RustSyntaxCompiler {
+    fn visit_ident_expr(&mut self, expr: &mut IdentExpr<FeType>) -> Result<ir::RustIRExpr> {
         return Ok(ir::RustIRExpr::Ident(ir::RustIRIdentExpr {
             ident: expr.ident.lexeme.clone(),
         }));
     }
 
-    fn visit_call_expr(&mut self, expr: &mut CallExpr) -> Result<ir::RustIRExpr> {
+    fn visit_call_expr(&mut self, expr: &mut CallExpr<FeType>) -> Result<ir::RustIRExpr> {
         let mut callee = expr.callee.0.lock().unwrap();
         let callee = Box::new(callee.accept(self)?);
 
@@ -222,7 +222,7 @@ impl ExprVisitor<Result<ir::RustIRExpr>> for RustSyntaxCompiler {
 
     fn visit_plain_string_literal_expr(
         &mut self,
-        expr: &mut PlainStringLiteralExpr,
+        expr: &mut PlainStringLiteralExpr<FeType>,
     ) -> Result<ir::RustIRExpr> {
         return Ok(ir::RustIRExpr::StringLiteral(ir::RustIRStringLiteralExpr {
             literal: expr.literal.lexeme.clone(),
