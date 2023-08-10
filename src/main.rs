@@ -24,7 +24,7 @@ fn main() -> ferrum_compiler::result::Result {
     let tokens = Arc::new(Mutex::new(FeLexer::scan_package(source)?));
     // dbg!(&tokens);
 
-    let pkg = Arc::new(Mutex::new(FeSyntaxParser::parse_package(tokens)?));
+    let pkg = FeSyntaxParser::parse_package(tokens)?;
     // dbg!(&pkg);
 
     let typed_pkg = Arc::new(Mutex::new(FeTypeResolver::resolve_package(pkg)?));

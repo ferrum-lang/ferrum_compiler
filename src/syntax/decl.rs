@@ -1,6 +1,7 @@
 use super::*;
 
 use crate::token::Token;
+use crate::utils::{fe_from, fe_try_from, from, invert, try_from};
 
 #[derive(Debug, Clone, PartialEq)]
 pub enum Decl<T: ResolvedType = ()> {
@@ -11,6 +12,32 @@ impl Node<Decl> for Decl {
     fn node_id(&self) -> &NodeId<Decl> {
         match self {
             Self::Fn(decl) => return decl.node_id(),
+        }
+    }
+}
+
+impl<T: ResolvedType> From<Decl<()>> for Decl<Option<T>> {
+    fn from(value: Decl<()>) -> Self {
+        match value {
+            Decl::Fn(decl) => return Self::Fn(from(decl)),
+        }
+    }
+}
+
+impl<T: ResolvedType> Resolvable for Decl<Option<T>> {
+    fn is_resolved(&self) -> bool {
+        match self {
+            Self::Fn(decl) => return decl.is_resolved(),
+        }
+    }
+}
+
+impl<T: ResolvedType> TryFrom<Decl<Option<T>>> for Decl<T> {
+    type Error = FinalizeResolveTypeError;
+
+    fn try_from(value: Decl<Option<T>>) -> Result<Self, Self::Error> {
+        match value {
+            Decl::Fn(decl) => return Ok(Self::Fn(try_from(decl)?)),
         }
     }
 }
@@ -41,6 +68,76 @@ impl Node<Decl> for FnDecl {
     }
 }
 
+impl<T: ResolvedType> From<FnDecl<()>> for FnDecl<Option<T>> {
+    fn from(value: FnDecl<()>) -> Self {
+        return Self {
+            id: value.id,
+            decl_mod: value.decl_mod,
+            fn_mod: value.fn_mod,
+            fn_token: value.fn_token,
+            name: value.name,
+            generics: value.generics.map(from),
+            open_paren_token: value.open_paren_token,
+            params: value.params.into_iter().map(from).collect(),
+            close_paren_token: value.close_paren_token,
+            return_type: value.return_type.map(from),
+            body: from(value.body),
+        };
+    }
+}
+
+impl<T: ResolvedType> Resolvable for FnDecl<Option<T>> {
+    fn is_resolved(&self) -> bool {
+        if let Some(generics) = &self.generics {
+            if !generics.is_resolved() {
+                return false;
+            }
+        }
+
+        for param in &self.params {
+            if !param.is_resolved() {
+                return false;
+            }
+        }
+
+        if let Some(return_type) = &self.return_type {
+            if !return_type.is_resolved() {
+                return false;
+            }
+        }
+
+        if !self.body.is_resolved() {
+            return false;
+        }
+
+        return true;
+    }
+}
+
+impl<T: ResolvedType> TryFrom<FnDecl<Option<T>>> for FnDecl<T> {
+    type Error = FinalizeResolveTypeError;
+
+    fn try_from(value: FnDecl<Option<T>>) -> Result<Self, Self::Error> {
+        return Ok(Self {
+            id: value.id,
+            decl_mod: value.decl_mod,
+            fn_mod: value.fn_mod,
+            fn_token: value.fn_token,
+            name: value.name,
+            generics: invert(value.generics.map(try_from))?,
+            open_paren_token: value.open_paren_token,
+            params: value
+                .params
+                .into_iter()
+                .map(try_from)
+                .collect::<Result<Vec<FnDeclParam<T>>, Self::Error>>()?,
+            close_paren_token: value.close_paren_token,
+            return_type: invert(value.return_type.map(try_from))?,
+            body: try_from(value.body)?,
+        });
+    }
+}
+
 #[derive(Debug, Clone, PartialEq)]
 pub enum FnMod {
     Pure(Arc<Token>),
@@ -54,14 +151,86 @@ pub struct FnDeclGenerics<T: ResolvedType = ()> {
     pub resolved_type: T,
 }
 
+impl<T: ResolvedType> From<FnDeclGenerics<()>> for FnDeclGenerics<Option<T>> {
+    fn from(_: FnDeclGenerics<()>) -> Self {
+        return Self {
+            resolved_type: None,
+        };
+    }
+}
+
+impl<T: ResolvedType> Resolvable for FnDeclGenerics<Option<T>> {
+    fn is_resolved(&self) -> bool {
+        return self.resolved_type.is_some();
+    }
+}
+
+impl<T: ResolvedType> TryFrom<FnDeclGenerics<Option<T>>> for FnDeclGenerics<T> {
+    type Error = FinalizeResolveTypeError;
+
+    fn try_from(value: FnDeclGenerics<Option<T>>) -> Result<Self, Self::Error> {
+        return Ok(Self {
+            resolved_type: value.resolved_type.ok_or(FinalizeResolveTypeError)?,
+        });
+    }
+}
+
 #[derive(Debug, Clone, PartialEq)]
 pub struct FnDeclParam<T: ResolvedType = ()> {
     pub resolved_type: T,
 }
 
+impl<T: ResolvedType> From<FnDeclParam<()>> for FnDeclParam<Option<T>> {
+    fn from(_: FnDeclParam<()>) -> Self {
+        return Self {
+            resolved_type: None,
+        };
+    }
+}
+
+impl<T: ResolvedType> Resolvable for FnDeclParam<Option<T>> {
+    fn is_resolved(&self) -> bool {
+        return self.resolved_type.is_some();
+    }
+}
+
+impl<T: ResolvedType> TryFrom<FnDeclParam<Option<T>>> for FnDeclParam<T> {
+    type Error = FinalizeResolveTypeError;
+
+    fn try_from(value: FnDeclParam<Option<T>>) -> Result<Self, Self::Error> {
+        return Ok(Self {
+            resolved_type: value.resolved_type.ok_or(FinalizeResolveTypeError)?,
+        });
+    }
+}
+
 #[derive(Debug, Clone, PartialEq)]
 pub struct FnDeclReturnType<T: ResolvedType = ()> {
     pub resolved_type: T,
+}
+
+impl<T: ResolvedType> From<FnDeclReturnType<()>> for FnDeclReturnType<Option<T>> {
+    fn from(_: FnDeclReturnType<()>) -> Self {
+        return Self {
+            resolved_type: None,
+        };
+    }
+}
+
+impl<T: ResolvedType> Resolvable for FnDeclReturnType<Option<T>> {
+    fn is_resolved(&self) -> bool {
+        return self.resolved_type.is_some();
+    }
+}
+
+impl<T: ResolvedType> TryFrom<FnDeclReturnType<Option<T>>> for FnDeclReturnType<T> {
+    type Error = FinalizeResolveTypeError;
+
+    fn try_from(value: FnDeclReturnType<Option<T>>) -> Result<Self, Self::Error> {
+        return Ok(Self {
+            resolved_type: value.resolved_type.ok_or(FinalizeResolveTypeError)?,
+        });
+    }
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -70,9 +239,62 @@ pub enum FnDeclBody<T: ResolvedType = ()> {
     Block(CodeBlock<T>),
 }
 
+impl<T: ResolvedType> From<FnDeclBody<()>> for FnDeclBody<Option<T>> {
+    fn from(value: FnDeclBody<()>) -> Self {
+        match value {
+            FnDeclBody::Short(body) => return Self::Short(from(body)),
+            FnDeclBody::Block(body) => return Self::Block(from(body)),
+        }
+    }
+}
+
+impl<T: ResolvedType> Resolvable for FnDeclBody<Option<T>> {
+    fn is_resolved(&self) -> bool {
+        match self {
+            Self::Short(body) => return body.is_resolved(),
+            Self::Block(body) => return body.is_resolved(),
+        }
+    }
+}
+
+impl<T: ResolvedType> TryFrom<FnDeclBody<Option<T>>> for FnDeclBody<T> {
+    type Error = FinalizeResolveTypeError;
+
+    fn try_from(value: FnDeclBody<Option<T>>) -> Result<Self, Self::Error> {
+        match value {
+            FnDeclBody::Short(body) => return Ok(Self::Short(try_from(body)?)),
+            FnDeclBody::Block(body) => return Ok(Self::Block(try_from(body)?)),
+        }
+    }
+}
+
 #[derive(Debug, Clone, PartialEq)]
 pub struct FnDeclBodyShort<T: ResolvedType = ()> {
     pub resolved_type: T,
+}
+
+impl<T: ResolvedType> From<FnDeclBodyShort<()>> for FnDeclBodyShort<Option<T>> {
+    fn from(_: FnDeclBodyShort<()>) -> Self {
+        return Self {
+            resolved_type: None,
+        };
+    }
+}
+
+impl<T: ResolvedType> Resolvable for FnDeclBodyShort<Option<T>> {
+    fn is_resolved(&self) -> bool {
+        return self.resolved_type.is_some();
+    }
+}
+
+impl<T: ResolvedType> TryFrom<FnDeclBodyShort<Option<T>>> for FnDeclBodyShort<T> {
+    type Error = FinalizeResolveTypeError;
+
+    fn try_from(value: FnDeclBodyShort<Option<T>>) -> Result<Self, Self::Error> {
+        return Ok(Self {
+            resolved_type: value.resolved_type.ok_or(FinalizeResolveTypeError)?,
+        });
+    }
 }
 
 #[derive(Debug, Clone)]
@@ -105,6 +327,42 @@ impl<T: ResolvedType> PartialEq for CodeBlock<T> {
         }
 
         return true;
+    }
+}
+
+impl<T: ResolvedType> From<CodeBlock<()>> for CodeBlock<Option<T>> {
+    fn from(value: CodeBlock<()>) -> Self {
+        return Self {
+            stmts: value.stmts.into_iter().map(fe_from).collect(),
+            end_semicolon_token: value.end_semicolon_token,
+        };
+    }
+}
+
+impl<T: ResolvedType> Resolvable for CodeBlock<Option<T>> {
+    fn is_resolved(&self) -> bool {
+        for stmt in &self.stmts {
+            if !stmt.lock().unwrap().is_resolved() {
+                return false;
+            }
+        }
+
+        return true;
+    }
+}
+
+impl<T: ResolvedType> TryFrom<CodeBlock<Option<T>>> for CodeBlock<T> {
+    type Error = FinalizeResolveTypeError;
+
+    fn try_from(value: CodeBlock<Option<T>>) -> Result<Self, Self::Error> {
+        return Ok(Self {
+            stmts: value
+                .stmts
+                .into_iter()
+                .map(fe_try_from)
+                .collect::<Result<Vec<Arc<Mutex<Stmt<T>>>>, Self::Error>>()?,
+            end_semicolon_token: value.end_semicolon_token,
+        });
     }
 }
 
