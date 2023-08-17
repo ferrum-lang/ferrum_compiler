@@ -111,16 +111,16 @@ impl RustSyntaxCompiler {
         &mut self,
         path: &mut UseStaticPath<FeType>,
     ) -> Result<ir::RustIRUseStaticPath> {
-        let next = match &mut path.next {
-            Some(UseStaticPathNext::Single(ref mut single)) => Some(
+        let next = match &mut path.details {
+            Either::A(UseStaticPathNext::Single(ref mut single)) => Some(
                 ir::RustIRUseStaticPathNext::Single(ir::RustIRUseStaticPathNextSingle {
                     path: Box::new(self.translate_use_static_path(&mut single.path)?),
                 }),
             ),
 
-            Some(UseStaticPathNext::Many(many)) => todo!(),
+            Either::A(UseStaticPathNext::Many(many)) => todo!(),
 
-            None => None,
+            Either::B(_) => None,
         };
 
         let path_ir = ir::RustIRUseStaticPath {

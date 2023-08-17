@@ -10,6 +10,16 @@ pub enum Expr<T: ResolvedType = ()> {
     Call(CallExpr<T>),
 }
 
+impl<T: ResolvedType> Expr<T> {
+    pub fn resolved_type(&self) -> Option<&T> {
+        match self {
+            Self::PlainStringLiteral(v) => return Some(&v.resolved_type),
+            Self::Ident(v) => return Some(&v.resolved_type),
+            Self::Call(v) => return v.resolved_type.as_ref(),
+        }
+    }
+}
+
 impl Node<Expr> for Expr {
     fn node_id(&self) -> &NodeId<Expr> {
         match self {
@@ -123,7 +133,10 @@ impl<T: ResolvedType> TryFrom<PlainStringLiteralExpr<Option<T>>> for PlainString
         return Ok(Self {
             id: value.id,
             literal: value.literal,
-            resolved_type: value.resolved_type.ok_or(FinalizeResolveTypeError)?,
+            resolved_type: value.resolved_type.ok_or(FinalizeResolveTypeError {
+                file: file!(),
+                line: line!(),
+            })?,
         });
     }
 }
@@ -164,7 +177,10 @@ impl<T: ResolvedType> TryFrom<IdentExpr<Option<T>>> for IdentExpr<T> {
         return Ok(Self {
             id: value.id,
             ident: value.ident,
-            resolved_type: value.resolved_type.ok_or(FinalizeResolveTypeError)?,
+            resolved_type: value.resolved_type.ok_or(FinalizeResolveTypeError {
+                file: file!(),
+                line: line!(),
+            })?,
         });
     }
 }
@@ -177,7 +193,7 @@ pub struct CallExpr<T: ResolvedType = ()> {
     pub pre_comma_token: Option<Arc<Token>>,
     pub args: Vec<CallArg<T>>,
     pub close_paren_token: Arc<Token>,
-    pub resolved_type: T,
+    pub resolved_type: Option<T>,
 }
 
 impl Node<Expr> for CallExpr {
@@ -202,16 +218,21 @@ impl<T: ResolvedType> From<CallExpr<()>> for CallExpr<Option<T>> {
 
 impl<T: ResolvedType> Resolvable for CallExpr<Option<T>> {
     fn is_resolved(&self) -> bool {
-        if self.resolved_type.is_none() {
-            return false;
+        if let Some(resolved_type) = &self.resolved_type {
+            if resolved_type.is_none() {
+                dbg!("false");
+                return false;
+            }
         }
 
         if !self.callee.is_resolved() {
+            dbg!("false");
             return false;
         }
 
         for arg in &self.args {
             if !arg.is_resolved() {
+                dbg!("false");
                 return false;
             }
         }
@@ -235,7 +256,14 @@ impl<T: ResolvedType> TryFrom<CallExpr<Option<T>>> for CallExpr<T> {
                 .map(try_from)
                 .collect::<Result<Vec<CallArg<T>>, Self::Error>>()?,
             close_paren_token: value.close_paren_token,
-            resolved_type: value.resolved_type.ok_or(FinalizeResolveTypeError)?,
+            resolved_type: if let Some(resolved_type) = value.resolved_type {
+                Some(resolved_type.ok_or(FinalizeResolveTypeError {
+                    file: file!(),
+                    line: line!(),
+                })?)
+            } else {
+                None
+            },
         });
     }
 }
@@ -262,10 +290,12 @@ impl<T: ResolvedType> From<CallArg<()>> for CallArg<Option<T>> {
 impl<T: ResolvedType> Resolvable for CallArg<Option<T>> {
     fn is_resolved(&self) -> bool {
         if self.resolved_type.is_none() {
+            dbg!("false");
             return false;
         }
 
         if !self.value.is_resolved() {
+            dbg!("false");
             return false;
         }
 
@@ -281,7 +311,10 @@ impl<T: ResolvedType> TryFrom<CallArg<Option<T>>> for CallArg<T> {
             param_name: value.param_name,
             value: try_from(value.value)?,
             post_comma_token: value.post_comma_token,
-            resolved_type: value.resolved_type.ok_or(FinalizeResolveTypeError)?,
+            resolved_type: value.resolved_type.ok_or(FinalizeResolveTypeError {
+                file: file!(),
+                line: line!(),
+            })?,
         });
     }
 }

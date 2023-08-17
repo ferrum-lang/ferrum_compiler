@@ -90,23 +90,27 @@ impl<T: ResolvedType> Resolvable for FnDecl<Option<T>> {
     fn is_resolved(&self) -> bool {
         if let Some(generics) = &self.generics {
             if !generics.is_resolved() {
+                dbg!("false");
                 return false;
             }
         }
 
         for param in &self.params {
             if !param.is_resolved() {
+                dbg!("false");
                 return false;
             }
         }
 
         if let Some(return_type) = &self.return_type {
             if !return_type.is_resolved() {
+                dbg!("false");
                 return false;
             }
         }
 
         if !self.body.is_resolved() {
+            dbg!("false");
             return false;
         }
 
@@ -170,7 +174,10 @@ impl<T: ResolvedType> TryFrom<FnDeclGenerics<Option<T>>> for FnDeclGenerics<T> {
 
     fn try_from(value: FnDeclGenerics<Option<T>>) -> Result<Self, Self::Error> {
         return Ok(Self {
-            resolved_type: value.resolved_type.ok_or(FinalizeResolveTypeError)?,
+            resolved_type: value.resolved_type.ok_or(FinalizeResolveTypeError {
+                file: file!(),
+                line: line!(),
+            })?,
         });
     }
 }
@@ -199,7 +206,10 @@ impl<T: ResolvedType> TryFrom<FnDeclParam<Option<T>>> for FnDeclParam<T> {
 
     fn try_from(value: FnDeclParam<Option<T>>) -> Result<Self, Self::Error> {
         return Ok(Self {
-            resolved_type: value.resolved_type.ok_or(FinalizeResolveTypeError)?,
+            resolved_type: value.resolved_type.ok_or(FinalizeResolveTypeError {
+                file: file!(),
+                line: line!(),
+            })?,
         });
     }
 }
@@ -228,7 +238,10 @@ impl<T: ResolvedType> TryFrom<FnDeclReturnType<Option<T>>> for FnDeclReturnType<
 
     fn try_from(value: FnDeclReturnType<Option<T>>) -> Result<Self, Self::Error> {
         return Ok(Self {
-            resolved_type: value.resolved_type.ok_or(FinalizeResolveTypeError)?,
+            resolved_type: value.resolved_type.ok_or(FinalizeResolveTypeError {
+                file: file!(),
+                line: line!(),
+            })?,
         });
     }
 }
@@ -292,7 +305,10 @@ impl<T: ResolvedType> TryFrom<FnDeclBodyShort<Option<T>>> for FnDeclBodyShort<T>
 
     fn try_from(value: FnDeclBodyShort<Option<T>>) -> Result<Self, Self::Error> {
         return Ok(Self {
-            resolved_type: value.resolved_type.ok_or(FinalizeResolveTypeError)?,
+            resolved_type: value.resolved_type.ok_or(FinalizeResolveTypeError {
+                file: file!(),
+                line: line!(),
+            })?,
         });
     }
 }
@@ -343,6 +359,7 @@ impl<T: ResolvedType> Resolvable for CodeBlock<Option<T>> {
     fn is_resolved(&self) -> bool {
         for stmt in &self.stmts {
             if !stmt.lock().unwrap().is_resolved() {
+                dbg!("false");
                 return false;
             }
         }

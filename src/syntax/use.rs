@@ -53,28 +53,106 @@ impl<T: ResolvedType> TryFrom<Use<Option<T>>> for Use<T> {
 #[derive(Debug, Clone, PartialEq)]
 pub struct UseStaticPath<ResolvedType = ()> {
     pub name: Arc<Token>,
-    pub next: Option<UseStaticPathNext<ResolvedType>>,
-    pub resolved_type: ResolvedType,
+    pub details: Either<UseStaticPathNext<ResolvedType>, ResolvedType>,
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub enum Either<A, B> {
+    A(A),
+    B(B),
+}
+
+impl<A, B> Either<A, B> {
+    pub fn is_a(&self) -> bool {
+        return matches!(self, Either::A(_));
+    }
+
+    pub fn is_b(&self) -> bool {
+        return matches!(self, Either::B(_));
+    }
+
+    pub fn map_a<U, F>(self, f: F) -> Either<U, B>
+    where
+        F: FnOnce(A) -> U,
+    {
+        match self {
+            Either::A(a) => return Either::A(f(a)),
+            Either::B(b) => return Either::B(b),
+        }
+    }
+
+    pub fn map_b<U, F>(self, f: F) -> Either<A, U>
+    where
+        F: FnOnce(B) -> U,
+    {
+        match self {
+            Either::A(a) => return Either::A(a),
+            Either::B(b) => return Either::B(f(b)),
+        }
+    }
+
+    pub fn try_map_a<U, E, F>(self, f: F) -> Result<Either<U, B>, E>
+    where
+        F: FnOnce(A) -> Result<U, E>,
+    {
+        match self {
+            Either::A(a) => return Ok(Either::A(f(a)?)),
+            Either::B(b) => return Ok(Either::B(b)),
+        }
+    }
+
+    pub fn try_map_b<U, E, F>(self, f: F) -> Result<Either<A, U>, E>
+    where
+        F: FnOnce(B) -> Result<U, E>,
+    {
+        match self {
+            Either::A(a) => return Ok(Either::A(a)),
+            Either::B(b) => return Ok(Either::B(f(b)?)),
+        }
+    }
+
+    pub fn unwrap_a(self) -> A {
+        let a = if let Either::A(a) = self {
+            Some(a)
+        } else {
+            None
+        };
+
+        return a.unwrap();
+    }
+
+    pub fn unwrap_b(self) -> B {
+        let b = if let Either::B(b) = self {
+            Some(b)
+        } else {
+            None
+        };
+
+        return b.unwrap();
+    }
 }
 
 impl<T: ResolvedType> From<UseStaticPath<()>> for UseStaticPath<Option<T>> {
     fn from(value: UseStaticPath<()>) -> Self {
         return Self {
             name: value.name,
-            next: value.next.map(|next| from(next)),
-            resolved_type: None,
+            details: value.details.map_a(|next| from(next)).map_b(|_| None),
         };
     }
 }
 
 impl<T: ResolvedType> Resolvable for UseStaticPath<Option<T>> {
     fn is_resolved(&self) -> bool {
-        if self.resolved_type.is_none() {
-            return false;
+        if let Either::B(b) = &self.details {
+            if b.is_none() {
+                dbg!("false");
+                return false;
+            }
         }
 
-        if let Some(next) = &self.next {
+        if let Either::A(next) = &self.details {
             if !next.is_resolved() {
+                dbg!("false");
                 return false;
             }
         }
@@ -89,8 +167,14 @@ impl<T: ResolvedType> TryFrom<UseStaticPath<Option<T>>> for UseStaticPath<T> {
     fn try_from(value: UseStaticPath<Option<T>>) -> Result<Self, Self::Error> {
         return Ok(Self {
             name: value.name,
-            next: invert(value.next.map(try_from))?,
-            resolved_type: value.resolved_type.ok_or(FinalizeResolveTypeError)?,
+            details: value.details.try_map_a(|next| try_from(next))?.try_map_b(
+                |resolved_type| {
+                    resolved_type.ok_or(FinalizeResolveTypeError {
+                        file: file!(),
+                        line: line!(),
+                    })
+                },
+            )?,
         });
     }
 }
@@ -185,6 +269,7 @@ impl<T: ResolvedType> Resolvable for UseStaticPathNextMany<Option<T>> {
     fn is_resolved(&self) -> bool {
         for next in &self.nexts {
             if !next.is_resolved() {
+                dbg!("false");
                 return false;
             }
         }

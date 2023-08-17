@@ -160,26 +160,22 @@ impl FeTokenSyntaxParser {
     fn use_static_path(&mut self) -> Result<UseStaticPath> {
         let name = self.consume(&TokenType::Ident, "Expect name of import")?;
 
-        let next = if let Some(double_colon_token) =
+        let details = if let Some(double_colon_token) =
             self.match_any(&[TokenType::DoubleColon], WithNewlines::None)
         {
             // TODO: Handle case of 'many'
 
             let path = self.use_static_path()?;
 
-            Some(UseStaticPathNext::Single(UseStaticPathNextSingle {
+            Either::A(UseStaticPathNext::Single(UseStaticPathNextSingle {
                 double_colon_token,
                 path: Box::new(path),
             }))
         } else {
-            None
+            Either::B(())
         };
 
-        return Ok(UseStaticPath {
-            name,
-            next,
-            resolved_type: (),
-        });
+        return Ok(UseStaticPath { name, details });
     }
 
     fn declaration(&mut self) -> Result<Arc<Mutex<Decl>>> {
@@ -783,7 +779,7 @@ impl FeTokenSyntaxParser {
             pre_comma_token,
             args,
             close_paren_token,
-            resolved_type: (),
+            resolved_type: None,
         }))));
     }
 
