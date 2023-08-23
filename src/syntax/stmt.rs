@@ -7,6 +7,14 @@ pub enum Stmt<T: ResolvedType = ()> {
     Expr(ExprStmt<T>),
 }
 
+impl<T: ResolvedType> Node<Stmt> for Stmt<T> {
+    fn node_id(&self) -> &NodeId<Stmt> {
+        match self {
+            Self::Expr(stmt) => return stmt.node_id(),
+        }
+    }
+}
+
 impl<T: ResolvedType> From<Stmt<()>> for Stmt<Option<T>> {
     fn from(value: Stmt<()>) -> Self {
         match value {
@@ -37,6 +45,12 @@ impl<T: ResolvedType> TryFrom<Stmt<Option<T>>> for Stmt<T> {
 pub struct ExprStmt<T: ResolvedType = ()> {
     pub id: NodeId<Stmt>,
     pub expr: Arc<Mutex<Expr<T>>>,
+}
+
+impl<T: ResolvedType> Node<Stmt> for ExprStmt<T> {
+    fn node_id(&self) -> &NodeId<Stmt> {
+        return &self.id;
+    }
 }
 
 impl<T: ResolvedType> PartialEq for ExprStmt<T> {

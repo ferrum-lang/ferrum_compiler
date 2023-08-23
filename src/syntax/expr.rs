@@ -20,7 +20,7 @@ impl<T: ResolvedType> Expr<T> {
     }
 }
 
-impl Node<Expr> for Expr {
+impl<T: ResolvedType> Node<Expr> for Expr<T> {
     fn node_id(&self) -> &NodeId<Expr> {
         match self {
             Self::Ident(expr) => return expr.node_id(),
@@ -104,7 +104,7 @@ pub struct PlainStringLiteralExpr<T: ResolvedType = ()> {
     pub resolved_type: T,
 }
 
-impl Node<Expr> for PlainStringLiteralExpr {
+impl<T: ResolvedType> Node<Expr> for PlainStringLiteralExpr<T> {
     fn node_id(&self) -> &NodeId<Expr> {
         return &self.id;
     }
@@ -148,7 +148,7 @@ pub struct IdentExpr<T: ResolvedType = ()> {
     pub resolved_type: T,
 }
 
-impl Node<Expr> for IdentExpr {
+impl<T: ResolvedType> Node<Expr> for IdentExpr<T> {
     fn node_id(&self) -> &NodeId<Expr> {
         return &self.id;
     }
@@ -196,7 +196,7 @@ pub struct CallExpr<T: ResolvedType = ()> {
     pub resolved_type: Option<T>,
 }
 
-impl Node<Expr> for CallExpr {
+impl<T: ResolvedType> Node<Expr> for CallExpr<T> {
     fn node_id(&self) -> &NodeId<Expr> {
         return &self.id;
     }

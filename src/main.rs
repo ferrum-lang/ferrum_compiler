@@ -12,11 +12,17 @@ fn main() -> ferrum_compiler::result::Result {
         name: SourcePackageName("_main".into()),
         path: "src/_main.fe".into(),
         content: r#"
-             use ::fe::print
+            use ::fe::print
 
-             pub fn main()
-                 print("Hello, world!")
-             ;
+            pub fn main()
+                print("Hello, world!")
+
+                test()
+            ;
+
+            fn test()
+                print("test")
+            ;
         "#
         .into(),
     })));

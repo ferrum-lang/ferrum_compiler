@@ -8,7 +8,7 @@ pub enum Decl<T: ResolvedType = ()> {
     Fn(FnDecl<T>),
 }
 
-impl Node<Decl> for Decl {
+impl<T: ResolvedType> Node<Decl> for Decl<T> {
     fn node_id(&self) -> &NodeId<Decl> {
         match self {
             Self::Fn(decl) => return decl.node_id(),
@@ -62,7 +62,7 @@ pub struct FnDecl<T: ResolvedType = ()> {
     pub body: FnDeclBody<T>,
 }
 
-impl Node<Decl> for FnDecl {
+impl<T: ResolvedType> Node<Decl> for FnDecl<T> {
     fn node_id(&self) -> &NodeId<Decl> {
         return &self.id;
     }

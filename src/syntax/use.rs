@@ -12,7 +12,7 @@ pub struct Use<ResolvedType = ()> {
     pub path: UseStaticPath<ResolvedType>,
 }
 
-impl Node<Use> for Use {
+impl<T: ResolvedType> Node<Use> for Use<T> {
     fn node_id(&self) -> &NodeId<Use> {
         return &self.id;
     }

@@ -8,6 +8,9 @@ use std::sync::{Arc, Mutex};
 
 pub struct FeTypeResolver {
     expr_lookup: HashMap<NodeId<Expr>, FeType>,
+    decls_to_eval: HashMap<NodeId<Decl>, Arc<Mutex<Decl<Option<FeType>>>>>,
+
+    scope: Scope,
 }
 
 impl FeTypeResolver {
@@ -48,6 +51,8 @@ impl FeTypeResolver {
     fn resolve_file(file: &mut FeSyntaxFile<Option<FeType>>) -> Result<bool> {
         let mut this = Self {
             expr_lookup: HashMap::new(),
+            decls_to_eval: HashMap::new(),
+            scope: Scope::new(),
         };
         let mut changed = None;
 
@@ -64,16 +69,68 @@ impl FeTypeResolver {
         }
 
         for decl in &syntax.decls {
-            let local = decl.lock().unwrap().accept(&mut this)?;
+            let (id, decl_changed) = {
+                let mut lock = decl.lock().unwrap();
+                let decl = &mut lock;
+
+                let id = *decl.node_id();
+                let decl_changed = decl.accept(&mut this)?;
+
+                (id, decl_changed)
+            };
+
+            if !decl_changed {
+                this.decls_to_eval.insert(id, decl.clone());
+            }
 
             if let Some(changed) = &mut changed {
-                *changed = *changed && local;
+                *changed = *changed || decl_changed;
             } else {
-                changed = Some(local);
+                changed = Some(decl_changed);
+            }
+        }
+
+        while !this.decls_to_eval.is_empty() {
+            for (_, decl) in std::mem::take(&mut this.decls_to_eval) {
+                let decl_changed = this.evaluate_decl(decl)?;
+
+                if let Some(changed) = &mut changed {
+                    *changed = *changed || decl_changed;
+                } else {
+                    changed = Some(decl_changed);
+                }
             }
         }
 
         return Ok(changed.unwrap_or(false));
+    }
+
+    fn evaluate_decl(&mut self, decl: Arc<Mutex<Decl<Option<FeType>>>>) -> Result<bool> {
+        match &mut *decl.lock().unwrap() {
+            Decl::Fn(decl) => return self.evaluate_fn_decl(decl),
+        }
+    }
+
+    fn evaluate_fn_decl(&mut self, decl: &mut FnDecl<Option<FeType>>) -> Result<bool> {
+        match &mut decl.body {
+            FnDeclBody::Short(body) => {
+                todo!()
+            }
+
+            FnDeclBody::Block(body) => {
+                let mut changed = false;
+
+                for stmt in &mut body.stmts {
+                    let stmt = &mut *stmt.lock().unwrap();
+
+                    // TODO: Check for return stmt and compare to return type
+
+                    changed = changed || stmt.accept(self)?;
+                }
+
+                return Ok(changed);
+            }
+        }
     }
 
     fn can_implicit_cast(from: &FeType, to: &FeType) -> bool {
@@ -112,27 +169,18 @@ impl UseVisitor<Option<FeType>, Result<bool>> for FeTypeResolver {
 
 impl DeclVisitor<Option<FeType>, Result<bool>> for FeTypeResolver {
     fn visit_function_decl(&mut self, decl: &mut FnDecl<Option<FeType>>) -> Result<bool> {
-        // TODO: register fn params
+        // TODO: check and register fn params
+        // TODO: check return
 
-        match &mut decl.body {
-            FnDeclBody::Short(body) => {
-                todo!()
-            }
+        self.scope.insert(
+            decl.name.lexeme.clone(),
+            FeType::Callable(Callable {
+                params: vec![],
+                return_type: None,
+            }),
+        );
 
-            FnDeclBody::Block(body) => {
-                let mut changed = false;
-
-                for stmt in &mut body.stmts {
-                    let stmt = &mut *stmt.lock().unwrap();
-
-                    // TODO: Check for return stmt and compare to return type
-
-                    changed = changed || stmt.accept(self)?;
-                }
-
-                return Ok(changed);
-            }
-        }
+        return Ok(false);
     }
 }
 
@@ -159,7 +207,14 @@ impl ExprVisitor<Option<FeType>, Result<bool>> for FeTypeResolver {
                 self.expr_lookup.insert(expr.id, resolved_type);
             }
 
-            ident => todo!("ident: {ident:?}"),
+            ident => {
+                if let Some(found) = self.scope.search(ident) {
+                    expr.resolved_type = Some(found.clone());
+                    self.expr_lookup.insert(expr.id, found.clone());
+                } else {
+                    todo!("Can't find ident: {ident:?}");
+                }
+            }
         }
 
         return Ok(true);
@@ -231,5 +286,49 @@ impl ExprVisitor<Option<FeType>, Result<bool>> for FeTypeResolver {
         expr.resolved_type = Some(FeType::String(Some(StringDetails::PlainLiteral)));
 
         return Ok(true);
+    }
+}
+
+struct Scope {
+    stack: Vec<ScopedData>,
+}
+
+struct ScopedData {
+    name_lookup: HashMap<Arc<str>, FeType>,
+}
+
+impl Scope {
+    pub fn new() -> Self {
+        return Self {
+            stack: vec![ScopedData {
+                name_lookup: HashMap::new(),
+            }],
+        };
+    }
+
+    pub fn begin_scope(&mut self) {
+        self.stack.push(ScopedData {
+            name_lookup: HashMap::new(),
+        });
+    }
+
+    pub fn end_scope(&mut self) {
+        if self.stack.len() > 1 {
+            self.stack.pop();
+        }
+    }
+
+    pub fn insert(&mut self, name: Arc<str>, typ: FeType) {
+        self.stack.last_mut().unwrap().name_lookup.insert(name, typ);
+    }
+
+    pub fn search(&self, name: &str) -> Option<&FeType> {
+        for data in self.stack.iter().rev() {
+            if let Some(found) = data.name_lookup.get(name) {
+                return Some(found);
+            }
+        }
+
+        return None;
     }
 }
