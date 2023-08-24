@@ -54,6 +54,14 @@ impl FeTypeResolver {
             decls_to_eval: HashMap::new(),
             scope: Scope::new(),
         };
+        this.scope.insert(
+            "print".into(),
+            FeType::Callable(Callable {
+                params: vec![("text".into(), FeType::String(None))],
+                return_type: None,
+            }),
+        );
+
         let mut changed = None;
 
         let syntax = file.syntax.lock().unwrap();
@@ -196,25 +204,13 @@ impl ExprVisitor<Option<FeType>, Result<bool>> for FeTypeResolver {
             return Ok(false);
         }
 
-        match expr.ident.lexeme.as_ref() {
-            "print" => {
-                let resolved_type = FeType::Callable(Callable {
-                    params: vec![("text".into(), FeType::String(None))],
-                    return_type: None,
-                });
+        let ident = &expr.ident.lexeme;
 
-                expr.resolved_type = Some(resolved_type.clone());
-                self.expr_lookup.insert(expr.id, resolved_type);
-            }
-
-            ident => {
-                if let Some(found) = self.scope.search(ident) {
-                    expr.resolved_type = Some(found.clone());
-                    self.expr_lookup.insert(expr.id, found.clone());
-                } else {
-                    todo!("Can't find ident: {ident:?}");
-                }
-            }
+        if let Some(found) = self.scope.search(ident) {
+            expr.resolved_type = Some(found.clone());
+            self.expr_lookup.insert(expr.id, found.clone());
+        } else {
+            todo!("Can't find ident: {ident:?}");
         }
 
         return Ok(true);
@@ -231,10 +227,12 @@ impl ExprVisitor<Option<FeType>, Result<bool>> for FeTypeResolver {
             callee.accept(self)?;
         }
 
-        // TODO: Lookup callee in self's scoped environment
-        let callee = Callable {
-            params: vec![("text".into(), FeType::String(None))],
-            return_type: None,
+        let Some(FeType::Callable(callee)) = self
+            .expr_lookup
+            .get(callee.node_id())
+            .cloned()
+        else {
+            todo!("Callee not found: {callee:?}");
         };
 
         if expr.args.len() > callee.params.len() {
@@ -262,8 +260,7 @@ impl ExprVisitor<Option<FeType>, Result<bool>> for FeTypeResolver {
             let Some(resolved_type) = &arg.resolved_type else {
                 todo!("How did this get here??")
             };
-
-            let (name, param) = &callee.params[i];
+            let (_, param) = &callee.params[i];
 
             if !Self::can_implicit_cast(resolved_type, param) {
                 todo!("wrong type!");
