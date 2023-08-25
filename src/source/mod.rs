@@ -23,5 +23,5 @@ pub struct FeSourceDir {
     pub local_packages: HashMap<SourcePackageName, Arc<Mutex<FeSourcePackage>>>,
 }
 
-#[derive(Debug, Clone, Hash, PartialEq)]
+#[derive(Debug, Clone, Hash, PartialEq, Eq)]
 pub struct SourcePackageName(pub Arc<str>);

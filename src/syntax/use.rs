@@ -51,7 +51,14 @@ impl<T: ResolvedType> TryFrom<Use<Option<T>>> for Use<T> {
 }
 
 #[derive(Debug, Clone, PartialEq)]
+pub enum PreUse {
+    CurrentDir(Arc<Token>),
+    RootDir(Arc<Token>),
+}
+
+#[derive(Debug, Clone, PartialEq)]
 pub struct UseStaticPath<ResolvedType = ()> {
+    pub pre: Option<PreUse>,
     pub name: Arc<Token>,
     pub details: Either<UseStaticPathNext<ResolvedType>, ResolvedType>,
 }
@@ -135,6 +142,7 @@ impl<A, B> Either<A, B> {
 impl<T: ResolvedType> From<UseStaticPath<()>> for UseStaticPath<Option<T>> {
     fn from(value: UseStaticPath<()>) -> Self {
         return Self {
+            pre: value.pre,
             name: value.name,
             details: value.details.map_a(|next| from(next)).map_b(|_| None),
         };
@@ -166,6 +174,7 @@ impl<T: ResolvedType> TryFrom<UseStaticPath<Option<T>>> for UseStaticPath<T> {
 
     fn try_from(value: UseStaticPath<Option<T>>) -> Result<Self, Self::Error> {
         return Ok(Self {
+            pre: value.pre,
             name: value.name,
             details: value.details.try_map_a(|next| try_from(next))?.try_map_b(
                 |resolved_type| {

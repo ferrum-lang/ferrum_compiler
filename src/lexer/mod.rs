@@ -64,17 +64,41 @@ impl FeLexer {
     }
 
     pub fn scan(mut self) -> Result<FeTokenPackage> {
-        match (&*self.source_pkg.lock().unwrap(), &mut self.out) {
-            (FeSourcePackage::File(source_file), FeTokenPackage::File(token_file)) => {
-                FeSourceScanner::scan_source(
-                    source_file.content.clone(),
-                    token_file.tokens.clone(),
-                )?;
-            }
-            (FeSourcePackage::Dir(source_dir), FeTokenPackage::Dir(token_dir)) => todo!(),
+        fn _scan<'a, 'b>(
+            src_pkg: &'a FeSourcePackage,
+            out: &'b mut FeTokenPackage,
+        ) -> Result<&'b mut FeTokenPackage> {
+            match (src_pkg, &mut *out) {
+                (FeSourcePackage::File(source_file), FeTokenPackage::File(token_file)) => {
+                    FeSourceScanner::scan_source(
+                        source_file.content.clone(),
+                        token_file.tokens.clone(),
+                    )?;
+                }
 
-            (FeSourcePackage::File(_), _) | (FeSourcePackage::Dir(_), _) => unreachable!(),
+                (FeSourcePackage::Dir(source_dir), FeTokenPackage::Dir(token_dir)) => {
+                    FeSourceScanner::scan_source(
+                        source_dir.entry_file.content.clone(),
+                        token_dir.entry_file.tokens.clone(),
+                    )?;
+
+                    for (name, source_pkg) in source_dir.local_packages.iter() {
+                        let token_pkg = token_dir
+                            .local_packages
+                            .get(&TokenPackageName::from(name.clone()))
+                            .expect("source doesn't match tokens structure");
+
+                        _scan(&source_pkg.lock().unwrap(), &mut token_pkg.lock().unwrap())?;
+                    }
+                }
+
+                (FeSourcePackage::File(_), _) | (FeSourcePackage::Dir(_), _) => unreachable!(),
+            }
+
+            return Ok(out);
         }
+
+        _scan(&*self.source_pkg.lock().unwrap(), &mut self.out)?;
 
         return Ok(self.out);
     }
@@ -122,8 +146,6 @@ impl FeSourceScanner {
             self.span.start = self.span.end.clone();
         }
 
-        dbg!(&self.out);
-
         return Ok(self.out);
     }
 
@@ -147,6 +169,15 @@ impl FeSourceScanner {
                     Some(TokenType::DoubleColon)
                 } else {
                     Some(TokenType::Comma)
+                }
+            }
+
+            '.' => {
+                if self.peek_next() == Some('/') {
+                    self.advance_col();
+                    Some(TokenType::DotSlash)
+                } else {
+                    Some(TokenType::Dot)
                 }
             }
 

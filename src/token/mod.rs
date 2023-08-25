@@ -95,6 +95,9 @@ pub enum TokenType {
     Colon,       // :
     DoubleColon, // ::
 
+    Dot,      // .
+    DotSlash, // ./
+
     // Keywords
     Fn,
     Norm,

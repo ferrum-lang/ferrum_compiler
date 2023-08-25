@@ -25,17 +25,39 @@ impl FeSyntaxParser {
     }
 
     pub fn parse(mut self) -> Result<FeSyntaxPackage> {
-        match (&*self.token_pkg.lock().unwrap(), &mut self.out) {
-            (FeTokenPackage::File(token_file), FeSyntaxPackage::File(syntax_file)) => {
-                FeTokenSyntaxParser::parse_syntax(
-                    token_file.tokens.lock().unwrap().clone(),
-                    syntax_file.syntax.clone(),
-                )?;
-            }
-            (FeTokenPackage::Dir(token_dir), FeSyntaxPackage::Dir(syntax_dir)) => todo!(),
+        fn _parse<'a, 'b>(
+            token_pkg: &'a FeTokenPackage,
+            syntax_pkg: &'b mut FeSyntaxPackage,
+        ) -> Result<&'b mut FeSyntaxPackage> {
+            match (token_pkg, &mut *syntax_pkg) {
+                (FeTokenPackage::File(token_file), FeSyntaxPackage::File(syntax_file)) => {
+                    FeTokenSyntaxParser::parse_syntax(
+                        token_file.tokens.lock().unwrap().clone(),
+                        syntax_file.syntax.clone(),
+                    )?;
+                }
+                (FeTokenPackage::Dir(token_dir), FeSyntaxPackage::Dir(syntax_dir)) => {
+                    FeTokenSyntaxParser::parse_syntax(
+                        token_dir.entry_file.tokens.lock().unwrap().clone(),
+                        syntax_dir.entry_file.syntax.clone(),
+                    )?;
 
-            (FeTokenPackage::File(_), _) | (FeTokenPackage::Dir(_), _) => unreachable!(),
+                    for (name, token_pkg) in token_dir.local_packages.iter() {
+                        let syntax_pkg = syntax_dir
+                            .local_packages
+                            .get(&SyntaxPackageName::from(name.clone()))
+                            .expect("tokens doesn't match syntax structure");
+
+                        _parse(&token_pkg.lock().unwrap(), &mut syntax_pkg.lock().unwrap())?;
+                    }
+                }
+
+                (FeTokenPackage::File(_), _) | (FeTokenPackage::Dir(_), _) => unreachable!(),
+            }
+
+            return Ok(syntax_pkg);
         }
+        _parse(&*self.token_pkg.lock().unwrap(), &mut self.out)?;
 
         return Ok(self.out);
     }
@@ -158,6 +180,12 @@ impl FeTokenSyntaxParser {
     }
 
     fn use_static_path(&mut self) -> Result<UseStaticPath> {
+        let pre = if let Some(token) = self.match_any(&[TokenType::DotSlash], WithNewlines::None) {
+            Some(PreUse::CurrentDir(token))
+        } else {
+            None
+        };
+
         let name = self.consume(&TokenType::Ident, "Expect name of import")?;
 
         let details = if let Some(double_colon_token) =
@@ -175,7 +203,7 @@ impl FeTokenSyntaxParser {
             Either::B(())
         };
 
-        return Ok(UseStaticPath { name, details });
+        return Ok(UseStaticPath { pre, name, details });
     }
 
     fn declaration(&mut self) -> Result<Arc<Mutex<Decl>>> {

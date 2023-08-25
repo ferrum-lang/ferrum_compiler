@@ -10,7 +10,7 @@ pub struct FeTypeResolver {
     expr_lookup: HashMap<NodeId<Expr>, FeType>,
     decls_to_eval: HashMap<NodeId<Decl>, Arc<Mutex<Decl<Option<FeType>>>>>,
 
-    scope: Scope,
+    scope: Arc<Mutex<Scope>>,
 }
 
 impl FeTypeResolver {
@@ -52,9 +52,9 @@ impl FeTypeResolver {
         let mut this = Self {
             expr_lookup: HashMap::new(),
             decls_to_eval: HashMap::new(),
-            scope: Scope::new(),
+            scope: Arc::new(Mutex::new(Scope::new())),
         };
-        this.scope.insert(
+        this.scope.lock().unwrap().insert(
             "print".into(),
             FeType::Callable(Callable {
                 params: vec![("text".into(), FeType::String(None))],
@@ -180,7 +180,7 @@ impl DeclVisitor<Option<FeType>, Result<bool>> for FeTypeResolver {
         // TODO: check and register fn params
         // TODO: check return
 
-        self.scope.insert(
+        self.scope.lock().unwrap().insert(
             decl.name.lexeme.clone(),
             FeType::Callable(Callable {
                 params: vec![],
@@ -206,7 +206,7 @@ impl ExprVisitor<Option<FeType>, Result<bool>> for FeTypeResolver {
 
         let ident = &expr.ident.lexeme;
 
-        if let Some(found) = self.scope.search(ident) {
+        if let Some(found) = self.scope.lock().unwrap().search(ident) {
             expr.resolved_type = Some(found.clone());
             self.expr_lookup.insert(expr.id, found.clone());
         } else {

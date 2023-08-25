@@ -50,13 +50,13 @@ impl RustCodeGen {
             let code = use_decl.accept(&mut self)?;
             content.push_str(&code);
             content.push_str(&self.new_line());
+            content.push_str(&self.new_line());
         }
-
-        content.push('\n');
 
         for decl in &mut file.decls {
             let code = decl.accept(&mut self)?;
             content.push_str(&code);
+            content.push_str(&self.new_line());
             content.push_str(&self.new_line());
         }
 

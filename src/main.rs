@@ -5,26 +5,52 @@ use ferrum_compiler::source::*;
 use ferrum_compiler::syntax::*;
 use ferrum_compiler::type_resolver::*;
 
+use std::collections::HashMap;
 use std::sync::{Arc, Mutex};
 
 fn main() -> ferrum_compiler::result::Result {
-    let source = Arc::new(Mutex::new(FeSourcePackage::File(FeSourceFile {
-        name: SourcePackageName("_main".into()),
-        path: "src/_main.fe".into(),
-        content: r#"
+    let mut local_packages = HashMap::new();
+
+    local_packages.insert(
+        SourcePackageName("hello".into()),
+        Arc::new(Mutex::new(FeSourcePackage::File(FeSourceFile {
+            name: SourcePackageName("hello".into()),
+            path: "src/hello.fe".into(),
+            content: r#"
             use ::fe::print
+
+            pub fn hello()
+                print("hello")
+            ;
+        "#
+            .into(),
+        }))),
+    );
+
+    let source = Arc::new(Mutex::new(FeSourcePackage::Dir(FeSourceDir {
+        name: SourcePackageName("src".into()),
+        path: "src/".into(),
+        entry_file: FeSourceFile {
+            name: SourcePackageName("_main".into()),
+            path: "src/_main.fe".into(),
+            content: r#"
+            use ::fe::print
+            use ./hello::hello
 
             pub fn main()
                 print("Hello, world!")
 
-                test()
+                hello()
+                world()
             ;
 
-            fn test()
-                print("test")
+            fn world()
+                print("world")
             ;
         "#
-        .into(),
+            .into(),
+        },
+        local_packages,
     })));
 
     let tokens = Arc::new(Mutex::new(FeLexer::scan_package(source)?));
