@@ -35,12 +35,12 @@ fn main() -> ferrum_compiler::result::Result {
             path: "src/_main.fe".into(),
             content: r#"
             use ::fe::print
-            use ./hello::hello
+            // use ./hello::hello
 
             pub fn main()
                 print("Hello, world!")
 
-                hello()
+                // hello()
                 world()
             ;
 
@@ -50,7 +50,7 @@ fn main() -> ferrum_compiler::result::Result {
         "#
             .into(),
         },
-        local_packages,
+        local_packages: HashMap::new(),
     })));
 
     let tokens = Arc::new(Mutex::new(FeLexer::scan_package(source)?));

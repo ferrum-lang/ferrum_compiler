@@ -183,6 +183,14 @@ impl FeSourceScanner {
 
             '"' => Some(self.string(false)),
 
+            '/' if self.peek_next() == Some('/') => {
+                while self.peek_next() != Some('\n') {
+                    self.advance_col();
+                }
+
+                None
+            }
+
             c if self.is_digit(c) => todo!(),
             c if self.is_alpha(c) => Some(self.identifier()),
 

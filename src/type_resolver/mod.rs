@@ -54,13 +54,6 @@ impl FeTypeResolver {
             decls_to_eval: HashMap::new(),
             scope: Arc::new(Mutex::new(Scope::new())),
         };
-        this.scope.lock().unwrap().insert(
-            "print".into(),
-            FeType::Callable(Callable {
-                params: vec![("text".into(), FeType::String(None))],
-                return_type: None,
-            }),
-        );
 
         let mut changed = None;
 
@@ -163,6 +156,13 @@ impl UseVisitor<Option<FeType>, Result<bool>> for FeTypeResolver {
         if use_decl.path.name.lexeme.as_ref() == "fe" {
             if let Either::A(UseStaticPathNext::Single(next)) = &mut use_decl.path.details {
                 if next.path.name.lexeme.as_ref() == "print" && next.path.details.is_b() {
+                    self.scope.lock().unwrap().insert(
+                        "print".into(),
+                        FeType::Callable(Callable {
+                            params: vec![("text".into(), FeType::String(None))],
+                            return_type: None,
+                        }),
+                    );
                     next.path.details = Either::B(Some(FeType::Callable(Callable {
                         params: vec![("text".into(), FeType::String(None))],
                         return_type: None,
