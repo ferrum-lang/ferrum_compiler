@@ -42,7 +42,7 @@ impl FeTypeResolver {
         let mut changed = Self::resolve_file(&mut dir.entry_file)?;
 
         for pkg in dir.local_packages.values_mut() {
-            changed = changed && Self::internal_resolve_package(pkg.clone())?;
+            changed = changed || Self::internal_resolve_package(pkg.clone())?;
         }
 
         return Ok(changed);

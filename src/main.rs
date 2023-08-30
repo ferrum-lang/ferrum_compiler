@@ -50,7 +50,8 @@ fn main() -> ferrum_compiler::result::Result {
         "#
             .into(),
         },
-        local_packages: HashMap::new(),
+        local_packages,
+        // local_packages: HashMap::new(),
     })));
 
     let tokens = Arc::new(Mutex::new(FeLexer::scan_package(source)?));
