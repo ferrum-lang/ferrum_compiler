@@ -129,6 +129,11 @@ impl RustSyntaxCompiler {
         };
 
         let path_ir = ir::RustIRUseStaticPath {
+            pre: path.pre.as_ref().map(|pre| match pre {
+                PreUse::DoubleColon(_) => ir::RustIRUseStaticPathPre::DoubleColon,
+                PreUse::CurrentDir(_) => ir::RustIRUseStaticPathPre::CurrentDir,
+                PreUse::RootDir(_) => ir::RustIRUseStaticPathPre::RootDir,
+            }),
             name: path.name.lexeme.clone(),
             next,
         };
@@ -146,7 +151,6 @@ impl UseVisitor<FeType, Result> for RustSyntaxCompiler {
 
         let use_ir = ir::RustIRUse {
             use_mod,
-            pre_double_colon: use_decl.pre_double_colon_token.is_some(),
             path: self.translate_use_static_path(&mut use_decl.path)?,
         };
 

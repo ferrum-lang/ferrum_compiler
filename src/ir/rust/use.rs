@@ -3,7 +3,6 @@ use super::*;
 #[derive(Debug, Clone, PartialEq)]
 pub struct RustIRUse {
     pub use_mod: Option<RustIRUseMod>,
-    pub pre_double_colon: bool,
     pub path: RustIRUseStaticPath,
 }
 
@@ -14,8 +13,16 @@ pub enum RustIRUseMod {
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct RustIRUseStaticPath {
+    pub pre: Option<RustIRUseStaticPathPre>,
     pub name: Arc<str>,
     pub next: Option<RustIRUseStaticPathNext>,
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub enum RustIRUseStaticPathPre {
+    DoubleColon,
+    CurrentDir,
+    RootDir,
 }
 
 #[derive(Debug, Clone, PartialEq)]

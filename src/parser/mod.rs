@@ -157,14 +157,12 @@ impl FeTokenSyntaxParser {
             return Ok(None);
         };
 
-        let pre_double_colon_token = self.match_any(&[TokenType::DoubleColon], WithNewlines::None);
         let path = self.use_static_path()?;
 
         let use_decl = Use {
             id: NodeId::gen(),
             use_mod,
             use_token,
-            pre_double_colon_token,
             path,
         };
 
@@ -180,7 +178,10 @@ impl FeTokenSyntaxParser {
     }
 
     fn use_static_path(&mut self) -> Result<UseStaticPath> {
-        let pre = if let Some(token) = self.match_any(&[TokenType::DotSlash], WithNewlines::None) {
+        let pre = if let Some(token) = self.match_any(&[TokenType::DoubleColon], WithNewlines::None)
+        {
+            Some(PreUse::DoubleColon(token))
+        } else if let Some(token) = self.match_any(&[TokenType::DotSlash], WithNewlines::None) {
             Some(PreUse::CurrentDir(token))
         } else {
             None

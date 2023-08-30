@@ -7,7 +7,6 @@ use crate::utils::{from, invert, try_from};
 pub struct Use<ResolvedType = ()> {
     pub id: NodeId<Use>,
     pub use_token: Arc<Token>,
-    pub pre_double_colon_token: Option<Arc<Token>>,
     pub use_mod: Option<UseMod>,
     pub path: UseStaticPath<ResolvedType>,
 }
@@ -23,7 +22,6 @@ impl<T: ResolvedType> From<Use<()>> for Use<Option<T>> {
         return Self {
             id: value.id,
             use_token: value.use_token,
-            pre_double_colon_token: value.pre_double_colon_token,
             use_mod: value.use_mod,
             path: from(value.path),
         };
@@ -43,7 +41,6 @@ impl<T: ResolvedType> TryFrom<Use<Option<T>>> for Use<T> {
         return Ok(Self {
             id: value.id,
             use_token: value.use_token,
-            pre_double_colon_token: value.pre_double_colon_token,
             use_mod: value.use_mod,
             path: try_from(value.path)?,
         });
@@ -52,6 +49,7 @@ impl<T: ResolvedType> TryFrom<Use<Option<T>>> for Use<T> {
 
 #[derive(Debug, Clone, PartialEq)]
 pub enum PreUse {
+    DoubleColon(Arc<Token>),
     CurrentDir(Arc<Token>),
     RootDir(Arc<Token>),
 }

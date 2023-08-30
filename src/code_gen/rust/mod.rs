@@ -73,7 +73,17 @@ impl RustCodeGen {
     }
 
     fn gen_use_path(&mut self, use_path: &mut ir::RustIRUseStaticPath) -> Result<Arc<str>> {
-        let mut out = format!("{}", use_path.name);
+        let mut out = String::new();
+
+        match use_path.pre {
+            None => {}
+
+            Some(ir::RustIRUseStaticPathPre::DoubleColon) => out.push_str("::"),
+            Some(ir::RustIRUseStaticPathPre::CurrentDir) => out.push_str(""),
+            Some(ir::RustIRUseStaticPathPre::RootDir) => out.push_str("crate::"),
+        }
+
+        out.push_str(&use_path.name);
 
         match &mut use_path.next {
             Some(ir::RustIRUseStaticPathNext::Single(single)) => {
@@ -124,10 +134,6 @@ impl ir::RustIRUseVisitor<Result<Arc<str>>> for RustCodeGen {
         }
 
         out.push_str("use ");
-
-        if use_decl.pre_double_colon {
-            out.push_str("::");
-        }
 
         let use_path_code = self.gen_use_path(&mut use_decl.path)?;
         out.push_str(&use_path_code);

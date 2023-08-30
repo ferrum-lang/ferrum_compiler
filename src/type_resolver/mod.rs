@@ -15,12 +15,18 @@ pub struct FeTypeResolver {
 
 impl FeTypeResolver {
     pub fn resolve_package(pkg: FeSyntaxPackage) -> Result<FeSyntaxPackage<FeType>> {
-        let mut pkg: FeSyntaxPackage<Option<FeType>> = pkg.into();
+        let pkg: Arc<Mutex<FeSyntaxPackage<Option<FeType>>>> = Arc::new(Mutex::new(pkg.into()));
 
-        while !pkg.is_resolved() {
-            let changed = match &mut pkg {
-                FeSyntaxPackage::File(file) => Self::resolve_file(file)?,
-                FeSyntaxPackage::Dir(dir) => Self::resolve_dir(dir)?,
+        while !pkg.lock().unwrap().is_resolved() {
+            let mut this = Self {
+                expr_lookup: HashMap::new(),
+                decls_to_eval: HashMap::new(),
+                scope: Arc::new(Mutex::new(Scope::new())),
+            };
+
+            let changed = match &mut *pkg.lock().unwrap() {
+                FeSyntaxPackage::File(file) => this.resolve_file(file)?,
+                FeSyntaxPackage::Dir(dir) => this.resolve_dir(dir)?,
             };
 
             if !changed {
@@ -28,18 +34,29 @@ impl FeTypeResolver {
             }
         }
 
+        let pkg: Mutex<FeSyntaxPackage<Option<FeType>>> =
+            Arc::try_unwrap(pkg).expect("Why didn't this work?");
+
+        let pkg: FeSyntaxPackage<Option<FeType>> = pkg.into_inner()?;
+
         return Ok(pkg.try_into()?);
     }
 
     fn internal_resolve_package(pkg: Arc<Mutex<FeSyntaxPackage<Option<FeType>>>>) -> Result<bool> {
+        let mut this = Self {
+            expr_lookup: HashMap::new(),
+            decls_to_eval: HashMap::new(),
+            scope: Arc::new(Mutex::new(Scope::new())),
+        };
+
         match &mut *pkg.lock().unwrap() {
-            FeSyntaxPackage::File(file) => return Self::resolve_file(file),
-            FeSyntaxPackage::Dir(dir) => return Self::resolve_dir(dir),
+            FeSyntaxPackage::File(file) => return this.resolve_file(file),
+            FeSyntaxPackage::Dir(dir) => return this.resolve_dir(dir),
         }
     }
 
-    fn resolve_dir(dir: &mut FeSyntaxDir<Option<FeType>>) -> Result<bool> {
-        let mut changed = Self::resolve_file(&mut dir.entry_file)?;
+    fn resolve_dir(&mut self, dir: &mut FeSyntaxDir<Option<FeType>>) -> Result<bool> {
+        let mut changed = self.resolve_file(&mut dir.entry_file)?;
 
         for pkg in dir.local_packages.values_mut() {
             changed = changed || Self::internal_resolve_package(pkg.clone())?;
@@ -48,19 +65,13 @@ impl FeTypeResolver {
         return Ok(changed);
     }
 
-    fn resolve_file(file: &mut FeSyntaxFile<Option<FeType>>) -> Result<bool> {
-        let mut this = Self {
-            expr_lookup: HashMap::new(),
-            decls_to_eval: HashMap::new(),
-            scope: Arc::new(Mutex::new(Scope::new())),
-        };
-
+    fn resolve_file(&mut self, file: &mut FeSyntaxFile<Option<FeType>>) -> Result<bool> {
         let mut changed = None;
 
         let syntax = file.syntax.lock().unwrap();
 
         for u in &syntax.uses {
-            let local = u.lock().unwrap().accept(&mut this)?;
+            let local = u.lock().unwrap().accept(self)?;
 
             if let Some(changed) = &mut changed {
                 *changed = *changed && local;
@@ -75,13 +86,13 @@ impl FeTypeResolver {
                 let decl = &mut lock;
 
                 let id = *decl.node_id();
-                let decl_changed = decl.accept(&mut this)?;
+                let decl_changed = decl.accept(self)?;
 
                 (id, decl_changed)
             };
 
             if !decl_changed {
-                this.decls_to_eval.insert(id, decl.clone());
+                self.decls_to_eval.insert(id, decl.clone());
             }
 
             if let Some(changed) = &mut changed {
@@ -91,9 +102,9 @@ impl FeTypeResolver {
             }
         }
 
-        while !this.decls_to_eval.is_empty() {
-            for (_, decl) in std::mem::take(&mut this.decls_to_eval) {
-                let decl_changed = this.evaluate_decl(decl)?;
+        while !self.decls_to_eval.is_empty() {
+            for (_, decl) in std::mem::take(&mut self.decls_to_eval) {
+                let decl_changed = self.evaluate_decl(decl)?;
 
                 if let Some(changed) = &mut changed {
                     *changed = *changed || decl_changed;
@@ -158,10 +169,14 @@ impl UseVisitor<Option<FeType>, Result<bool>> for FeTypeResolver {
                 if next.path.name.lexeme.as_ref() == "print" && next.path.details.is_b() {
                     self.scope.lock().unwrap().insert(
                         "print".into(),
-                        FeType::Callable(Callable {
-                            params: vec![("text".into(), FeType::String(None))],
-                            return_type: None,
-                        }),
+                        ScopedType {
+                            is_pub: matches!(use_decl.use_mod, Some(UseMod::Pub(_))),
+
+                            typ: FeType::Callable(Callable {
+                                params: vec![("text".into(), FeType::String(None))],
+                                return_type: None,
+                            }),
+                        },
                     );
                     next.path.details = Either::B(Some(FeType::Callable(Callable {
                         params: vec![("text".into(), FeType::String(None))],
@@ -169,6 +184,8 @@ impl UseVisitor<Option<FeType>, Result<bool>> for FeTypeResolver {
                     })));
                 }
             }
+        } else {
+            todo!("{use_decl:#?}");
         }
 
         return Ok(true);
@@ -182,10 +199,13 @@ impl DeclVisitor<Option<FeType>, Result<bool>> for FeTypeResolver {
 
         self.scope.lock().unwrap().insert(
             decl.name.lexeme.clone(),
-            FeType::Callable(Callable {
-                params: vec![],
-                return_type: None,
-            }),
+            ScopedType {
+                is_pub: matches!(decl.decl_mod, Some(DeclMod::Pub(_))),
+                typ: FeType::Callable(Callable {
+                    params: vec![],
+                    return_type: None,
+                }),
+            },
         );
 
         return Ok(false);
@@ -207,8 +227,8 @@ impl ExprVisitor<Option<FeType>, Result<bool>> for FeTypeResolver {
         let ident = &expr.ident.lexeme;
 
         if let Some(found) = self.scope.lock().unwrap().search(ident) {
-            expr.resolved_type = Some(found.clone());
-            self.expr_lookup.insert(expr.id, found.clone());
+            expr.resolved_type = Some(found.typ.clone());
+            self.expr_lookup.insert(expr.id, found.typ.clone());
         } else {
             todo!("Can't find ident: {ident:?}");
         }
@@ -287,24 +307,29 @@ impl ExprVisitor<Option<FeType>, Result<bool>> for FeTypeResolver {
 }
 
 struct Scope {
-    stack: Vec<ScopedData>,
+    stack: Vec<FlatScope>,
 }
 
-struct ScopedData {
-    name_lookup: HashMap<Arc<str>, FeType>,
+struct FlatScope {
+    name_lookup: HashMap<Arc<str>, ScopedType>,
+}
+
+struct ScopedType {
+    pub is_pub: bool,
+    pub typ: FeType,
 }
 
 impl Scope {
     pub fn new() -> Self {
         return Self {
-            stack: vec![ScopedData {
+            stack: vec![FlatScope {
                 name_lookup: HashMap::new(),
             }],
         };
     }
 
     pub fn begin_scope(&mut self) {
-        self.stack.push(ScopedData {
+        self.stack.push(FlatScope {
             name_lookup: HashMap::new(),
         });
     }
@@ -315,11 +340,11 @@ impl Scope {
         }
     }
 
-    pub fn insert(&mut self, name: Arc<str>, typ: FeType) {
+    pub fn insert(&mut self, name: Arc<str>, typ: ScopedType) {
         self.stack.last_mut().unwrap().name_lookup.insert(name, typ);
     }
 
-    pub fn search(&self, name: &str) -> Option<&FeType> {
+    pub fn search(&self, name: &str) -> Option<&ScopedType> {
         for data in self.stack.iter().rev() {
             if let Some(found) = data.name_lookup.get(name) {
                 return Some(found);
