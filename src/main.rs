@@ -69,7 +69,11 @@ fn main() -> ferrum_compiler::result::Result {
     let rust_code = RustCodeGen::generate_code(rust_ir)?;
     // dbg!(&rust_code);
 
-    println!("\n\nRUST CODE:\n\n{}\n\n", rust_code.files[0].content);
+    println!("\n");
+
+    for file in &rust_code.files {
+        println!("// {:?}\n{}", file.path, file.content);
+    }
 
     return Ok(());
 }

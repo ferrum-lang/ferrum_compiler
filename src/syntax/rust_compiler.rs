@@ -44,7 +44,12 @@ impl RustSyntaxCompiler {
             FeSyntaxPackage::Dir(dir) => {
                 self.compile_file(&mut dir.entry_file)?;
 
-                for (_name, package) in &dir.local_packages {
+                for (name, package) in &dir.local_packages {
+                    self.out.files.push(ir::RustIRFile {
+                        path: format!("./{}.rs", name.0).into(),
+                        uses: vec![],
+                        decls: vec![],
+                    });
                     self.compile_package(&mut package.lock().unwrap())?;
                 }
             }
@@ -145,8 +150,8 @@ impl UseVisitor<FeType, Result> for RustSyntaxCompiler {
             path: self.translate_use_static_path(&mut use_decl.path)?,
         };
 
-        // Future Snowy's problem :D
-        self.out.files[0].uses.push(use_ir);
+        let file_idx = self.out.files.len() - 1;
+        self.out.files[file_idx].uses.push(use_ir);
 
         return Ok(());
     }
@@ -182,7 +187,10 @@ impl DeclVisitor<FeType, Result> for RustSyntaxCompiler {
             body: self.translate_fn_body(&mut decl.body)?,
         };
 
-        self.out.files[0].decls.push(ir::RustIRDecl::Fn(fn_ir));
+        let file_idx = self.out.files.len() - 1;
+        self.out.files[file_idx]
+            .decls
+            .push(ir::RustIRDecl::Fn(fn_ir));
 
         return Ok(());
     }

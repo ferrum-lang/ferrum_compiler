@@ -1,3 +1,5 @@
+use std::path::PathBuf;
+
 use super::*;
 
 use crate::ir::{self, RustIRDeclAccept, RustIRExprAccept, RustIRStmtAccept, RustIRUseAccept};
@@ -17,6 +19,7 @@ pub struct RustCode {
 
 #[derive(Debug, Clone)]
 pub struct RustCodeFile {
+    pub path: PathBuf,
     pub content: Arc<str>,
 }
 
@@ -42,27 +45,29 @@ impl RustCodeGen {
 
     fn generate(mut self) -> Result<RustCode> {
         let entry = self.entry.clone();
-        let file = &mut entry.lock().unwrap().files[0];
 
-        let mut content = String::new();
+        for file in &mut entry.lock().unwrap().files {
+            let mut content = String::new();
 
-        for use_decl in &mut file.uses {
-            let code = use_decl.accept(&mut self)?;
-            content.push_str(&code);
-            content.push_str(&self.new_line());
-            content.push_str(&self.new_line());
+            for use_decl in &mut file.uses {
+                let code = use_decl.accept(&mut self)?;
+                content.push_str(&code);
+                content.push_str(&self.new_line());
+                content.push_str(&self.new_line());
+            }
+
+            for decl in &mut file.decls {
+                let code = decl.accept(&mut self)?;
+                content.push_str(&code);
+                content.push_str(&self.new_line());
+                content.push_str(&self.new_line());
+            }
+
+            self.out.files.push(RustCodeFile {
+                path: file.path.clone(),
+                content: content.into(),
+            });
         }
-
-        for decl in &mut file.decls {
-            let code = decl.accept(&mut self)?;
-            content.push_str(&code);
-            content.push_str(&self.new_line());
-            content.push_str(&self.new_line());
-        }
-
-        self.out.files.push(RustCodeFile {
-            content: content.into(),
-        });
 
         return Ok(self.out);
     }
