@@ -130,9 +130,9 @@ impl RustSyntaxCompiler {
 
         let path_ir = ir::RustIRUseStaticPath {
             pre: path.pre.as_ref().map(|pre| match pre {
-                PreUse::DoubleColon(_) => ir::RustIRUseStaticPathPre::DoubleColon,
-                PreUse::CurrentDir(_) => ir::RustIRUseStaticPathPre::CurrentDir,
-                PreUse::RootDir(_) => ir::RustIRUseStaticPathPre::RootDir,
+                UseStaticPathPre::DoubleColon(_) => ir::RustIRUseStaticPathPre::DoubleColon,
+                UseStaticPathPre::CurrentDir(_) => ir::RustIRUseStaticPathPre::CurrentDir,
+                UseStaticPathPre::RootDir(_) => ir::RustIRUseStaticPathPre::RootDir,
             }),
             name: path.name.lexeme.clone(),
             next,

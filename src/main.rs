@@ -40,7 +40,7 @@ fn main() -> ferrum_compiler::result::Result {
             pub fn main()
                 print("Hello, world!")
 
-                // hello()
+                hello()
                 world()
             ;
 

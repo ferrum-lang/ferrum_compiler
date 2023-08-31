@@ -11,10 +11,18 @@ pub struct FeTypeResolver {
     decls_to_eval: HashMap<NodeId<Decl>, Arc<Mutex<Decl<Option<FeType>>>>>,
 
     scope: Arc<Mutex<Scope>>,
+
+    root_pkg_exports: Arc<Mutex<ExportsPackage>>,
+    current_pkg_exports: Arc<Mutex<ExportsPackage>>,
 }
 
 impl FeTypeResolver {
     pub fn resolve_package(pkg: FeSyntaxPackage) -> Result<FeSyntaxPackage<FeType>> {
+        let exports = Arc::new(Mutex::new(match pkg {
+            FeSyntaxPackage::File(_) => ExportsPackage::new_file(),
+            FeSyntaxPackage::Dir(_) => ExportsPackage::new_dir(),
+        }));
+
         let pkg: Arc<Mutex<FeSyntaxPackage<Option<FeType>>>> = Arc::new(Mutex::new(pkg.into()));
 
         while !pkg.lock().unwrap().is_resolved() {
@@ -22,6 +30,9 @@ impl FeTypeResolver {
                 expr_lookup: HashMap::new(),
                 decls_to_eval: HashMap::new(),
                 scope: Arc::new(Mutex::new(Scope::new())),
+
+                root_pkg_exports: exports.clone(),
+                current_pkg_exports: exports.clone(),
             };
 
             let changed = match &mut *pkg.lock().unwrap() {
@@ -42,11 +53,19 @@ impl FeTypeResolver {
         return Ok(pkg.try_into()?);
     }
 
-    fn internal_resolve_package(pkg: Arc<Mutex<FeSyntaxPackage<Option<FeType>>>>) -> Result<bool> {
+    fn internal_resolve_package(
+        root_pkg_exports: Arc<Mutex<ExportsPackage>>,
+        current_pkg_exports: Arc<Mutex<ExportsPackage>>,
+        scope: Arc<Mutex<Scope>>,
+        pkg: Arc<Mutex<FeSyntaxPackage<Option<FeType>>>>,
+    ) -> Result<bool> {
         let mut this = Self {
             expr_lookup: HashMap::new(),
             decls_to_eval: HashMap::new(),
-            scope: Arc::new(Mutex::new(Scope::new())),
+            scope,
+
+            root_pkg_exports,
+            current_pkg_exports,
         };
 
         match &mut *pkg.lock().unwrap() {
@@ -58,8 +77,32 @@ impl FeTypeResolver {
     fn resolve_dir(&mut self, dir: &mut FeSyntaxDir<Option<FeType>>) -> Result<bool> {
         let mut changed = self.resolve_file(&mut dir.entry_file)?;
 
-        for pkg in dir.local_packages.values_mut() {
-            changed = changed || Self::internal_resolve_package(pkg.clone())?;
+        for (name, pkg) in &dir.local_packages {
+            let scope = {
+                let ExportsPackage::Dir(dir) = &mut *self.current_pkg_exports.lock().unwrap() else {
+                    todo!("how?")
+                };
+
+                let exports =
+                    dir.local_packages
+                        .entry(name.clone())
+                        .or_insert(Arc::new(Mutex::new(match &*pkg.lock().unwrap() {
+                            FeSyntaxPackage::File(_) => ExportsPackage::new_file(),
+                            FeSyntaxPackage::Dir(_) => ExportsPackage::new_dir(),
+                        })));
+
+                let lock = exports.lock().unwrap();
+
+                lock.scope()
+            };
+
+            changed = changed
+                || Self::internal_resolve_package(
+                    self.root_pkg_exports.clone(),
+                    self.current_pkg_exports.clone(),
+                    scope,
+                    pkg.clone(),
+                )?;
         }
 
         return Ok(changed);
@@ -74,7 +117,7 @@ impl FeTypeResolver {
             let local = u.lock().unwrap().accept(self)?;
 
             if let Some(changed) = &mut changed {
-                *changed = *changed && local;
+                *changed = *changed || local;
             } else {
                 changed = Some(local);
             }
@@ -185,7 +228,64 @@ impl UseVisitor<Option<FeType>, Result<bool>> for FeTypeResolver {
                 }
             }
         } else {
-            todo!("{use_decl:#?}");
+            let exports = match use_decl.path.pre {
+                Some(UseStaticPathPre::RootDir(_)) => self.root_pkg_exports.clone(),
+                Some(UseStaticPathPre::CurrentDir(_)) => self.current_pkg_exports.clone(),
+
+                None | Some(UseStaticPathPre::DoubleColon(_)) => {
+                    todo!("TODO: import dependencies and std lib")
+                }
+            };
+
+            let found = match &*exports.lock().unwrap() {
+                ExportsPackage::File(f) => todo!("{f:#?}"),
+                ExportsPackage::Dir(d) => d
+                    .local_packages
+                    .get(&SyntaxPackageName(use_decl.path.name.lexeme.clone()))
+                    .cloned(),
+            };
+
+            let Either::A(next) = &mut use_decl.path.details else {
+                todo!()
+            };
+
+            let UseStaticPathNext::Single(next) = next else {
+                todo!()
+            };
+
+            if let Some(found) = found {
+                let typ = found
+                    .lock()
+                    .unwrap()
+                    .scope()
+                    .lock()
+                    .unwrap()
+                    .search(&next.path.name.lexeme)
+                    .cloned();
+
+                if let Some(typ) = typ {
+                    if !typ.is_pub {
+                        todo!("Not public!");
+                    }
+
+                    let Either::B(use_typ) = &mut next.path.details else {
+                        todo!()
+                    };
+                    *use_typ = Some(typ.typ.clone());
+
+                    self.scope.lock().unwrap().insert(
+                        next.path.name.lexeme.clone(),
+                        ScopedType {
+                            is_pub: matches!(use_decl.use_mod, Some(UseMod::Pub(_))),
+                            typ: typ.typ,
+                        },
+                    );
+                } else {
+                    return Ok(false);
+                }
+            } else {
+                return Ok(false);
+            }
         }
 
         return Ok(true);
@@ -230,7 +330,8 @@ impl ExprVisitor<Option<FeType>, Result<bool>> for FeTypeResolver {
             expr.resolved_type = Some(found.typ.clone());
             self.expr_lookup.insert(expr.id, found.typ.clone());
         } else {
-            todo!("Can't find ident: {ident:?}");
+            // todo!("Can't find ident: {ident:?}");
+            return Ok(false);
         }
 
         return Ok(true);
@@ -252,7 +353,8 @@ impl ExprVisitor<Option<FeType>, Result<bool>> for FeTypeResolver {
             .get(callee.node_id())
             .cloned()
         else {
-            todo!("Callee not found: {callee:?}");
+            // todo!("Callee not found: {callee:?}");
+            return Ok(false);
         };
 
         if expr.args.len() > callee.params.len() {
@@ -306,14 +408,58 @@ impl ExprVisitor<Option<FeType>, Result<bool>> for FeTypeResolver {
     }
 }
 
+#[derive(Debug, Clone)]
+enum ExportsPackage {
+    File(ExportsFile),
+    Dir(ExportsDir),
+}
+
+impl ExportsPackage {
+    pub fn new_file() -> Self {
+        return Self::File(ExportsFile {
+            scope: Arc::new(Mutex::new(Scope::new())),
+        });
+    }
+
+    pub fn new_dir() -> Self {
+        return Self::Dir(ExportsDir {
+            entry: ExportsFile {
+                scope: Arc::new(Mutex::new(Scope::new())),
+            },
+            local_packages: HashMap::new(),
+        });
+    }
+
+    pub fn scope(&self) -> Arc<Mutex<Scope>> {
+        match self {
+            Self::File(file) => return file.scope.clone(),
+            Self::Dir(dir) => return dir.entry.scope.clone(),
+        }
+    }
+}
+
+#[derive(Debug, Clone)]
+struct ExportsFile {
+    scope: Arc<Mutex<Scope>>,
+}
+
+#[derive(Debug, Clone)]
+struct ExportsDir {
+    entry: ExportsFile,
+    local_packages: HashMap<SyntaxPackageName, Arc<Mutex<ExportsPackage>>>,
+}
+
+#[derive(Debug, Clone)]
 struct Scope {
     stack: Vec<FlatScope>,
 }
 
+#[derive(Debug, Clone)]
 struct FlatScope {
     name_lookup: HashMap<Arc<str>, ScopedType>,
 }
 
+#[derive(Debug, Clone)]
 struct ScopedType {
     pub is_pub: bool,
     pub typ: FeType,

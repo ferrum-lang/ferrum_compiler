@@ -48,17 +48,17 @@ impl<T: ResolvedType> TryFrom<Use<Option<T>>> for Use<T> {
 }
 
 #[derive(Debug, Clone, PartialEq)]
-pub enum PreUse {
-    DoubleColon(Arc<Token>),
-    CurrentDir(Arc<Token>),
-    RootDir(Arc<Token>),
+pub struct UseStaticPath<ResolvedType = ()> {
+    pub pre: Option<UseStaticPathPre>,
+    pub name: Arc<Token>,
+    pub details: Either<UseStaticPathNext<ResolvedType>, ResolvedType>,
 }
 
 #[derive(Debug, Clone, PartialEq)]
-pub struct UseStaticPath<ResolvedType = ()> {
-    pub pre: Option<PreUse>,
-    pub name: Arc<Token>,
-    pub details: Either<UseStaticPathNext<ResolvedType>, ResolvedType>,
+pub enum UseStaticPathPre {
+    DoubleColon(Arc<Token>),
+    CurrentDir(Arc<Token>),
+    RootDir(Arc<Token>),
 }
 
 #[derive(Debug, Clone, PartialEq)]
