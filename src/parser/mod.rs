@@ -183,6 +183,8 @@ impl FeTokenSyntaxParser {
             Some(UseStaticPathPre::DoubleColon(token))
         } else if let Some(token) = self.match_any(&[TokenType::DotSlash], WithNewlines::None) {
             Some(UseStaticPathPre::CurrentDir(token))
+        } else if let Some(token) = self.match_any(&[TokenType::TildeSlash], WithNewlines::None) {
+            Some(UseStaticPathPre::RootDir(token))
         } else {
             None
         };

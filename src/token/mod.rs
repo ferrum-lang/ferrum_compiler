@@ -98,6 +98,9 @@ pub enum TokenType {
     Dot,      // .
     DotSlash, // ./
 
+    Tilde,      // ~
+    TildeSlash, // ~/
+
     // Keywords
     Fn,
     Norm,

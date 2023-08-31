@@ -181,6 +181,14 @@ impl FeSourceScanner {
                 }
             }
 
+            '~' => {
+                if self.peek_next() == Some('/') {
+                    self.advance_col();
+                    Some(TokenType::TildeSlash)
+                } else {
+                    Some(TokenType::Tilde)
+                }
+            }
             '"' => Some(self.string(false)),
 
             '/' if self.peek_next() == Some('/') => {
