@@ -871,6 +871,44 @@ impl FeTokenSyntaxParser {
                 ))))
             }
 
+            Some((t, TokenType::OpenFmtString)) => {
+                let mut rest = vec![];
+                loop {
+                    let mut done = false;
+
+                    let expr = NestedExpr(self.expression()?);
+
+                    let string =
+                        match self.match_any(&[TokenType::MidFmtString], WithNewlines::None) {
+                            Some(t) => t.lexeme.clone(),
+                            None => {
+                                done = true;
+                                self.consume(
+                                    &TokenType::CloseFmtString,
+                                    "Expected format string to be closed",
+                                )?
+                                .lexeme
+                                .clone()
+                            }
+                        };
+
+                    rest.push(FmtStringPart { expr, string });
+
+                    if done {
+                        break;
+                    }
+                }
+
+                return Ok(Arc::new(Mutex::new(Expr::FmtStringLiteral(
+                    FmtStringLiteralExpr {
+                        id: NodeId::gen(),
+                        first: t,
+                        rest,
+                        resolved_type: (),
+                    },
+                ))));
+            }
+
             Some((t, TokenType::True | TokenType::False)) => {
                 return Ok(Arc::new(Mutex::new(Expr::BoolLiteral(BoolLiteralExpr {
                     id: NodeId::gen(),

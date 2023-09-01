@@ -16,4 +16,5 @@ pub struct Callable {
 #[derive(Debug, Clone, PartialEq)]
 pub enum StringDetails {
     PlainLiteral,
+    Format,
 }

@@ -39,7 +39,7 @@ fn main() -> ferrum_compiler::result::Result {
             pub fn main()
                 const name = "Adam"
 
-                print(name)
+                print("Hello {name} :)")
             ;
        "#
             .into(),

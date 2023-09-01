@@ -390,14 +390,39 @@ impl ExprVisitor<Option<FeType>, Result<bool>> for FeTypeResolver {
         return Ok(true);
     }
 
+    fn visit_fmt_string_literal_expr(
+        &mut self,
+        expr: &mut FmtStringLiteralExpr<Option<FeType>>,
+    ) -> Result<bool> {
+        if expr.is_resolved() {
+            return Ok(false);
+        }
+
+        let mut changed = false;
+        let mut is_all_checked = true;
+
+        for part in &mut expr.rest {
+            changed = changed || part.expr.0.lock().unwrap().accept(self)?;
+
+            if !part.expr.0.lock().unwrap().is_resolved() {
+                is_all_checked = false;
+            }
+        }
+
+        if is_all_checked {
+            expr.resolved_type = Some(FeType::String(Some(StringDetails::Format)));
+            changed = true;
+        }
+
+        return Ok(changed);
+    }
+
     fn visit_ident_expr(&mut self, expr: &mut IdentExpr<Option<FeType>>) -> Result<bool> {
         if expr.is_resolved() {
             return Ok(false);
         }
 
         let ident = &expr.ident.lexeme;
-
-        dbg!(&self.scope);
 
         if let Some(found) = self.scope.lock().unwrap().search(ident) {
             expr.resolved_type = Some(found.typ.clone());

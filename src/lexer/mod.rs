@@ -243,6 +243,7 @@ impl FeSourceScanner {
                 }
                 Some('{') => {
                     is_starting_fmt_str = true;
+                    self.advance_col();
                     break;
                 }
                 Some('\\') => {

@@ -1,5 +1,6 @@
 use super::*;
 
+use crate::result::Result;
 use crate::token::Token;
 use crate::utils::{fe_from, fe_try_from, from, invert, try_from};
 
@@ -7,6 +8,7 @@ use crate::utils::{fe_from, fe_try_from, from, invert, try_from};
 pub enum Expr<T: ResolvedType = ()> {
     BoolLiteral(BoolLiteralExpr<T>),
     PlainStringLiteral(PlainStringLiteralExpr<T>),
+    FmtStringLiteral(FmtStringLiteralExpr<T>),
     Ident(IdentExpr<T>),
     Call(CallExpr<T>),
 }
@@ -16,6 +18,7 @@ impl<T: ResolvedType> Expr<T> {
         match self {
             Self::BoolLiteral(v) => return Some(&v.resolved_type),
             Self::PlainStringLiteral(v) => return Some(&v.resolved_type),
+            Self::FmtStringLiteral(v) => return Some(&v.resolved_type),
             Self::Ident(v) => return Some(&v.resolved_type),
             Self::Call(v) => return v.resolved_type.as_ref(),
         }
@@ -27,6 +30,7 @@ impl<T: ResolvedType> Node<Expr> for Expr<T> {
         match self {
             Self::BoolLiteral(expr) => return expr.node_id(),
             Self::PlainStringLiteral(expr) => return expr.node_id(),
+            Self::FmtStringLiteral(expr) => return expr.node_id(),
             Self::Ident(expr) => return expr.node_id(),
             Self::Call(expr) => return expr.node_id(),
         }
@@ -38,6 +42,7 @@ impl<T: ResolvedType> From<Expr<()>> for Expr<Option<T>> {
         match value {
             Expr::BoolLiteral(expr) => return Self::BoolLiteral(from(expr)),
             Expr::PlainStringLiteral(expr) => return Self::PlainStringLiteral(from(expr)),
+            Expr::FmtStringLiteral(expr) => return Self::FmtStringLiteral(from(expr)),
             Expr::Ident(expr) => return Self::Ident(from(expr)),
             Expr::Call(expr) => return Self::Call(from(expr)),
         }
@@ -49,6 +54,7 @@ impl<T: ResolvedType> Resolvable for Expr<Option<T>> {
         match self {
             Expr::BoolLiteral(expr) => return expr.is_resolved(),
             Expr::PlainStringLiteral(expr) => return expr.is_resolved(),
+            Expr::FmtStringLiteral(expr) => return expr.is_resolved(),
             Expr::Ident(expr) => return expr.is_resolved(),
             Expr::Call(expr) => return expr.is_resolved(),
         }
@@ -62,6 +68,7 @@ impl<T: ResolvedType> TryFrom<Expr<Option<T>>> for Expr<T> {
         match value {
             Expr::BoolLiteral(expr) => return Ok(Self::BoolLiteral(try_from(expr)?)),
             Expr::PlainStringLiteral(expr) => return Ok(Self::PlainStringLiteral(try_from(expr)?)),
+            Expr::FmtStringLiteral(expr) => return Ok(Self::FmtStringLiteral(try_from(expr)?)),
             Expr::Ident(expr) => return Ok(Self::Ident(try_from(expr)?)),
             Expr::Call(expr) => return Ok(Self::Call(try_from(expr)?)),
         }
@@ -187,6 +194,100 @@ impl<T: ResolvedType> TryFrom<PlainStringLiteralExpr<Option<T>>> for PlainString
                 file: file!(),
                 line: line!(),
             })?,
+        });
+    }
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub struct FmtStringLiteralExpr<T: ResolvedType = ()> {
+    pub id: NodeId<Expr>,
+    pub first: Arc<Token>,
+    pub rest: Vec<FmtStringPart<T>>,
+    pub resolved_type: T,
+}
+
+impl<T: ResolvedType> Node<Expr> for FmtStringLiteralExpr<T> {
+    fn node_id(&self) -> &NodeId<Expr> {
+        return &self.id;
+    }
+}
+
+impl<T: ResolvedType> From<FmtStringLiteralExpr<()>> for FmtStringLiteralExpr<Option<T>> {
+    fn from(value: FmtStringLiteralExpr<()>) -> Self {
+        return Self {
+            id: value.id,
+            first: value.first,
+            rest: value.rest.into_iter().map(from).collect(),
+            resolved_type: None,
+        };
+    }
+}
+
+impl<T: ResolvedType> Resolvable for FmtStringLiteralExpr<Option<T>> {
+    fn is_resolved(&self) -> bool {
+        for part in &self.rest {
+            if !part.expr.is_resolved() {
+                return false;
+            }
+        }
+
+        return self.resolved_type.is_some();
+    }
+}
+
+impl<T: ResolvedType> TryFrom<FmtStringLiteralExpr<Option<T>>> for FmtStringLiteralExpr<T> {
+    type Error = FinalizeResolveTypeError;
+
+    fn try_from(value: FmtStringLiteralExpr<Option<T>>) -> Result<Self, Self::Error> {
+        return Ok(Self {
+            id: value.id,
+            first: value.first,
+            rest: value
+                .rest
+                .into_iter()
+                .map(|part| {
+                    Ok(FmtStringPart {
+                        expr: try_from(part.expr)?,
+                        string: part.string,
+                    })
+                })
+                .collect::<Result<Vec<FmtStringPart<T>>, Self::Error>>()?,
+            resolved_type: value.resolved_type.ok_or(FinalizeResolveTypeError {
+                file: file!(),
+                line: line!(),
+            })?,
+        });
+    }
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub struct FmtStringPart<T: ResolvedType = ()> {
+    pub expr: NestedExpr<T>,
+    pub string: Arc<str>,
+}
+
+impl<T: ResolvedType> From<FmtStringPart<()>> for FmtStringPart<Option<T>> {
+    fn from(value: FmtStringPart<()>) -> Self {
+        return Self {
+            expr: from(value.expr),
+            string: value.string,
+        };
+    }
+}
+
+impl<T: ResolvedType> Resolvable for FmtStringPart<Option<T>> {
+    fn is_resolved(&self) -> bool {
+        return self.expr.is_resolved();
+    }
+}
+
+impl<T: ResolvedType> TryFrom<FmtStringPart<Option<T>>> for FmtStringPart<T> {
+    type Error = FinalizeResolveTypeError;
+
+    fn try_from(value: FmtStringPart<Option<T>>) -> Result<Self, Self::Error> {
+        return Ok(Self {
+            expr: try_from(value.expr)?,
+            string: value.string,
         });
     }
 }
@@ -379,6 +480,7 @@ pub struct CallArgParamName {
 pub trait ExprVisitor<T: ResolvedType, R = ()> {
     fn visit_bool_literal_expr(&mut self, expr: &mut BoolLiteralExpr<T>) -> R;
     fn visit_plain_string_literal_expr(&mut self, expr: &mut PlainStringLiteralExpr<T>) -> R;
+    fn visit_fmt_string_literal_expr(&mut self, expr: &mut FmtStringLiteralExpr<T>) -> R;
     fn visit_ident_expr(&mut self, expr: &mut IdentExpr<T>) -> R;
     fn visit_call_expr(&mut self, expr: &mut CallExpr<T>) -> R;
 }
@@ -392,6 +494,7 @@ impl<T: ResolvedType, R, V: ExprVisitor<T, R>> ExprAccept<T, R, V> for Expr<T> {
         return match self {
             Self::BoolLiteral(expr) => expr.accept(visitor),
             Self::PlainStringLiteral(expr) => expr.accept(visitor),
+            Self::FmtStringLiteral(expr) => expr.accept(visitor),
             Self::Ident(expr) => expr.accept(visitor),
             Self::Call(expr) => expr.accept(visitor),
         };
@@ -407,6 +510,12 @@ impl<T: ResolvedType, R, V: ExprVisitor<T, R>> ExprAccept<T, R, V> for BoolLiter
 impl<T: ResolvedType, R, V: ExprVisitor<T, R>> ExprAccept<T, R, V> for PlainStringLiteralExpr<T> {
     fn accept(&mut self, visitor: &mut V) -> R {
         return visitor.visit_plain_string_literal_expr(self);
+    }
+}
+
+impl<T: ResolvedType, R, V: ExprVisitor<T, R>> ExprAccept<T, R, V> for FmtStringLiteralExpr<T> {
+    fn accept(&mut self, visitor: &mut V) -> R {
+        return visitor.visit_fmt_string_literal_expr(self);
     }
 }
 

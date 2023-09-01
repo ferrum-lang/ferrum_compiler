@@ -262,6 +262,18 @@ impl ExprVisitor<FeType, Result<ir::RustIRExpr>> for RustSyntaxCompiler {
         }));
     }
 
+    fn visit_fmt_string_literal_expr(
+        &mut self,
+        expr: &mut FmtStringLiteralExpr<FeType>,
+    ) -> Result<ir::RustIRExpr> {
+        todo!("{expr:#?}");
+
+        // return Ok(ir::RustIRExpr::MacroFnCall(ir::RustIRMacroFnCall {
+        //     name: "format",
+        //     args: vec![],
+        // }));
+    }
+
     fn visit_ident_expr(&mut self, expr: &mut IdentExpr<FeType>) -> Result<ir::RustIRExpr> {
         return Ok(ir::RustIRExpr::Ident(ir::RustIRIdentExpr {
             ident: expr.ident.lexeme.clone(),
