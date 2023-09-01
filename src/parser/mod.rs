@@ -366,12 +366,21 @@ impl FeTokenSyntaxParser {
             return Ok(ast::Stmt::For(self.for_statement()?));
         }
 
-        if self.match_any(&[token::TokenType::Const], WithNewlines::Many) {
-            return Ok(ast::Stmt::VarDecl(
-                self.var_decl_statement(ast::VarDeclType::Const)?,
-            ));
+        */
+
+        if let Some(token) = self.match_any(&[TokenType::Const], WithNewlines::Many) {
+            return Ok(Arc::new(Mutex::new(Stmt::VarDecl(
+                self.var_decl_statement(VarDeclMut::Const(token))?,
+            ))));
         }
 
+        if let Some(token) = self.match_any(&[TokenType::Mut], WithNewlines::Many) {
+            return Ok(Arc::new(Mutex::new(Stmt::VarDecl(
+                self.var_decl_statement(VarDeclMut::Mut(token))?,
+            ))));
+        }
+
+        /*
         if self.match_any(&[token::TokenType::Mut], WithNewlines::Many) {
             return Ok(ast::Stmt::VarDecl(
                 self.var_decl_statement(ast::VarDeclType::Mut)?,
@@ -390,6 +399,42 @@ impl FeTokenSyntaxParser {
         let stmt = self.expr_or_assign_statement()?;
 
         return Ok(stmt);
+    }
+
+    fn var_decl_statement(&mut self, var_mut: VarDeclMut) -> Result<VarDeclStmt> {
+        let target = self.var_decl_target()?;
+
+        // TODO: parse explicit type
+
+        let value = if let Some(token) = self.match_any(&[TokenType::Equal], WithNewlines::One) {
+            Some(VarDeclValue {
+                eq_token: token,
+                value: NestedExpr(self.expression()?),
+            })
+        } else {
+            None
+        };
+
+        return Ok(VarDeclStmt {
+            id: NodeId::gen(),
+            var_mut,
+            target,
+            explicit_type: None,
+            value,
+        });
+    }
+
+    fn var_decl_target(&mut self) -> Result<VarDeclTarget> {
+        // TODO
+
+        return Ok(VarDeclTarget::Ident(IdentExpr {
+            id: NodeId::gen(),
+            ident: self.consume(
+                &TokenType::Ident,
+                "TODO: Handle more complicated assignment patterns",
+            )?,
+            resolved_type: (),
+        }));
     }
 
     fn expr_or_assign_statement(&mut self) -> Result<Arc<Mutex<Stmt>>> {
@@ -826,6 +871,22 @@ impl FeTokenSyntaxParser {
                 ))))
             }
 
+            Some((t, TokenType::True | TokenType::False)) => {
+                return Ok(Arc::new(Mutex::new(Expr::BoolLiteral(BoolLiteralExpr {
+                    id: NodeId::gen(),
+                    literal: t,
+                    resolved_type: (),
+                }))));
+            }
+
+            Some((t, TokenType::Ident)) => {
+                return Ok(Arc::new(Mutex::new(Expr::Ident(IdentExpr {
+                    id: NodeId::gen(),
+                    ident: t,
+                    resolved_type: (),
+                }))));
+            }
+
             /*
             Some(
                 t @ Token {
@@ -911,16 +972,7 @@ impl FeTokenSyntaxParser {
                     keyword: t,
                 }));
             }
-            */
-            Some((t, TokenType::Ident)) => {
-                return Ok(Arc::new(Mutex::new(Expr::Ident(IdentExpr {
-                    id: NodeId::gen(),
-                    ident: t,
-                    resolved_type: (),
-                }))));
-            }
 
-            /*
             Some(Token {
                 token_type: TokenType::Crash,
                 mut span,
@@ -952,7 +1004,11 @@ impl FeTokenSyntaxParser {
             Some((peek, _)) => {
                 return Err(self
                     .error(
-                        format!("[{}:{}] Expected some expression.", file!(), line!()),
+                        format!(
+                            "[{}:{}] Expected some expression. Found {peek:#?}",
+                            file!(),
+                            line!()
+                        ),
                         peek,
                     )
                     .into());

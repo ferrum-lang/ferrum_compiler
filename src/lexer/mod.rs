@@ -13,17 +13,17 @@ lazy_static::lazy_static! {
         let mut keywords = HashMap::new();
         // keywords.insert("and".to_string(), TokenType::And);
         // keywords.insert("as".to_string(), TokenType::As);
-        // keywords.insert("const".to_string(), TokenType::Const);
+        keywords.insert("const".to_string(), TokenType::Const);
         // keywords.insert("CRASH!".to_string(), TokenType::Crash);
         // keywords.insert("else".to_string(), TokenType::Else);
-        // keywords.insert("false".to_string(), TokenType::False);
+        keywords.insert("false".to_string(), TokenType::False);
         keywords.insert("fn".to_string(), TokenType::Fn);
         // keywords.insert("for".to_string(), TokenType::For);
         // keywords.insert("if".to_string(), TokenType::If);
         // keywords.insert("impl".to_string(), TokenType::Impl);
         // keywords.insert("in".to_string(), TokenType::In);
         // keywords.insert("match".to_string(), TokenType::Match);
-        // keywords.insert("mut".to_string(), TokenType::Mut);
+        keywords.insert("mut".to_string(), TokenType::Mut);
         // keywords.insert("norm".to_string(), TokenType::Norm);
         // keywords.insert("or".to_string(), TokenType::Or);
         keywords.insert("pub".to_string(), TokenType::Pub);
@@ -35,7 +35,7 @@ lazy_static::lazy_static! {
         // keywords.insert("Self".to_string(), TokenType::SelfType);
         // keywords.insert("struct".to_string(), TokenType::Struct);
         // keywords.insert("trait".to_string(), TokenType::Trait);
-        // keywords.insert("true".to_string(), TokenType::True);
+        keywords.insert("true".to_string(), TokenType::True);
         // keywords.insert("type".to_string(), TokenType::Type);
         keywords.insert("use".to_string(), TokenType::Use);
         // keywords.insert("while".to_string(), TokenType::While);
@@ -153,6 +153,9 @@ impl FeSourceScanner {
         let Some(c) = self.current() else { return };
 
         let token_type = match c {
+            '"' => Some(self.string(false)),
+            '}' if self.format_string_nest > 0 => Some(self.string(true)),
+
             ' ' | '\r' | '\t' => None,
 
             ',' => Some(TokenType::Comma),
@@ -162,6 +165,8 @@ impl FeSourceScanner {
             ')' => Some(TokenType::CloseParen),
 
             '\n' => Some(TokenType::Newline),
+
+            '=' => Some(TokenType::Equal),
 
             ':' => {
                 if self.peek_next() == Some(':') {
@@ -189,7 +194,6 @@ impl FeSourceScanner {
                     Some(TokenType::Tilde)
                 }
             }
-            '"' => Some(self.string(false)),
 
             '/' if self.peek_next() == Some('/') => {
                 while self.peek_next() != Some('\n') {
@@ -261,16 +265,17 @@ impl FeSourceScanner {
 
         match (is_continuing_fmt_str, is_starting_fmt_str) {
             (false, false) => return TokenType::PlainString,
-            // (false, true) => {
-            //     self.format_string_nest += 1;
-            //     return TokenType::FormatStringOpen;
-            // }
-            // (true, true) => return TokenType::FormatStringMid,
-            // (true, false) => {
-            //     self.format_string_nest -= 1;
-            //     return TokenType::FormatStringClose;
-            // }
-            _ => todo!(),
+            (false, true) => {
+                self.format_string_nest += 1;
+                return TokenType::OpenFmtString;
+            }
+            (true, true) => return TokenType::MidFmtString,
+            (true, false) => {
+                self.format_string_nest -= 1;
+                return TokenType::CloseFmtString;
+            }
+            //
+            // _ => todo!(),
         }
     }
 

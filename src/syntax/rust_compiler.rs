@@ -1,6 +1,9 @@
 use super::*;
 
 use crate::ir;
+use crate::utils::invert;
+
+use crate::result::Result;
 
 use std::sync::{Arc, Mutex};
 
@@ -206,9 +209,59 @@ impl StmtVisitor<FeType, Result<Vec<ir::RustIRStmt>>> for RustSyntaxCompiler {
 
         return Ok(vec![ir::RustIRStmt::Expr(ir::RustIRExprStmt { expr })]);
     }
+
+    fn visit_var_decl_stmt(
+        &mut self,
+        stmt: &mut VarDeclStmt<FeType>,
+    ) -> Result<Vec<ir::RustIRStmt>> {
+        let value = invert(stmt.value.as_mut().map(|value| {
+            let value = value.value.0.lock().unwrap().accept(self);
+
+            // '?' doesn't work here without explicit type annotation
+            // I guess rustc can't guarantee Result::Error here without explicit return Err(...)
+            let expr = match value {
+                Ok(value) => value,
+                Err(e) => return Err(e),
+            };
+
+            Ok(ir::RustIRLetValue { expr })
+        }))?;
+
+        match &stmt.target {
+            VarDeclTarget::Ident(ident) => {
+                return Ok(vec![ir::RustIRStmt::Let(ir::RustIRLetStmt {
+                    is_mut: match &stmt.var_mut {
+                        VarDeclMut::Const(_) => false,
+                        VarDeclMut::Mut(_) => true,
+                    },
+                    name: ident.ident.lexeme.clone(),
+                    explicit_type: None,
+                    value,
+                })])
+            }
+        }
+    }
 }
 
 impl ExprVisitor<FeType, Result<ir::RustIRExpr>> for RustSyntaxCompiler {
+    fn visit_bool_literal_expr(
+        &mut self,
+        expr: &mut BoolLiteralExpr<FeType>,
+    ) -> Result<ir::RustIRExpr> {
+        return Ok(ir::RustIRExpr::BoolLiteral(ir::RustIRBoolLiteralExpr {
+            literal: expr.resolved_type == FeType::Bool(Some(true)),
+        }));
+    }
+
+    fn visit_plain_string_literal_expr(
+        &mut self,
+        expr: &mut PlainStringLiteralExpr<FeType>,
+    ) -> Result<ir::RustIRExpr> {
+        return Ok(ir::RustIRExpr::StringLiteral(ir::RustIRStringLiteralExpr {
+            literal: expr.literal.lexeme.clone(),
+        }));
+    }
+
     fn visit_ident_expr(&mut self, expr: &mut IdentExpr<FeType>) -> Result<ir::RustIRExpr> {
         return Ok(ir::RustIRExpr::Ident(ir::RustIRIdentExpr {
             ident: expr.ident.lexeme.clone(),
@@ -230,14 +283,5 @@ impl ExprVisitor<FeType, Result<ir::RustIRExpr>> for RustSyntaxCompiler {
         }
 
         return Ok(ir::RustIRExpr::Call(ir::RustIRCallExpr { callee, args }));
-    }
-
-    fn visit_plain_string_literal_expr(
-        &mut self,
-        expr: &mut PlainStringLiteralExpr<FeType>,
-    ) -> Result<ir::RustIRExpr> {
-        return Ok(ir::RustIRExpr::StringLiteral(ir::RustIRStringLiteralExpr {
-            literal: expr.literal.lexeme.clone(),
-        }));
     }
 }

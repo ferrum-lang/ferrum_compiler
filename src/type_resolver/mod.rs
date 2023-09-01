@@ -3,6 +3,8 @@ use crate::syntax::*;
 
 use crate::result::Result;
 
+use crate::token::TokenType;
+
 use std::collections::HashMap;
 use std::sync::{Arc, Mutex};
 
@@ -162,7 +164,13 @@ impl FeTypeResolver {
 
     fn evaluate_decl(&mut self, decl: Arc<Mutex<Decl<Option<FeType>>>>) -> Result<bool> {
         match &mut *decl.lock().unwrap() {
-            Decl::Fn(decl) => return self.evaluate_fn_decl(decl),
+            Decl::Fn(decl) => {
+                self.scope.lock().unwrap().begin_scope();
+                let res = self.evaluate_fn_decl(decl);
+                self.scope.lock().unwrap().end_scope();
+
+                return res;
+            }
         }
     }
 
@@ -316,9 +324,72 @@ impl StmtVisitor<Option<FeType>, Result<bool>> for FeTypeResolver {
     fn visit_expr_stmt(&mut self, stmt: &mut ExprStmt<Option<FeType>>) -> Result<bool> {
         return stmt.expr.lock().unwrap().accept(self);
     }
+
+    fn visit_var_decl_stmt(&mut self, stmt: &mut VarDeclStmt<Option<FeType>>) -> Result<bool> {
+        let mut changed = false;
+
+        let typ = if let Some(value) = &stmt.value {
+            let value = &mut *value.value.0.lock().unwrap();
+
+            changed = changed || value.accept(self)?;
+
+            value.resolved_type().cloned().flatten()
+        } else {
+            None
+        };
+
+        // TODO: check explicit types
+
+        if let Some(typ) = typ {
+            match &mut stmt.target {
+                VarDeclTarget::Ident(ident) => {
+                    self.scope.lock().unwrap().insert(
+                        ident.ident.lexeme.clone(),
+                        ScopedType { is_pub: false, typ },
+                    );
+
+                    changed = changed || ident.accept(self)?;
+                }
+            }
+        }
+
+        return Ok(changed);
+    }
 }
 
 impl ExprVisitor<Option<FeType>, Result<bool>> for FeTypeResolver {
+    fn visit_bool_literal_expr(
+        &mut self,
+        expr: &mut BoolLiteralExpr<Option<FeType>>,
+    ) -> Result<bool> {
+        if expr.is_resolved() {
+            return Ok(false);
+        }
+
+        let details = match &expr.literal.token_type {
+            TokenType::True => Some(true),
+            TokenType::False => Some(false),
+            _ => None,
+        };
+
+        expr.resolved_type = Some(FeType::Bool(details));
+
+        return Ok(true);
+    }
+
+    fn visit_plain_string_literal_expr(
+        &mut self,
+        expr: &mut PlainStringLiteralExpr<Option<FeType>>,
+    ) -> Result<bool> {
+        if expr.is_resolved() {
+            return Ok(false);
+        }
+
+        expr.resolved_type = Some(FeType::String(Some(StringDetails::PlainLiteral)));
+
+        return Ok(true);
+    }
+
     fn visit_ident_expr(&mut self, expr: &mut IdentExpr<Option<FeType>>) -> Result<bool> {
         if expr.is_resolved() {
             return Ok(false);
@@ -390,19 +461,6 @@ impl ExprVisitor<Option<FeType>, Result<bool>> for FeTypeResolver {
         }
 
         expr.resolved_type = callee.return_type.as_deref().map(|rt| Some(rt.clone()));
-
-        return Ok(true);
-    }
-
-    fn visit_plain_string_literal_expr(
-        &mut self,
-        expr: &mut PlainStringLiteralExpr<Option<FeType>>,
-    ) -> Result<bool> {
-        if expr.is_resolved() {
-            return Ok(false);
-        }
-
-        expr.resolved_type = Some(FeType::String(Some(StringDetails::PlainLiteral)));
 
         return Ok(true);
     }

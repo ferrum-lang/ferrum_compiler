@@ -197,9 +197,49 @@ impl ir::RustIRStmtVisitor<Result<Arc<str>>> for RustCodeGen {
 
         return Ok(out.into());
     }
+
+    fn visit_let_stmt(&mut self, stmt: &mut ir::RustIRLetStmt) -> Result<Arc<str>> {
+        let mut out = String::from("let ");
+
+        if stmt.is_mut {
+            out.push_str("mut ");
+        }
+
+        out.push_str(&stmt.name);
+        out.push(' ');
+
+        if let Some(_) = stmt.explicit_type {
+            todo!()
+        }
+
+        if let Some(value) = &mut stmt.value {
+            out.push_str("= ");
+
+            let code = value.expr.accept(self)?;
+            out.push_str(&code);
+        }
+
+        out.push(';');
+
+        return Ok(out.into());
+    }
 }
 
 impl ir::RustIRExprVisitor<Result<Arc<str>>> for RustCodeGen {
+    fn visit_bool_literal_expr(
+        &mut self,
+        expr: &mut ir::RustIRBoolLiteralExpr,
+    ) -> Result<Arc<str>> {
+        return Ok(expr.literal.to_string().into());
+    }
+
+    fn visit_string_literal_expr(
+        &mut self,
+        expr: &mut ir::RustIRStringLiteralExpr,
+    ) -> Result<Arc<str>> {
+        return Ok(expr.literal.clone());
+    }
+
     fn visit_ident_expr(&mut self, expr: &mut ir::RustIRIdentExpr) -> Result<Arc<str>> {
         return Ok(expr.ident.clone());
     }
@@ -246,12 +286,5 @@ impl ir::RustIRExprVisitor<Result<Arc<str>>> for RustCodeGen {
         out.push('}');
 
         return Ok(out.into());
-    }
-
-    fn visit_string_literal_expr(
-        &mut self,
-        expr: &mut ir::RustIRStringLiteralExpr,
-    ) -> Result<Arc<str>> {
-        return Ok(expr.literal.clone());
     }
 }

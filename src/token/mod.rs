@@ -89,6 +89,8 @@ pub enum TokenType {
     Comma,     // ,
     Semicolon, // ;
 
+    Equal, // =
+
     OpenParen,  // (
     CloseParen, // )
 
@@ -102,7 +104,9 @@ pub enum TokenType {
     TildeSlash, // ~/
 
     // Keywords
+    Const,
     Fn,
+    Mut,
     Norm,
     Pub,
     Pure,
@@ -111,7 +115,14 @@ pub enum TokenType {
     Use,
 
     // Literals
+    True,
+    False,
+
     PlainString,
+
+    OpenFmtString,
+    MidFmtString,
+    CloseFmtString,
 
     // Other
     Ident,

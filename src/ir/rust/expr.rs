@@ -2,10 +2,21 @@ use super::*;
 
 #[derive(Debug, Clone, PartialEq)]
 pub enum RustIRExpr {
+    BoolLiteral(RustIRBoolLiteralExpr),
+    StringLiteral(RustIRStringLiteralExpr),
     Ident(RustIRIdentExpr),
     Call(RustIRCallExpr),
     Block(RustIRBlockExpr),
-    StringLiteral(RustIRStringLiteralExpr),
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub struct RustIRBoolLiteralExpr {
+    pub literal: bool,
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub struct RustIRStringLiteralExpr {
+    pub literal: Arc<str>,
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -24,17 +35,13 @@ pub struct RustIRBlockExpr {
     pub stmts: Vec<RustIRStmt>,
 }
 
-#[derive(Debug, Clone, PartialEq)]
-pub struct RustIRStringLiteralExpr {
-    pub literal: Arc<str>,
-}
-
 // Visitor pattern
 pub trait RustIRExprVisitor<R = ()> {
+    fn visit_bool_literal_expr(&mut self, expr: &mut RustIRBoolLiteralExpr) -> R;
+    fn visit_string_literal_expr(&mut self, expr: &mut RustIRStringLiteralExpr) -> R;
     fn visit_ident_expr(&mut self, expr: &mut RustIRIdentExpr) -> R;
     fn visit_call_expr(&mut self, expr: &mut RustIRCallExpr) -> R;
     fn visit_block_expr(&mut self, expr: &mut RustIRBlockExpr) -> R;
-    fn visit_string_literal_expr(&mut self, expr: &mut RustIRStringLiteralExpr) -> R;
 }
 
 pub trait RustIRExprAccept<R, V: RustIRExprVisitor<R>> {
@@ -44,11 +51,24 @@ pub trait RustIRExprAccept<R, V: RustIRExprVisitor<R>> {
 impl<R, V: RustIRExprVisitor<R>> RustIRExprAccept<R, V> for RustIRExpr {
     fn accept(&mut self, visitor: &mut V) -> R {
         return match self {
+            Self::BoolLiteral(expr) => expr.accept(visitor),
+            Self::StringLiteral(expr) => expr.accept(visitor),
             Self::Ident(expr) => expr.accept(visitor),
             Self::Call(expr) => expr.accept(visitor),
             Self::Block(expr) => expr.accept(visitor),
-            Self::StringLiteral(expr) => expr.accept(visitor),
         };
+    }
+}
+
+impl<R, V: RustIRExprVisitor<R>> RustIRExprAccept<R, V> for RustIRBoolLiteralExpr {
+    fn accept(&mut self, visitor: &mut V) -> R {
+        return visitor.visit_bool_literal_expr(self);
+    }
+}
+
+impl<R, V: RustIRExprVisitor<R>> RustIRExprAccept<R, V> for RustIRStringLiteralExpr {
+    fn accept(&mut self, visitor: &mut V) -> R {
+        return visitor.visit_string_literal_expr(self);
     }
 }
 
@@ -67,11 +87,5 @@ impl<R, V: RustIRExprVisitor<R>> RustIRExprAccept<R, V> for RustIRCallExpr {
 impl<R, V: RustIRExprVisitor<R>> RustIRExprAccept<R, V> for RustIRBlockExpr {
     fn accept(&mut self, visitor: &mut V) -> R {
         return visitor.visit_block_expr(self);
-    }
-}
-
-impl<R, V: RustIRExprVisitor<R>> RustIRExprAccept<R, V> for RustIRStringLiteralExpr {
-    fn accept(&mut self, visitor: &mut V) -> R {
-        return visitor.visit_string_literal_expr(self);
     }
 }

@@ -5,6 +5,7 @@ pub enum RustIRStmt {
     ImplicitReturn(Box<RustIRStmt>),
 
     Expr(RustIRExprStmt),
+    Let(RustIRLetStmt),
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -12,9 +13,28 @@ pub struct RustIRExprStmt {
     pub expr: RustIRExpr,
 }
 
+#[derive(Debug, Clone, PartialEq)]
+pub struct RustIRLetStmt {
+    pub is_mut: bool,
+    pub name: Arc<str>,
+    pub explicit_type: Option<RustIRLetExplicitType>,
+    pub value: Option<RustIRLetValue>,
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub struct RustIRLetExplicitType {
+    // TODO
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub struct RustIRLetValue {
+    pub expr: RustIRExpr,
+}
+
 // Visitor pattern
 pub trait RustIRStmtVisitor<R = ()> {
     fn visit_expr_stmt(&mut self, stmt: &mut RustIRExprStmt) -> R;
+    fn visit_let_stmt(&mut self, stmt: &mut RustIRLetStmt) -> R;
 }
 
 pub trait RustIRStmtAccept<R, V: RustIRStmtVisitor<R>> {
@@ -26,6 +46,7 @@ impl<R, V: RustIRStmtVisitor<R>> RustIRStmtAccept<R, V> for RustIRStmt {
         return match self {
             Self::ImplicitReturn(stmt) => stmt.accept(visitor),
             Self::Expr(stmt) => stmt.accept(visitor),
+            Self::Let(stmt) => stmt.accept(visitor),
         };
     }
 }
@@ -33,5 +54,11 @@ impl<R, V: RustIRStmtVisitor<R>> RustIRStmtAccept<R, V> for RustIRStmt {
 impl<R, V: RustIRStmtVisitor<R>> RustIRStmtAccept<R, V> for RustIRExprStmt {
     fn accept(&mut self, visitor: &mut V) -> R {
         return visitor.visit_expr_stmt(self);
+    }
+}
+
+impl<R, V: RustIRStmtVisitor<R>> RustIRStmtAccept<R, V> for RustIRLetStmt {
+    fn accept(&mut self, visitor: &mut V) -> R {
+        return visitor.visit_let_stmt(self);
     }
 }
