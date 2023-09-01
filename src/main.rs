@@ -37,7 +37,9 @@ fn main() -> ferrum_compiler::result::Result {
             use ::fe::print
 
             pub fn main()
-                mut x = true
+                const name = "Adam"
+
+                print(name)
             ;
        "#
             .into(),

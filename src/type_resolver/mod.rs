@@ -27,16 +27,16 @@ impl FeTypeResolver {
 
         let pkg: Arc<Mutex<FeSyntaxPackage<Option<FeType>>>> = Arc::new(Mutex::new(pkg.into()));
 
+        let mut this = Self {
+            expr_lookup: HashMap::new(),
+            decls_to_eval: HashMap::new(),
+            scope: Arc::new(Mutex::new(Scope::new())),
+
+            root_pkg_exports: exports.clone(),
+            current_pkg_exports: exports,
+        };
+
         while !pkg.lock().unwrap().is_resolved() {
-            let mut this = Self {
-                expr_lookup: HashMap::new(),
-                decls_to_eval: HashMap::new(),
-                scope: Arc::new(Mutex::new(Scope::new())),
-
-                root_pkg_exports: exports.clone(),
-                current_pkg_exports: exports.clone(),
-            };
-
             let changed = match &mut *pkg.lock().unwrap() {
                 FeSyntaxPackage::File(file) => this.resolve_file(file)?,
                 FeSyntaxPackage::Dir(dir) => this.resolve_dir(dir)?,
@@ -397,11 +397,13 @@ impl ExprVisitor<Option<FeType>, Result<bool>> for FeTypeResolver {
 
         let ident = &expr.ident.lexeme;
 
+        dbg!(&self.scope);
+
         if let Some(found) = self.scope.lock().unwrap().search(ident) {
             expr.resolved_type = Some(found.typ.clone());
             self.expr_lookup.insert(expr.id, found.typ.clone());
         } else {
-            // todo!("Can't find ident: {ident:?}");
+            dbg!(&expr);
             return Ok(false);
         }
 
@@ -546,6 +548,15 @@ impl Scope {
 
     pub fn insert(&mut self, name: Arc<str>, typ: ScopedType) {
         self.stack.last_mut().unwrap().name_lookup.insert(name, typ);
+    }
+
+    pub fn update(&mut self, name: &str, typ: ScopedType) {
+        for data in self.stack.iter_mut().rev() {
+            if let Some(found) = data.name_lookup.get_mut(name) {
+                *found = typ;
+                return;
+            }
+        }
     }
 
     pub fn search(&self, name: &str) -> Option<&ScopedType> {
