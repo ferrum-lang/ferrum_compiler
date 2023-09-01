@@ -224,12 +224,14 @@ impl UseVisitor<Option<FeType>, Result<bool>> for FeTypeResolver {
                             is_pub: matches!(use_decl.use_mod, Some(UseMod::Pub(_))),
 
                             typ: FeType::Callable(Callable {
+                                special: Some(SpecialCallable::Print),
                                 params: vec![("text".into(), FeType::String(None))],
                                 return_type: None,
                             }),
                         },
                     );
                     next.path.details = Either::B(Some(FeType::Callable(Callable {
+                        special: Some(SpecialCallable::Print),
                         params: vec![("text".into(), FeType::String(None))],
                         return_type: None,
                     })));
@@ -310,6 +312,7 @@ impl DeclVisitor<Option<FeType>, Result<bool>> for FeTypeResolver {
             ScopedType {
                 is_pub: matches!(decl.decl_mod, Some(DeclMod::Pub(_))),
                 typ: FeType::Callable(Callable {
+                    special: None,
                     params: vec![],
                     return_type: None,
                 }),

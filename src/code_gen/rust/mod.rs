@@ -266,6 +266,26 @@ impl ir::RustIRExprVisitor<Result<Arc<str>>> for RustCodeGen {
         return Ok(out.into());
     }
 
+    fn visit_macro_fn_call_expr(
+        &mut self,
+        expr: &mut ir::RustIRMacroFnCallExpr,
+    ) -> Result<Arc<str>> {
+        let mut out = format!("{}!(", expr.callee);
+
+        let args_code = expr
+            .args
+            .iter_mut()
+            .map(|arg| arg.accept(self))
+            .collect::<Result<Vec<Arc<str>>>>()?
+            .join(", ");
+
+        out.push_str(&args_code);
+
+        out.push(')');
+
+        return Ok(out.into());
+    }
+
     fn visit_block_expr(&mut self, expr: &mut ir::RustIRBlockExpr) -> Result<Arc<str>> {
         let mut out = String::new();
 

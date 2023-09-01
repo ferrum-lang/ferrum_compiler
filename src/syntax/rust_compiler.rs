@@ -1,7 +1,8 @@
 use super::*;
 
-use crate::ir;
+use crate::r#type::SpecialCallable;
 use crate::utils::invert;
+use crate::{ir, r#type::Callable};
 
 use crate::result::Result;
 
@@ -266,12 +267,23 @@ impl ExprVisitor<FeType, Result<ir::RustIRExpr>> for RustSyntaxCompiler {
         &mut self,
         expr: &mut FmtStringLiteralExpr<FeType>,
     ) -> Result<ir::RustIRExpr> {
-        todo!("{expr:#?}");
+        let mut fmt_str = expr.first.lexeme.to_string();
+        for part in &expr.rest {
+            fmt_str.push_str(&part.string);
+        }
 
-        // return Ok(ir::RustIRExpr::MacroFnCall(ir::RustIRMacroFnCall {
-        //     name: "format",
-        //     args: vec![],
-        // }));
+        let mut args = vec![ir::RustIRExpr::StringLiteral(ir::RustIRStringLiteralExpr {
+            literal: fmt_str.into(),
+        })];
+
+        for part in &expr.rest {
+            args.push(part.expr.0.lock().unwrap().accept(self)?);
+        }
+
+        return Ok(ir::RustIRExpr::MacroFnCall(ir::RustIRMacroFnCallExpr {
+            callee: "format".into(),
+            args,
+        }));
     }
 
     fn visit_ident_expr(&mut self, expr: &mut IdentExpr<FeType>) -> Result<ir::RustIRExpr> {
@@ -281,6 +293,28 @@ impl ExprVisitor<FeType, Result<ir::RustIRExpr>> for RustSyntaxCompiler {
     }
 
     fn visit_call_expr(&mut self, expr: &mut CallExpr<FeType>) -> Result<ir::RustIRExpr> {
+        if let Some(FeType::Callable(Callable {
+            special: Some(SpecialCallable::Print),
+            ..
+        })) = expr.callee.0.lock().unwrap().resolved_type()
+        {
+            let mut args = vec![ir::RustIRExpr::StringLiteral(ir::RustIRStringLiteralExpr {
+                literal: "\"{}\"".into(),
+            })];
+
+            for arg in &mut expr.args {
+                let mut value = arg.value.0.lock().unwrap();
+                let arg_ir = value.accept(self)?;
+
+                args.push(arg_ir);
+            }
+
+            return Ok(ir::RustIRExpr::MacroFnCall(ir::RustIRMacroFnCallExpr {
+                callee: "println".into(),
+                args,
+            }));
+        }
+
         let mut callee = expr.callee.0.lock().unwrap();
         let callee = Box::new(callee.accept(self)?);
 

@@ -6,6 +6,7 @@ pub enum RustIRExpr {
     StringLiteral(RustIRStringLiteralExpr),
     Ident(RustIRIdentExpr),
     Call(RustIRCallExpr),
+    MacroFnCall(RustIRMacroFnCallExpr),
     Block(RustIRBlockExpr),
 }
 
@@ -31,6 +32,12 @@ pub struct RustIRCallExpr {
 }
 
 #[derive(Debug, Clone, PartialEq)]
+pub struct RustIRMacroFnCallExpr {
+    pub callee: Arc<str>,
+    pub args: Vec<RustIRExpr>,
+}
+
+#[derive(Debug, Clone, PartialEq)]
 pub struct RustIRBlockExpr {
     pub stmts: Vec<RustIRStmt>,
 }
@@ -41,6 +48,7 @@ pub trait RustIRExprVisitor<R = ()> {
     fn visit_string_literal_expr(&mut self, expr: &mut RustIRStringLiteralExpr) -> R;
     fn visit_ident_expr(&mut self, expr: &mut RustIRIdentExpr) -> R;
     fn visit_call_expr(&mut self, expr: &mut RustIRCallExpr) -> R;
+    fn visit_macro_fn_call_expr(&mut self, expr: &mut RustIRMacroFnCallExpr) -> R;
     fn visit_block_expr(&mut self, expr: &mut RustIRBlockExpr) -> R;
 }
 
@@ -55,6 +63,7 @@ impl<R, V: RustIRExprVisitor<R>> RustIRExprAccept<R, V> for RustIRExpr {
             Self::StringLiteral(expr) => expr.accept(visitor),
             Self::Ident(expr) => expr.accept(visitor),
             Self::Call(expr) => expr.accept(visitor),
+            Self::MacroFnCall(expr) => expr.accept(visitor),
             Self::Block(expr) => expr.accept(visitor),
         };
     }
@@ -81,6 +90,12 @@ impl<R, V: RustIRExprVisitor<R>> RustIRExprAccept<R, V> for RustIRIdentExpr {
 impl<R, V: RustIRExprVisitor<R>> RustIRExprAccept<R, V> for RustIRCallExpr {
     fn accept(&mut self, visitor: &mut V) -> R {
         return visitor.visit_call_expr(self);
+    }
+}
+
+impl<R, V: RustIRExprVisitor<R>> RustIRExprAccept<R, V> for RustIRMacroFnCallExpr {
+    fn accept(&mut self, visitor: &mut V) -> R {
+        return visitor.visit_macro_fn_call_expr(self);
     }
 }
 

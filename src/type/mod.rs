@@ -9,8 +9,14 @@ pub enum FeType {
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct Callable {
+    pub special: Option<SpecialCallable>,
     pub params: Vec<(Arc<str>, FeType)>,
     pub return_type: Option<Box<FeType>>,
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub enum SpecialCallable {
+    Print,
 }
 
 #[derive(Debug, Clone, PartialEq)]
