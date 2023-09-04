@@ -13,6 +13,9 @@ pub use r#use::*;
 mod r#static;
 pub use r#static::*;
 
+mod compiler;
+pub use compiler::*;
+
 use std::path::PathBuf;
 use std::sync::Arc;
 

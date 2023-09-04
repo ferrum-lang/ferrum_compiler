@@ -1,4 +1,5 @@
 use ferrum_compiler::code_gen::*;
+use ferrum_compiler::ir::*;
 use ferrum_compiler::lexer::*;
 use ferrum_compiler::parser::*;
 use ferrum_compiler::source::*;

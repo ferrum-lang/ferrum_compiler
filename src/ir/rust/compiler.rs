@@ -1,8 +1,10 @@
 use super::*;
 
-use crate::r#type::SpecialCallable;
+use crate::r#type::*;
+use crate::syntax::*;
+
+use crate::ir;
 use crate::utils::invert;
-use crate::{ir, r#type::Callable};
 
 use crate::result::Result;
 
