@@ -1,0 +1,5 @@
+use ./utils::hello
+
+pub fn main()
+    hello(&"Adam")
+;
