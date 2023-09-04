@@ -136,9 +136,7 @@ impl FeTypeResolver {
                 (id, decl_changed)
             };
 
-            if !decl_changed {
-                self.decls_to_eval.insert(id, decl.clone());
-            }
+            self.decls_to_eval.insert(id, decl.clone());
 
             if let Some(changed) = &mut changed {
                 *changed = *changed || decl_changed;
@@ -147,14 +145,16 @@ impl FeTypeResolver {
             }
         }
 
-        while !self.decls_to_eval.is_empty() {
-            for (_, decl) in std::mem::take(&mut self.decls_to_eval) {
-                let decl_changed = self.evaluate_decl(decl)?;
+        if !changed.unwrap_or(true) {
+            while !self.decls_to_eval.is_empty() {
+                for (_, decl) in std::mem::take(&mut self.decls_to_eval) {
+                    let decl_changed = self.evaluate_decl(decl)?;
 
-                if let Some(changed) = &mut changed {
-                    *changed = *changed || decl_changed;
-                } else {
-                    changed = Some(decl_changed);
+                    if let Some(changed) = &mut changed {
+                        *changed = *changed || decl_changed;
+                    } else {
+                        changed = Some(decl_changed);
+                    }
                 }
             }
         }
@@ -175,6 +175,23 @@ impl FeTypeResolver {
     }
 
     fn evaluate_fn_decl(&mut self, decl: &mut FnDecl<Option<FeType>>) -> Result<bool> {
+        // Add fn params to scope
+        {
+            let mut scope = self.scope.lock().unwrap();
+
+            for param in &decl.params {
+                if let Some(resolved_type) = &param.resolved_type {
+                    scope.insert(
+                        param.name.lexeme.clone(),
+                        ScopedType {
+                            is_pub: false,
+                            typ: resolved_type.clone(),
+                        },
+                    );
+                }
+            }
+        }
+
         match &mut decl.body {
             FnDeclBody::Short(body) => {
                 todo!()
@@ -302,24 +319,96 @@ impl UseVisitor<Option<FeType>, Result<bool>> for FeTypeResolver {
     }
 }
 
+impl StaticVisitor<Option<FeType>, Result<bool>> for FeTypeResolver {
+    fn visit_static_type(&mut self, static_type: &mut StaticType<Option<FeType>>) -> Result<bool> {
+        if static_type.is_resolved() {
+            return Ok(false);
+        }
+
+        let mut changed = static_type.static_path.accept(self)?;
+
+        // TODO: Handle references
+        static_type.resolved_type = static_type.static_path.resolved_type.clone();
+
+        if !changed && static_type.static_path.is_resolved() {
+            changed = true;
+        }
+
+        return Ok(changed);
+    }
+
+    fn visit_static_path(&mut self, static_path: &mut StaticPath<Option<FeType>>) -> Result<bool> {
+        if static_path.is_resolved() {
+            return Ok(false);
+        }
+
+        let mut changed = false;
+
+        if let Some(root) = &mut static_path.root {
+            changed = changed || root.accept(self)?;
+
+            // TODO: Handle package types and navigating scope
+        } else {
+            match static_path.name.lexeme.as_ref() {
+                "String" => {
+                    static_path.resolved_type = Some(FeType::String(None));
+                    changed = true;
+                }
+
+                other => todo!("Check scope for imported type: {other}"),
+            }
+        }
+
+        return Ok(changed);
+    }
+}
+
 impl DeclVisitor<Option<FeType>, Result<bool>> for FeTypeResolver {
     fn visit_function_decl(&mut self, decl: &mut FnDecl<Option<FeType>>) -> Result<bool> {
-        // TODO: check and register fn params
+        if decl.is_signature_resolved() {
+            return Ok(false);
+        }
+
+        let mut changed = false;
+
+        let mut params = vec![];
+        let mut all_resolved = true;
+
+        for param in &mut decl.params {
+            if let Some(resolved_type) = &param.resolved_type {
+                params.push((param.name.lexeme.clone(), resolved_type.clone()));
+            } else {
+                changed = param.static_type_ref.accept(self)?;
+                param.resolved_type = param.static_type_ref.resolved_type.clone();
+
+                if let Some(resolved_type) = &param.resolved_type {
+                    params.push((param.name.lexeme.clone(), resolved_type.clone()));
+                } else {
+                    all_resolved = false;
+                }
+            }
+        }
+
         // TODO: check return
 
-        self.scope.lock().unwrap().insert(
-            decl.name.lexeme.clone(),
-            ScopedType {
-                is_pub: matches!(decl.decl_mod, Some(DeclMod::Pub(_))),
-                typ: FeType::Callable(Callable {
-                    special: None,
-                    params: vec![],
-                    return_type: None,
-                }),
-            },
-        );
+        if all_resolved {
+            changed = true;
+            self.scope.lock().unwrap().insert(
+                decl.name.lexeme.clone(),
+                ScopedType {
+                    is_pub: matches!(decl.decl_mod, Some(DeclMod::Pub(_))),
+                    typ: FeType::Callable(Callable {
+                        special: None,
+                        params,
+                        return_type: None,
+                    }),
+                },
+            );
+        }
 
-        return Ok(false);
+        dbg!(&changed, all_resolved, &decl.is_signature_resolved());
+
+        return Ok(changed);
     }
 }
 
@@ -431,7 +520,6 @@ impl ExprVisitor<Option<FeType>, Result<bool>> for FeTypeResolver {
             expr.resolved_type = Some(found.typ.clone());
             self.expr_lookup.insert(expr.id, found.typ.clone());
         } else {
-            dbg!(&expr);
             return Ok(false);
         }
 
@@ -459,7 +547,11 @@ impl ExprVisitor<Option<FeType>, Result<bool>> for FeTypeResolver {
         };
 
         if expr.args.len() > callee.params.len() {
-            todo!("too many args!");
+            todo!(
+                "too many args!\nExpected: {:#?}\nGot: {:#?}",
+                callee.params,
+                expr.args
+            );
         }
 
         for i in 0..expr.args.len() {

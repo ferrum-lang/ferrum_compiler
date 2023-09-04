@@ -1,3 +1,4 @@
+use crate::result;
 use crate::result::Result;
 use crate::syntax::*;
 use crate::token::*;
@@ -258,13 +259,12 @@ impl FeTokenSyntaxParser {
 
         let mut params = vec![];
 
-        let _ = self.match_any(&[TokenType::Comma], WithNewlines::Many);
+        let pre_comma_token = self.match_any(&[TokenType::Comma], WithNewlines::Many);
 
-        /* TODO
         while self.check(&TokenType::Ident) {
-            // Do I care about this ??
+            // TODO: Do I care about this ??
             if params.len() >= 255 {
-                let t = self.peek().cloned().ok_or_else(|| self.eof_err())?;
+                let t = self.peek().ok_or_else(|| self.eof_err())?;
 
                 return Err(self
                     .error("Can't have more than 255 parameters".to_string(), t)
@@ -273,12 +273,22 @@ impl FeTokenSyntaxParser {
 
             let mut try_parse_field = |params: &mut Vec<FnDeclParam>| {
                 let name = self.consume(&TokenType::Ident, "Expect parameter name")?;
-                self.consume(&TokenType::Colon, "Expect ':' after param name")?;
-                let type_ref = self.type_ref()?;
+                let colon_token = self.consume(&TokenType::Colon, "Expect ':' after param name")?;
 
-                params.push(ast::FnParam { name, type_ref });
+                let static_type_ref = self.static_type_ref()?;
 
-                return Ok(!self.match_any(&[token::TokenType::Comma], WithNewlines::Many));
+                let comma_token = self.match_any(&[TokenType::Comma], WithNewlines::Many);
+                let is_done = comma_token.is_none();
+
+                params.push(FnDeclParam {
+                    name,
+                    colon_token,
+                    static_type_ref,
+                    comma_token,
+                    resolved_type: (),
+                });
+
+                return Ok::<bool, anyhow::Error>(is_done);
             };
 
             match try_parse_field(&mut params) {
@@ -288,10 +298,10 @@ impl FeTokenSyntaxParser {
                     }
                 }
 
-                Err(e) => self.synchronize_field(e)?,
+                Err(e) => todo!("{e}"),
+                // Err(e) => self.synchronize_field(e)?,
             }
         }
-        */
 
         self.allow_many_newlines();
 
@@ -323,11 +333,64 @@ impl FeTokenSyntaxParser {
             generics: None,
             name,
             open_paren_token,
+            pre_comma_token,
             params,
             close_paren_token,
             return_type,
             body,
         });
+    }
+
+    fn static_type_ref(&mut self) -> Result<StaticType> {
+        // let ref_token = self.match_any(&[TokenType::Amp], WithNewlines::None);
+        let ref_token = None;
+
+        let ref_type = if let Some(ref_token) = ref_token {
+            if let Some(mut_token) = self.match_any(&[TokenType::Mut], WithNewlines::None) {
+                Some(RefType::Mut {
+                    ref_token,
+                    mut_token,
+                })
+            } else {
+                Some(RefType::Shared { ref_token })
+            }
+        } else {
+            None
+        };
+
+        let type_ref = StaticType {
+            ref_type,
+            static_path: self.static_path()?,
+            resolved_type: (),
+        };
+
+        return Ok(type_ref);
+    }
+
+    fn static_path(&mut self) -> Result<StaticPath> {
+        let double_colon_token = self.match_any(&[TokenType::DoubleColon], WithNewlines::None);
+
+        let mut name = self.consume(&TokenType::Ident, "Expect type reference")?;
+        let mut path = StaticPath {
+            double_colon_token,
+            root: None,
+            name,
+            resolved_type: (),
+        };
+
+        while let Some(double_colon_token) =
+            self.match_any(&[TokenType::DoubleColon], WithNewlines::None)
+        {
+            name = self.consume(&TokenType::Ident, "Expect type reference")?;
+            path = StaticPath {
+                double_colon_token: Some(double_colon_token),
+                root: Some(Box::new(path)),
+                name,
+                resolved_type: (),
+            };
+        }
+
+        return Ok(path);
     }
 
     fn code_block(&mut self) -> Result<CodeBlock> {

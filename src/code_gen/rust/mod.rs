@@ -2,7 +2,10 @@ use std::path::PathBuf;
 
 use super::*;
 
-use crate::ir::{self, RustIRDeclAccept, RustIRExprAccept, RustIRStmtAccept, RustIRUseAccept};
+use crate::ir::{
+    self, RustIRDeclAccept, RustIRExprAccept, RustIRRefType, RustIRStaticAccept, RustIRStmtAccept,
+    RustIRUseAccept,
+};
 
 #[derive(Debug, Clone)]
 pub struct RustCodeGen {
@@ -48,6 +51,13 @@ impl RustCodeGen {
 
         for file in &mut entry.lock().unwrap().files {
             let mut content = String::new();
+
+            for mod_decl in &mut file.mods {
+                let code = format!("mod {};", mod_decl);
+                content.push_str(&code);
+                content.push_str(&self.new_line());
+                content.push_str(&self.new_line());
+            }
 
             for use_decl in &mut file.uses {
                 let code = use_decl.accept(&mut self)?;
@@ -144,6 +154,33 @@ impl ir::RustIRUseVisitor<Result<Arc<str>>> for RustCodeGen {
     }
 }
 
+impl ir::RustIRStaticVisitor<Result<Arc<str>>> for RustCodeGen {
+    fn visit_static_type(&mut self, static_type: &mut ir::RustIRStaticType) -> Result<Arc<str>> {
+        let mut out = String::new();
+
+        match &static_type.ref_type {
+            Some(RustIRRefType::Shared) => out.push_str("& "),
+            Some(RustIRRefType::Mut) => out.push_str("&mut "),
+
+            None => {}
+        }
+
+        out.push_str(&static_type.static_path.accept(self)?);
+
+        return Ok(out.into());
+    }
+
+    fn visit_static_path(&mut self, static_path: &mut ir::RustIRStaticPath) -> Result<Arc<str>> {
+        if let Some(root) = &mut static_path.root {
+            let code = root.accept(self)?;
+
+            return Ok(format!("{}::{}", code, static_path.name).into());
+        } else {
+            return Ok(static_path.name.clone());
+        }
+    }
+}
+
 impl ir::RustIRDeclVisitor<Result<Arc<str>>> for RustCodeGen {
     fn visit_fn_decl(&mut self, decl: &mut ir::RustIRFnDecl) -> Result<Arc<str>> {
         let mut out = String::new();
@@ -164,8 +201,15 @@ impl ir::RustIRDeclVisitor<Result<Arc<str>>> for RustCodeGen {
 
         out.push_str(&format!("fn {}(", decl.name));
 
-        for param in &decl.params {
+        for mut param in decl.params.clone() {
             // TODO: Handle params
+            out.push_str(&format!("{}: ", param.name));
+
+            out.push_str(&param.static_type_ref.accept(self)?);
+
+            if param.trailing_comma {
+                out.push_str(", ");
+            }
         }
 
         out.push_str(") ");
@@ -306,5 +350,9 @@ impl ir::RustIRExprVisitor<Result<Arc<str>>> for RustCodeGen {
         out.push('}');
 
         return Ok(out.into());
+    }
+
+    fn visit_static_ref_expr(&mut self, expr: &mut ir::RustIRStaticRefExpr) -> Result<Arc<str>> {
+        return expr.static_ref.accept(self);
     }
 }

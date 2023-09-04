@@ -173,7 +173,7 @@ impl FeSourceScanner {
                     self.advance_col();
                     Some(TokenType::DoubleColon)
                 } else {
-                    Some(TokenType::Comma)
+                    Some(TokenType::Colon)
                 }
             }
 

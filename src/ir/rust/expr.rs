@@ -8,6 +8,7 @@ pub enum RustIRExpr {
     Call(RustIRCallExpr),
     MacroFnCall(RustIRMacroFnCallExpr),
     Block(RustIRBlockExpr),
+    StaticRef(RustIRStaticRefExpr),
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -42,6 +43,11 @@ pub struct RustIRBlockExpr {
     pub stmts: Vec<RustIRStmt>,
 }
 
+#[derive(Debug, Clone, PartialEq)]
+pub struct RustIRStaticRefExpr {
+    pub static_ref: RustIRStaticPath,
+}
+
 // Visitor pattern
 pub trait RustIRExprVisitor<R = ()> {
     fn visit_bool_literal_expr(&mut self, expr: &mut RustIRBoolLiteralExpr) -> R;
@@ -50,6 +56,7 @@ pub trait RustIRExprVisitor<R = ()> {
     fn visit_call_expr(&mut self, expr: &mut RustIRCallExpr) -> R;
     fn visit_macro_fn_call_expr(&mut self, expr: &mut RustIRMacroFnCallExpr) -> R;
     fn visit_block_expr(&mut self, expr: &mut RustIRBlockExpr) -> R;
+    fn visit_static_ref_expr(&mut self, expr: &mut RustIRStaticRefExpr) -> R;
 }
 
 pub trait RustIRExprAccept<R, V: RustIRExprVisitor<R>> {
@@ -65,6 +72,7 @@ impl<R, V: RustIRExprVisitor<R>> RustIRExprAccept<R, V> for RustIRExpr {
             Self::Call(expr) => expr.accept(visitor),
             Self::MacroFnCall(expr) => expr.accept(visitor),
             Self::Block(expr) => expr.accept(visitor),
+            Self::StaticRef(expr) => expr.accept(visitor),
         };
     }
 }
@@ -102,5 +110,11 @@ impl<R, V: RustIRExprVisitor<R>> RustIRExprAccept<R, V> for RustIRMacroFnCallExp
 impl<R, V: RustIRExprVisitor<R>> RustIRExprAccept<R, V> for RustIRBlockExpr {
     fn accept(&mut self, visitor: &mut V) -> R {
         return visitor.visit_block_expr(self);
+    }
+}
+
+impl<R, V: RustIRExprVisitor<R>> RustIRExprAccept<R, V> for RustIRStaticRefExpr {
+    fn accept(&mut self, visitor: &mut V) -> R {
+        return visitor.visit_static_ref_expr(self);
     }
 }

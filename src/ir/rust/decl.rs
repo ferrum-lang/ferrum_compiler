@@ -26,7 +26,11 @@ pub struct RustIRFnDecl {
 pub struct RustIRFnGenerics {}
 
 #[derive(Debug, Clone, PartialEq)]
-pub struct RustIRFnParam {}
+pub struct RustIRFnParam {
+    pub name: Arc<str>,
+    pub static_type_ref: RustIRStaticType,
+    pub trailing_comma: bool,
+}
 
 // Visitor pattern
 pub trait RustIRDeclVisitor<R = ()> {

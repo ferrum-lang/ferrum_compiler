@@ -56,6 +56,7 @@ pub struct FnDecl<T: ResolvedType = ()> {
     pub name: Arc<Token>,
     pub generics: Option<FnDeclGenerics<T>>,
     pub open_paren_token: Arc<Token>,
+    pub pre_comma_token: Option<Arc<Token>>,
     pub params: Vec<FnDeclParam<T>>,
     pub close_paren_token: Arc<Token>,
     pub return_type: Option<FnDeclReturnType<T>>,
@@ -78,6 +79,7 @@ impl<T: ResolvedType> From<FnDecl<()>> for FnDecl<Option<T>> {
             name: value.name,
             generics: value.generics.map(from),
             open_paren_token: value.open_paren_token,
+            pre_comma_token: value.pre_comma_token,
             params: value.params.into_iter().map(from).collect(),
             close_paren_token: value.close_paren_token,
             return_type: value.return_type.map(from),
@@ -87,7 +89,7 @@ impl<T: ResolvedType> From<FnDecl<()>> for FnDecl<Option<T>> {
 }
 
 impl<T: ResolvedType> Resolvable for FnDecl<Option<T>> {
-    fn is_resolved(&self) -> bool {
+    fn is_signature_resolved(&self) -> bool {
         if let Some(generics) = &self.generics {
             if !generics.is_resolved() {
                 dbg!("false");
@@ -107,6 +109,15 @@ impl<T: ResolvedType> Resolvable for FnDecl<Option<T>> {
                 dbg!("false");
                 return false;
             }
+        }
+
+        return true;
+    }
+
+    fn is_resolved(&self) -> bool {
+        if !self.is_signature_resolved() {
+            dbg!("false");
+            return false;
         }
 
         if !self.body.is_resolved() {
@@ -130,6 +141,7 @@ impl<T: ResolvedType> TryFrom<FnDecl<Option<T>>> for FnDecl<T> {
             name: value.name,
             generics: invert(value.generics.map(try_from))?,
             open_paren_token: value.open_paren_token,
+            pre_comma_token: value.pre_comma_token,
             params: value
                 .params
                 .into_iter()
@@ -184,12 +196,20 @@ impl<T: ResolvedType> TryFrom<FnDeclGenerics<Option<T>>> for FnDeclGenerics<T> {
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct FnDeclParam<T: ResolvedType = ()> {
+    pub name: Arc<Token>,
+    pub colon_token: Arc<Token>,
+    pub static_type_ref: StaticType<T>,
+    pub comma_token: Option<Arc<Token>>,
     pub resolved_type: T,
 }
 
 impl<T: ResolvedType> From<FnDeclParam<()>> for FnDeclParam<Option<T>> {
-    fn from(_: FnDeclParam<()>) -> Self {
+    fn from(value: FnDeclParam<()>) -> Self {
         return Self {
+            name: value.name,
+            colon_token: value.colon_token,
+            static_type_ref: from(value.static_type_ref),
+            comma_token: value.comma_token,
             resolved_type: None,
         };
     }
@@ -206,6 +226,10 @@ impl<T: ResolvedType> TryFrom<FnDeclParam<Option<T>>> for FnDeclParam<T> {
 
     fn try_from(value: FnDeclParam<Option<T>>) -> Result<Self, Self::Error> {
         return Ok(Self {
+            name: value.name,
+            colon_token: value.colon_token,
+            static_type_ref: try_from(value.static_type_ref)?,
+            comma_token: value.comma_token,
             resolved_type: value.resolved_type.ok_or(FinalizeResolveTypeError {
                 file: file!(),
                 line: line!(),

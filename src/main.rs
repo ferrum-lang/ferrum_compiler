@@ -9,23 +9,23 @@ use std::collections::HashMap;
 use std::sync::{Arc, Mutex};
 
 fn main() -> ferrum_compiler::result::Result {
-    // let mut local_packages = HashMap::new();
+    let mut local_packages = HashMap::new();
 
-    // local_packages.insert(
-    //     SourcePackageName("hello".into()),
-    //     Arc::new(Mutex::new(FeSourcePackage::File(FeSourceFile {
-    //         name: SourcePackageName("hello".into()),
-    //         path: "src/hello.fe".into(),
-    //         content: r#"
-    //         use ::fe::print
+    local_packages.insert(
+        SourcePackageName("utils".into()),
+        Arc::new(Mutex::new(FeSourcePackage::File(FeSourceFile {
+            name: SourcePackageName("utils".into()),
+            path: "src/utils.fe".into(),
+            content: r#"
+            use ::fe::print
 
-    //         pub fn hello()
-    //             print("hello")
-    //         ;
-    //     "#
-    //         .into(),
-    //     }))),
-    // );
+            pub fn hello(name: String)
+                print("Hello {name}!")
+            ;
+         "#
+            .into(),
+        }))),
+    );
 
     let source = Arc::new(Mutex::new(FeSourcePackage::Dir(FeSourceDir {
         name: SourcePackageName("src".into()),
@@ -34,18 +34,16 @@ fn main() -> ferrum_compiler::result::Result {
             name: SourcePackageName("_main".into()),
             path: "src/_main.fe".into(),
             content: r#"
-            use ::fe::print
+            use ./utils::hello
 
             pub fn main()
-                const name = "Adam"
-
-                print("Hello {name} :)")
+                hello("Adam")
             ;
-       "#
+      "#
             .into(),
         },
-        // local_packages,
-        local_packages: HashMap::new(),
+        local_packages,
+        // local_packages: HashMap::new(),
     })));
 
     let tokens = Arc::new(Mutex::new(FeLexer::scan_package(source)?));

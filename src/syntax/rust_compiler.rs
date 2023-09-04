@@ -26,6 +26,7 @@ impl RustSyntaxCompiler {
             out: ir::RustIR {
                 files: vec![ir::RustIRFile {
                     path: "./main.rs".into(), // TODO
+                    mods: vec![],
                     uses: vec![],
                     decls: vec![],
                 }],
@@ -46,11 +47,20 @@ impl RustSyntaxCompiler {
             }
 
             FeSyntaxPackage::Dir(dir) => {
+                {
+                    let mut syntax = dir.entry_file.syntax.lock().unwrap();
+
+                    for name in dir.local_packages.keys() {
+                        syntax.mods.push(Mod(name.0.clone()));
+                    }
+                }
+
                 self.compile_file(&mut dir.entry_file)?;
 
                 for (name, package) in &dir.local_packages {
                     self.out.files.push(ir::RustIRFile {
                         path: format!("./{}.rs", name.0).into(),
+                        mods: vec![],
                         uses: vec![],
                         decls: vec![],
                     });
@@ -64,6 +74,15 @@ impl RustSyntaxCompiler {
 
     fn compile_file(&mut self, file: &mut FeSyntaxFile<FeType>) -> Result {
         let mut syntax = file.syntax.lock().unwrap();
+
+        {
+            let file_idx = self.out.files.len() - 1;
+            let mods = &mut self.out.files[file_idx].mods;
+
+            for mod_decl in &syntax.mods {
+                mods.push(mod_decl.0.clone());
+            }
+        }
 
         for use_decl in &mut syntax.uses {
             use_decl.lock().unwrap().accept(self)?;
@@ -82,12 +101,16 @@ impl RustSyntaxCompiler {
         }
     }
 
-    fn translate_fn_param(&mut self, param: &mut FnDeclParam<FeType>) -> ir::RustIRFnParam {
-        todo!();
+    fn translate_fn_param(&self, param: &mut FnDeclParam<FeType>) -> ir::RustIRFnParam {
+        return ir::RustIRFnParam {
+            name: param.name.lexeme.clone(),
+            static_type_ref: self.translate_static_type(&mut param.static_type_ref),
+            trailing_comma: param.comma_token.is_some(),
+        };
     }
 
     fn translate_fn_return_type(
-        &mut self,
+        &self,
         return_type: &mut FnDeclReturnType<FeType>,
     ) -> Result<ir::RustIRStaticType> {
         todo!();
@@ -110,6 +133,28 @@ impl RustSyntaxCompiler {
         return Ok(block_ir);
     }
 
+    fn translate_static_type(&self, typ: &mut StaticType<FeType>) -> ir::RustIRStaticType {
+        let ref_type = typ.ref_type.as_ref().map(|ref_type| match ref_type {
+            RefType::Shared { .. } => ir::RustIRRefType::Shared,
+            RefType::Mut { .. } => ir::RustIRRefType::Mut,
+        });
+
+        return ir::RustIRStaticType {
+            ref_type,
+            static_path: self.translate_static_path(&mut typ.static_path),
+        };
+    }
+
+    fn translate_static_path(&self, path: &mut StaticPath<FeType>) -> ir::RustIRStaticPath {
+        return ir::RustIRStaticPath {
+            root: path
+                .root
+                .as_mut()
+                .map(|root| Box::new(self.translate_static_path(root))),
+            name: path.name.lexeme.clone(),
+        };
+    }
+
     fn translate_use_mod(&self, use_mod: &UseMod) -> ir::RustIRUseMod {
         match use_mod {
             UseMod::Pub(_) => ir::RustIRUseMod::Pub,
@@ -119,17 +164,30 @@ impl RustSyntaxCompiler {
     fn translate_use_static_path(
         &mut self,
         path: &mut UseStaticPath<FeType>,
-    ) -> Result<ir::RustIRUseStaticPath> {
+    ) -> Result<Option<ir::RustIRUseStaticPath>> {
         let next = match &mut path.details {
-            Either::A(UseStaticPathNext::Single(ref mut single)) => Some(
-                ir::RustIRUseStaticPathNext::Single(ir::RustIRUseStaticPathNextSingle {
-                    path: Box::new(self.translate_use_static_path(&mut single.path)?),
-                }),
-            ),
+            Either::B(_) => None,
+
+            Either::A(UseStaticPathNext::Single(ref mut single)) => {
+                if let Either::B(FeType::Callable(Callable {
+                    special: Some(SpecialCallable::Print),
+                    ..
+                })) = &single.path.details
+                {
+                    // No need to import print
+                    return Ok(None);
+                } else {
+                    let Some(next_path) = self.translate_use_static_path(&mut single.path)? else { return Ok(None) };
+
+                    Some(ir::RustIRUseStaticPathNext::Single(
+                        ir::RustIRUseStaticPathNextSingle {
+                            path: Box::new(next_path),
+                        },
+                    ))
+                }
+            }
 
             Either::A(UseStaticPathNext::Many(many)) => todo!(),
-
-            Either::B(_) => None,
         };
 
         let path_ir = ir::RustIRUseStaticPath {
@@ -142,7 +200,7 @@ impl RustSyntaxCompiler {
             next,
         };
 
-        return Ok(path_ir);
+        return Ok(Some(path_ir));
     }
 }
 
@@ -153,13 +211,14 @@ impl UseVisitor<FeType, Result> for RustSyntaxCompiler {
             .as_ref()
             .map(|use_mod| self.translate_use_mod(use_mod));
 
-        let use_ir = ir::RustIRUse {
-            use_mod,
-            path: self.translate_use_static_path(&mut use_decl.path)?,
-        };
+        let path = self.translate_use_static_path(&mut use_decl.path)?;
 
-        let file_idx = self.out.files.len() - 1;
-        self.out.files[file_idx].uses.push(use_ir);
+        if let Some(path) = path {
+            let use_ir = ir::RustIRUse { use_mod, path };
+
+            let file_idx = self.out.files.len() - 1;
+            self.out.files[file_idx].uses.push(use_ir);
+        }
 
         return Ok(());
     }
@@ -258,8 +317,19 @@ impl ExprVisitor<FeType, Result<ir::RustIRExpr>> for RustSyntaxCompiler {
         &mut self,
         expr: &mut PlainStringLiteralExpr<FeType>,
     ) -> Result<ir::RustIRExpr> {
-        return Ok(ir::RustIRExpr::StringLiteral(ir::RustIRStringLiteralExpr {
-            literal: expr.literal.lexeme.clone(),
+        return Ok(ir::RustIRExpr::Call(ir::RustIRCallExpr {
+            callee: Box::new(ir::RustIRExpr::StaticRef(ir::RustIRStaticRefExpr {
+                static_ref: ir::RustIRStaticPath {
+                    root: Some(Box::new(ir::RustIRStaticPath {
+                        root: None,
+                        name: "String".into(),
+                    })),
+                    name: "from".into(),
+                },
+            })),
+            args: vec![ir::RustIRExpr::StringLiteral(ir::RustIRStringLiteralExpr {
+                literal: expr.literal.lexeme.clone(),
+            })],
         }));
     }
 
