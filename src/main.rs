@@ -19,7 +19,7 @@ fn main() -> ferrum_compiler::result::Result {
             content: r#"
             use ::fe::print
 
-            pub fn hello(name: String)
+            pub fn hello(name: &String)
                 print("Hello {name}!")
             ;
          "#
@@ -37,7 +37,7 @@ fn main() -> ferrum_compiler::result::Result {
             use ./utils::hello
 
             pub fn main()
-                hello("Adam")
+                hello(&"Adam")
             ;
       "#
             .into(),

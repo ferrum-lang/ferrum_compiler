@@ -400,4 +400,21 @@ impl ExprVisitor<FeType, Result<ir::RustIRExpr>> for RustSyntaxCompiler {
 
         return Ok(ir::RustIRExpr::Call(ir::RustIRCallExpr { callee, args }));
     }
+
+    fn visit_unary_expr(&mut self, expr: &mut UnaryExpr<FeType>) -> Result<ir::RustIRExpr> {
+        match expr.op {
+            UnaryOp::Ref(RefType::Shared { .. }) => {
+                return Ok(ir::RustIRExpr::Unary(ir::RustIRUnaryExpr {
+                    op: ir::RustIRUnaryOp::Ref(ir::RustIRRefType::Shared),
+                    value: Box::new(expr.value.0.lock().unwrap().accept(self)?),
+                }))
+            }
+            UnaryOp::Ref(RefType::Mut { .. }) => {
+                return Ok(ir::RustIRExpr::Unary(ir::RustIRUnaryExpr {
+                    op: ir::RustIRUnaryOp::Ref(ir::RustIRRefType::Mut),
+                    value: Box::new(expr.value.0.lock().unwrap().accept(self)?),
+                }))
+            }
+        }
+    }
 }

@@ -89,10 +89,12 @@ pub enum TokenType {
     Comma,     // ,
     Semicolon, // ;
 
-    Equal, // =
-
     OpenParen,  // (
     CloseParen, // )
+
+    Equal, // =
+
+    Amp, // &
 
     Colon,       // :
     DoubleColon, // ::

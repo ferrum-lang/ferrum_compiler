@@ -48,6 +48,7 @@ impl<T: ResolvedType> TryFrom<StaticType<Option<T>>> for StaticType<T> {
 pub enum RefType {
     Shared {
         ref_token: Arc<Token>,
+        const_token: Option<Arc<Token>>,
     },
     Mut {
         ref_token: Arc<Token>,

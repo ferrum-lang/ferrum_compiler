@@ -215,6 +215,20 @@ impl FeTypeResolver {
 
     fn can_implicit_cast(from: &FeType, to: &FeType) -> bool {
         match (from, to) {
+            (FeType::Ref(from), FeType::Ref(to)) => {
+                if from.ref_type == FeRefType::Const && to.ref_type == FeRefType::Mut {
+                    return false;
+                }
+
+                return Self::can_implicit_cast(&from.of, &to.of);
+            }
+
+            (owned, FeType::Ref(FeRefOf { of, .. })) => {
+                return Self::can_implicit_cast(owned, of);
+            }
+
+            (FeType::Ref(_), _owned) => return false,
+
             (FeType::String(_), FeType::String(_)) => return true,
             (FeType::String(_), FeType::Bool(_)) => return false,
 
@@ -328,7 +342,37 @@ impl StaticVisitor<Option<FeType>, Result<bool>> for FeTypeResolver {
         let mut changed = static_type.static_path.accept(self)?;
 
         // TODO: Handle references
-        static_type.resolved_type = static_type.static_path.resolved_type.clone();
+        match static_type.ref_type {
+            Some(RefType::Shared { .. }) => {
+                static_type.resolved_type =
+                    static_type
+                        .static_path
+                        .resolved_type
+                        .clone()
+                        .map(|resolved_type| {
+                            FeType::Ref(FeRefOf {
+                                ref_type: FeRefType::Const,
+                                of: Box::new(resolved_type),
+                            })
+                        });
+            }
+
+            Some(RefType::Mut { .. }) => {
+                static_type.resolved_type =
+                    static_type
+                        .static_path
+                        .resolved_type
+                        .clone()
+                        .map(|resolved_type| {
+                            FeType::Ref(FeRefOf {
+                                ref_type: FeRefType::Mut,
+                                of: Box::new(resolved_type),
+                            })
+                        });
+            }
+
+            None => static_type.resolved_type = static_type.static_path.resolved_type.clone(),
+        }
 
         if !changed && static_type.static_path.is_resolved() {
             changed = true;
@@ -405,8 +449,6 @@ impl DeclVisitor<Option<FeType>, Result<bool>> for FeTypeResolver {
                 },
             );
         }
-
-        dbg!(&changed, all_resolved, &decl.is_signature_resolved());
 
         return Ok(changed);
     }
@@ -578,13 +620,52 @@ impl ExprVisitor<Option<FeType>, Result<bool>> for FeTypeResolver {
             let (_, param) = &callee.params[i];
 
             if !Self::can_implicit_cast(resolved_type, param) {
-                todo!("wrong type!");
+                todo!("wrong type!\nCannot implicitly cast {resolved_type:#?}\nto {param:#?}");
             }
         }
 
         expr.resolved_type = callee.return_type.as_deref().map(|rt| Some(rt.clone()));
 
         return Ok(true);
+    }
+
+    fn visit_unary_expr(&mut self, expr: &mut UnaryExpr<Option<FeType>>) -> Result<bool> {
+        if expr.is_resolved() {
+            return Ok(false);
+        }
+
+        let mut changed = false;
+
+        changed = changed || expr.value.0.lock().unwrap().accept(self)?;
+
+        if let Some(resolved_type) = expr
+            .value
+            .0
+            .lock()
+            .unwrap()
+            .resolved_type()
+            .cloned()
+            .flatten()
+        {
+            changed = true;
+
+            match expr.op {
+                UnaryOp::Ref(RefType::Shared { .. }) => {
+                    expr.resolved_type = Some(FeType::Ref(FeRefOf {
+                        ref_type: FeRefType::Const,
+                        of: Box::new(resolved_type),
+                    }));
+                }
+                UnaryOp::Ref(RefType::Mut { .. }) => {
+                    expr.resolved_type = Some(FeType::Ref(FeRefOf {
+                        ref_type: FeRefType::Mut,
+                        of: Box::new(resolved_type),
+                    }));
+                }
+            }
+        }
+
+        return Ok(changed);
     }
 }
 

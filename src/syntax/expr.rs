@@ -11,6 +11,7 @@ pub enum Expr<T: ResolvedType = ()> {
     FmtStringLiteral(FmtStringLiteralExpr<T>),
     Ident(IdentExpr<T>),
     Call(CallExpr<T>),
+    Unary(UnaryExpr<T>),
 }
 
 impl<T: ResolvedType> Expr<T> {
@@ -21,6 +22,7 @@ impl<T: ResolvedType> Expr<T> {
             Self::FmtStringLiteral(v) => return Some(&v.resolved_type),
             Self::Ident(v) => return Some(&v.resolved_type),
             Self::Call(v) => return v.resolved_type.as_ref(),
+            Self::Unary(v) => return Some(&v.resolved_type),
         }
     }
 }
@@ -33,6 +35,7 @@ impl<T: ResolvedType> Node<Expr> for Expr<T> {
             Self::FmtStringLiteral(expr) => return expr.node_id(),
             Self::Ident(expr) => return expr.node_id(),
             Self::Call(expr) => return expr.node_id(),
+            Self::Unary(expr) => return expr.node_id(),
         }
     }
 }
@@ -45,6 +48,7 @@ impl<T: ResolvedType> From<Expr<()>> for Expr<Option<T>> {
             Expr::FmtStringLiteral(expr) => return Self::FmtStringLiteral(from(expr)),
             Expr::Ident(expr) => return Self::Ident(from(expr)),
             Expr::Call(expr) => return Self::Call(from(expr)),
+            Expr::Unary(expr) => return Self::Unary(from(expr)),
         }
     }
 }
@@ -57,6 +61,7 @@ impl<T: ResolvedType> Resolvable for Expr<Option<T>> {
             Expr::FmtStringLiteral(expr) => return expr.is_resolved(),
             Expr::Ident(expr) => return expr.is_resolved(),
             Expr::Call(expr) => return expr.is_resolved(),
+            Expr::Unary(expr) => return expr.is_resolved(),
         }
     }
 }
@@ -71,6 +76,7 @@ impl<T: ResolvedType> TryFrom<Expr<Option<T>>> for Expr<T> {
             Expr::FmtStringLiteral(expr) => return Ok(Self::FmtStringLiteral(try_from(expr)?)),
             Expr::Ident(expr) => return Ok(Self::Ident(try_from(expr)?)),
             Expr::Call(expr) => return Ok(Self::Call(try_from(expr)?)),
+            Expr::Unary(expr) => return Ok(Self::Unary(try_from(expr)?)),
         }
     }
 }
@@ -476,6 +482,62 @@ pub struct CallArgParamName {
     pub eq_token: Token,
 }
 
+#[derive(Debug, Clone, PartialEq)]
+pub struct UnaryExpr<T: ResolvedType = ()> {
+    pub id: NodeId<Expr>,
+    pub op: UnaryOp,
+    pub value: NestedExpr<T>,
+    pub resolved_type: T,
+}
+
+impl<T: ResolvedType> Node<Expr> for UnaryExpr<T> {
+    fn node_id(&self) -> &NodeId<Expr> {
+        return &self.id;
+    }
+}
+
+impl<T: ResolvedType> From<UnaryExpr<()>> for UnaryExpr<Option<T>> {
+    fn from(value: UnaryExpr<()>) -> Self {
+        return Self {
+            id: value.id,
+            op: value.op,
+            value: from(value.value),
+            resolved_type: None,
+        };
+    }
+}
+
+impl<T: ResolvedType> Resolvable for UnaryExpr<Option<T>> {
+    fn is_resolved(&self) -> bool {
+        if !self.value.is_resolved() {
+            return false;
+        }
+
+        return true;
+    }
+}
+
+impl<T: ResolvedType> TryFrom<UnaryExpr<Option<T>>> for UnaryExpr<T> {
+    type Error = FinalizeResolveTypeError;
+
+    fn try_from(value: UnaryExpr<Option<T>>) -> Result<Self, Self::Error> {
+        return Ok(Self {
+            id: value.id,
+            op: value.op,
+            value: try_from(value.value)?,
+            resolved_type: value.resolved_type.ok_or(FinalizeResolveTypeError {
+                file: file!(),
+                line: line!(),
+            })?,
+        });
+    }
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub enum UnaryOp {
+    Ref(RefType),
+}
+
 // Visitor pattern
 pub trait ExprVisitor<T: ResolvedType, R = ()> {
     fn visit_bool_literal_expr(&mut self, expr: &mut BoolLiteralExpr<T>) -> R;
@@ -483,6 +545,7 @@ pub trait ExprVisitor<T: ResolvedType, R = ()> {
     fn visit_fmt_string_literal_expr(&mut self, expr: &mut FmtStringLiteralExpr<T>) -> R;
     fn visit_ident_expr(&mut self, expr: &mut IdentExpr<T>) -> R;
     fn visit_call_expr(&mut self, expr: &mut CallExpr<T>) -> R;
+    fn visit_unary_expr(&mut self, expr: &mut UnaryExpr<T>) -> R;
 }
 
 pub trait ExprAccept<T: ResolvedType, R, V: ExprVisitor<T, R>> {
@@ -497,6 +560,7 @@ impl<T: ResolvedType, R, V: ExprVisitor<T, R>> ExprAccept<T, R, V> for Expr<T> {
             Self::FmtStringLiteral(expr) => expr.accept(visitor),
             Self::Ident(expr) => expr.accept(visitor),
             Self::Call(expr) => expr.accept(visitor),
+            Self::Unary(expr) => expr.accept(visitor),
         };
     }
 }
@@ -528,5 +592,11 @@ impl<T: ResolvedType, R, V: ExprVisitor<T, R>> ExprAccept<T, R, V> for IdentExpr
 impl<T: ResolvedType, R, V: ExprVisitor<T, R>> ExprAccept<T, R, V> for CallExpr<T> {
     fn accept(&mut self, visitor: &mut V) -> R {
         return visitor.visit_call_expr(self);
+    }
+}
+
+impl<T: ResolvedType, R, V: ExprVisitor<T, R>> ExprAccept<T, R, V> for UnaryExpr<T> {
+    fn accept(&mut self, visitor: &mut V) -> R {
+        return visitor.visit_unary_expr(self);
     }
 }

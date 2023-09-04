@@ -159,7 +159,7 @@ impl ir::RustIRStaticVisitor<Result<Arc<str>>> for RustCodeGen {
         let mut out = String::new();
 
         match &static_type.ref_type {
-            Some(RustIRRefType::Shared) => out.push_str("& "),
+            Some(RustIRRefType::Shared) => out.push_str("&"),
             Some(RustIRRefType::Mut) => out.push_str("&mut "),
 
             None => {}
@@ -354,5 +354,22 @@ impl ir::RustIRExprVisitor<Result<Arc<str>>> for RustCodeGen {
 
     fn visit_static_ref_expr(&mut self, expr: &mut ir::RustIRStaticRefExpr) -> Result<Arc<str>> {
         return expr.static_ref.accept(self);
+    }
+
+    fn visit_unary_expr(&mut self, expr: &mut ir::RustIRUnaryExpr) -> Result<Arc<str>> {
+        let mut out = String::new();
+
+        match expr.op {
+            ir::RustIRUnaryOp::Ref(RustIRRefType::Shared) => {
+                out.push('&');
+            }
+            ir::RustIRUnaryOp::Ref(RustIRRefType::Mut) => {
+                out.push_str("&mut ");
+            }
+        }
+
+        out.push_str(&expr.value.accept(self)?);
+
+        return Ok(out.into());
     }
 }

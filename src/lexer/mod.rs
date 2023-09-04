@@ -167,6 +167,7 @@ impl FeSourceScanner {
             '\n' => Some(TokenType::Newline),
 
             '=' => Some(TokenType::Equal),
+            '&' => Some(TokenType::Amp),
 
             ':' => {
                 if self.peek_next() == Some(':') {

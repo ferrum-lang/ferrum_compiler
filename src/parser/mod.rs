@@ -342,8 +342,7 @@ impl FeTokenSyntaxParser {
     }
 
     fn static_type_ref(&mut self) -> Result<StaticType> {
-        // let ref_token = self.match_any(&[TokenType::Amp], WithNewlines::None);
-        let ref_token = None;
+        let ref_token = self.match_any(&[TokenType::Amp], WithNewlines::None);
 
         let ref_type = if let Some(ref_token) = ref_token {
             if let Some(mut_token) = self.match_any(&[TokenType::Mut], WithNewlines::None) {
@@ -352,7 +351,12 @@ impl FeTokenSyntaxParser {
                     mut_token,
                 })
             } else {
-                Some(RefType::Shared { ref_token })
+                let const_token = self.match_any(&[TokenType::Const], WithNewlines::None);
+
+                Some(RefType::Shared {
+                    ref_token,
+                    const_token,
+                })
             }
         } else {
             None
@@ -802,21 +806,26 @@ impl FeTokenSyntaxParser {
     }
 
     fn unary(&mut self) -> Result<Arc<Mutex<Expr>>> {
-        /*
         if let Some(op_token) = self.match_any(
-            &[TokenType::Bang, TokenType::Minus, TokenType::Amp],
+            &[/*TokenType::Bang, TokenType::Minus,*/ TokenType::Amp],
             WithNewlines::One,
         ) {
-            let op = match op_token.token_type {
-                TokenType::Bang => (UnaryOp::Not, op_token),
-                TokenType::Minus => (UnaryOp::Minus, op_token),
+            let op = match &op_token.token_type {
+                // TokenType::Bang => (UnaryOp::Not, op_token),
+                // TokenType::Minus => (UnaryOp::Minus, op_token),
                 TokenType::Amp => {
                     if let Some(mut_token) = self.match_any(&[TokenType::Mut], WithNewlines::None) {
-                        (UnaryOp::Ref(RefType::Mut(mut_token)), op_token)
+                        UnaryOp::Ref(RefType::Mut {
+                            ref_token: op_token,
+                            mut_token,
+                        })
                     } else {
                         let const_token = self.match_any(&[TokenType::Const], WithNewlines::None);
 
-                        (UnaryOp::Ref(RefType::Shared(Some(const_token))), op_token)
+                        UnaryOp::Ref(RefType::Shared {
+                            ref_token: op_token,
+                            const_token,
+                        })
                     }
                 }
 
@@ -830,15 +839,15 @@ impl FeTokenSyntaxParser {
                 }
             };
 
-            let right = self.unary()?;
+            let value = self.unary()?;
 
-            return Ok(Expr::Unary(UnaryExpr {
+            return Ok(Arc::new(Mutex::new(Expr::Unary(UnaryExpr {
                 id: NodeId::gen(),
                 op,
-                right: Box::new(right),
-            }));
+                value: NestedExpr(value),
+                resolved_type: (),
+            }))));
         }
-        */
 
         return self.call();
     }

@@ -5,6 +5,7 @@ pub enum FeType {
     Callable(Callable),
     String(Option<StringDetails>),
     Bool(Option<bool>),
+    Ref(FeRefOf),
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -23,4 +24,16 @@ pub enum SpecialCallable {
 pub enum StringDetails {
     PlainLiteral,
     Format,
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub struct FeRefOf {
+    pub ref_type: FeRefType,
+    pub of: Box<FeType>,
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub enum FeRefType {
+    Const,
+    Mut,
 }
