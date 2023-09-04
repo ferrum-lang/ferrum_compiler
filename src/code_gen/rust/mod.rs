@@ -371,4 +371,14 @@ impl ir::RustIRExprVisitor<Result<Arc<str>>> for RustCodeGen {
 
         return Ok(out.into());
     }
+
+    fn visit_assign_expr(&mut self, expr: &mut ir::RustIRAssignExpr) -> Result<Arc<str>> {
+        let mut out = String::new();
+
+        out.push_str(&expr.lhs.accept(self)?);
+        out.push_str(" = ");
+        out.push_str(&expr.rhs.accept(self)?);
+
+        return Ok(out.into());
+    }
 }

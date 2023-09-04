@@ -7,6 +7,7 @@ use crate::utils::{fe_from, fe_try_from, from, invert, try_from};
 pub enum Stmt<T: ResolvedType = ()> {
     Expr(ExprStmt<T>),
     VarDecl(VarDeclStmt<T>),
+    Assign(AssignStmt<T>),
 }
 
 impl<T: ResolvedType> Node<Stmt> for Stmt<T> {
@@ -14,6 +15,7 @@ impl<T: ResolvedType> Node<Stmt> for Stmt<T> {
         match self {
             Self::Expr(stmt) => return stmt.node_id(),
             Self::VarDecl(stmt) => return stmt.node_id(),
+            Self::Assign(stmt) => return stmt.node_id(),
         }
     }
 }
@@ -23,6 +25,7 @@ impl<T: ResolvedType> From<Stmt<()>> for Stmt<Option<T>> {
         match value {
             Stmt::Expr(stmt) => return Self::Expr(from(stmt)),
             Stmt::VarDecl(stmt) => return Self::VarDecl(from(stmt)),
+            Stmt::Assign(stmt) => return Self::Assign(from(stmt)),
         }
     }
 }
@@ -32,6 +35,7 @@ impl<T: ResolvedType> Resolvable for Stmt<Option<T>> {
         match self {
             Self::Expr(stmt) => return stmt.is_resolved(),
             Self::VarDecl(stmt) => return stmt.is_resolved(),
+            Self::Assign(stmt) => return stmt.is_resolved(),
         }
     }
 }
@@ -43,6 +47,7 @@ impl<T: ResolvedType> TryFrom<Stmt<Option<T>>> for Stmt<T> {
         match value {
             Stmt::Expr(stmt) => return Ok(Self::Expr(try_from(stmt)?)),
             Stmt::VarDecl(stmt) => return Ok(Self::VarDecl(try_from(stmt)?)),
+            Stmt::Assign(stmt) => return Ok(Self::Assign(try_from(stmt)?)),
         }
     }
 }
@@ -277,10 +282,68 @@ impl<T: ResolvedType> TryFrom<VarDeclValue<Option<T>>> for VarDeclValue<T> {
     }
 }
 
+#[derive(Debug, Clone, PartialEq)]
+pub struct AssignStmt<T: ResolvedType = ()> {
+    pub id: NodeId<Stmt>,
+    pub target: NestedExpr<T>,
+    pub op: AssignOp,
+    pub value: NestedExpr<T>,
+}
+
+impl<T: ResolvedType> Node<Stmt> for AssignStmt<T> {
+    fn node_id(&self) -> &NodeId<Stmt> {
+        return &self.id;
+    }
+}
+
+impl<T: ResolvedType> From<AssignStmt<()>> for AssignStmt<Option<T>> {
+    fn from(value: AssignStmt<()>) -> Self {
+        return Self {
+            id: value.id,
+            target: from(value.target),
+            op: value.op,
+            value: from(value.value),
+        };
+    }
+}
+
+impl<T: ResolvedType> Resolvable for AssignStmt<Option<T>> {
+    fn is_resolved(&self) -> bool {
+        if !self.target.is_resolved() {
+            return false;
+        }
+
+        if !self.value.is_resolved() {
+            return false;
+        }
+
+        return true;
+    }
+}
+
+impl<T: ResolvedType> TryFrom<AssignStmt<Option<T>>> for AssignStmt<T> {
+    type Error = FinalizeResolveTypeError;
+
+    fn try_from(value: AssignStmt<Option<T>>) -> Result<Self, Self::Error> {
+        return Ok(Self {
+            id: value.id,
+            target: try_from(value.target)?,
+            op: value.op,
+            value: try_from(value.value)?,
+        });
+    }
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub enum AssignOp {
+    Eq(Arc<Token>),
+}
+
 // Visitor pattern
 pub trait StmtVisitor<T: ResolvedType, R = ()> {
     fn visit_expr_stmt(&mut self, stmt: &mut ExprStmt<T>) -> R;
     fn visit_var_decl_stmt(&mut self, stmt: &mut VarDeclStmt<T>) -> R;
+    fn visit_assign_stmt(&mut self, stmt: &mut AssignStmt<T>) -> R;
 }
 
 pub trait StmtAccept<T: ResolvedType, R, V: StmtVisitor<T, R>> {
@@ -292,6 +355,7 @@ impl<T: ResolvedType, R, V: StmtVisitor<T, R>> StmtAccept<T, R, V> for Stmt<T> {
         return match self {
             Self::Expr(stmt) => stmt.accept(visitor),
             Self::VarDecl(stmt) => stmt.accept(visitor),
+            Self::Assign(stmt) => stmt.accept(visitor),
         };
     }
 }
@@ -305,5 +369,11 @@ impl<T: ResolvedType, R, V: StmtVisitor<T, R>> StmtAccept<T, R, V> for ExprStmt<
 impl<T: ResolvedType, R, V: StmtVisitor<T, R>> StmtAccept<T, R, V> for VarDeclStmt<T> {
     fn accept(&mut self, visitor: &mut V) -> R {
         return visitor.visit_var_decl_stmt(self);
+    }
+}
+
+impl<T: ResolvedType, R, V: StmtVisitor<T, R>> StmtAccept<T, R, V> for AssignStmt<T> {
+    fn accept(&mut self, visitor: &mut V) -> R {
+        return visitor.visit_assign_stmt(self);
     }
 }

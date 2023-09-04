@@ -301,6 +301,18 @@ impl StmtVisitor<FeType, Result<Vec<ir::RustIRStmt>>> for RustSyntaxCompiler {
             }
         }
     }
+
+    fn visit_assign_stmt(&mut self, stmt: &mut AssignStmt<FeType>) -> Result<Vec<ir::RustIRStmt>> {
+        let lhs = stmt.target.0.lock().unwrap().accept(self)?;
+        let rhs = stmt.value.0.lock().unwrap().accept(self)?;
+
+        return Ok(vec![ir::RustIRStmt::Expr(ir::RustIRExprStmt {
+            expr: ir::RustIRExpr::Assign(ir::RustIRAssignExpr {
+                lhs: Box::new(lhs),
+                rhs: Box::new(rhs),
+            }),
+        })]);
+    }
 }
 
 impl ExprVisitor<FeType, Result<ir::RustIRExpr>> for RustSyntaxCompiler {

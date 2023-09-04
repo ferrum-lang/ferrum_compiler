@@ -1,5 +1,12 @@
 use ./utils::hello
 
 pub fn main()
-    hello(&"Adam")
+    const world = "World"
+    hello(&world)
+
+    mut name = "Adam"
+    hello(&name)
+
+    name = "Snowy"
+    hello(&name)
 ;

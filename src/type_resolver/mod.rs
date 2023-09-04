@@ -489,6 +489,32 @@ impl StmtVisitor<Option<FeType>, Result<bool>> for FeTypeResolver {
 
         return Ok(changed);
     }
+
+    fn visit_assign_stmt(&mut self, stmt: &mut AssignStmt<Option<FeType>>) -> Result<bool> {
+        if stmt.is_resolved() {
+            return Ok(false);
+        }
+
+        let mut changed = false;
+
+        {
+            let mut target = stmt.target.0.lock().unwrap();
+            changed = changed || target.accept(self)?;
+
+            // TODO: ensure LHS expr is assignable (unassigned const ident || mut ident || instance_ref)
+        }
+
+        {
+            let mut value = stmt.value.0.lock().unwrap();
+            changed = changed || value.accept(self)?;
+        }
+
+        if stmt.is_resolved() {
+            changed = true;
+        }
+
+        return Ok(changed);
+    }
 }
 
 impl ExprVisitor<Option<FeType>, Result<bool>> for FeTypeResolver {

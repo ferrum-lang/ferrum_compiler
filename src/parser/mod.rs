@@ -506,16 +506,14 @@ impl FeTokenSyntaxParser {
 
     fn expr_or_assign_statement(&mut self) -> Result<Arc<Mutex<Stmt>>> {
         let expr = self.expression()?;
-        let target_token = self.peek();
 
-        /*
-        if let Some(op_token) =
-            self.match_any(&[TokenType::Equal, TokenType::PlusEqual], WithNewlines::One)
-        {
+        if let Some(op_token) = self.match_any(
+            &[TokenType::Equal /*, TokenType::PlusEqual*/],
+            WithNewlines::One,
+        ) {
             let op = match op_token.token_type {
-                TokenType::Equal => (AssignOp::Equal, op_token),
-                TokenType::PlusEqual => (AssignOp::PlusEqual, op_token),
-
+                TokenType::Equal => AssignOp::Eq(op_token),
+                // TokenType::PlusEqual => AssignOp::PlusEq(op_token),
                 _ => {
                     return Err(self
                         .error(
@@ -526,39 +524,20 @@ impl FeTokenSyntaxParser {
                 }
             };
 
-            let lhs = match expr {
-                Expr::Identity(expr) => AssignmentLHS::Var(expr),
-                Expr::Get(expr) => AssignmentLHS::Get(expr),
-
-                _ => {
-                    let target_token = target_token.ok_or_else(|| self.eof_err())?;
-
-                    return Err(self
-                        .error(
-                            format!("[{}:{}] Invalid assignment target", file!(), line!()),
-                            target_token,
-                        )
-                        .into());
-                }
-            };
-
             let value = self.expression()?;
 
-            return Ok(Stmt::Assignment(AssignmentStmt {
-                id: self.ast_id(),
-                lhs,
+            return Ok(Arc::new(Mutex::new(Stmt::Assign(AssignStmt {
+                id: NodeId::gen(),
+                target: NestedExpr(expr),
                 op,
-                value,
-            }));
+                value: NestedExpr(value),
+            }))));
         } else {
-            */
-
-        return Ok(Arc::new(Mutex::new(Stmt::Expr(ExprStmt {
-            id: NodeId::gen(),
-            expr,
-        }))));
-
-        // }
+            return Ok(Arc::new(Mutex::new(Stmt::Expr(ExprStmt {
+                id: NodeId::gen(),
+                expr,
+            }))));
+        }
     }
 
     fn expression(&mut self) -> Result<Arc<Mutex<Expr>>> {
