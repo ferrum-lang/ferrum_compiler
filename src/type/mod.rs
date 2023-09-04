@@ -6,6 +6,7 @@ pub enum FeType {
     String(Option<StringDetails>),
     Bool(Option<bool>),
     Ref(FeRefOf),
+    Owned(FeOwnedOf),
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -34,6 +35,18 @@ pub struct FeRefOf {
 
 #[derive(Debug, Clone, PartialEq)]
 pub enum FeRefType {
+    Const,
+    Mut,
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub struct FeOwnedOf {
+    pub owned_mut: FeOwnedMut,
+    pub of: Box<FeType>,
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub enum FeOwnedMut {
     Const,
     Mut,
 }

@@ -229,13 +229,21 @@ impl FeTypeResolver {
 
             (FeType::Ref(_), _owned) => return false,
 
+            (FeType::Owned(from), to) => {
+                return Self::can_implicit_cast(&from.of, to);
+            }
+
+            (from, FeType::Owned(to)) => {
+                return Self::can_implicit_cast(from, &to.of);
+            }
+
             (FeType::String(_), FeType::String(_)) => return true,
             (FeType::String(_), FeType::Bool(_)) => return false,
 
             (FeType::Bool(_), FeType::Bool(_)) => return true,
             (FeType::Bool(_), FeType::String(_)) => return false,
 
-            _ => todo!(),
+            _ => todo!("Can you cast?\nThis: {from:#?}\nTo: {to:#?}"),
         }
     }
 }
@@ -479,7 +487,16 @@ impl StmtVisitor<Option<FeType>, Result<bool>> for FeTypeResolver {
                 VarDeclTarget::Ident(ident) => {
                     self.scope.lock().unwrap().insert(
                         ident.ident.lexeme.clone(),
-                        ScopedType { is_pub: false, typ },
+                        ScopedType {
+                            is_pub: false,
+                            typ: FeType::Owned(FeOwnedOf {
+                                owned_mut: match stmt.var_mut {
+                                    VarDeclMut::Const(_) => FeOwnedMut::Const,
+                                    VarDeclMut::Mut(_) => FeOwnedMut::Mut,
+                                },
+                                of: Box::new(typ),
+                            }),
+                        },
                     );
 
                     changed = changed || ident.accept(self)?;
@@ -496,17 +513,52 @@ impl StmtVisitor<Option<FeType>, Result<bool>> for FeTypeResolver {
         }
 
         let mut changed = false;
+        let mut types = (None, None);
 
         {
             let mut target = stmt.target.0.lock().unwrap();
             changed = changed || target.accept(self)?;
 
             // TODO: ensure LHS expr is assignable (unassigned const ident || mut ident || instance_ref)
+
+            types.0 = target.resolved_type().cloned().flatten();
+
+            if let Some(resolved_type) = &types.0 {
+                match resolved_type {
+                    FeType::Ref(ref_of) => {
+                        if ref_of.ref_type == FeRefType::Const {
+                            // TODO: handle assigning late to non-assigned const ref
+                            todo!("Reference is not mutable: {:#?}", target);
+                        }
+                    }
+
+                    FeType::Owned(owned_of) => {
+                        if owned_of.owned_mut == FeOwnedMut::Const {
+                            // TODO: handle assigning late to non-assigned const
+                            todo!("Owned type is not mutable: {:#?}", target);
+                        }
+                    }
+
+                    other => todo!("Cannot assign to {other:?}"),
+                }
+            }
         }
 
         {
             let mut value = stmt.value.0.lock().unwrap();
             changed = changed || value.accept(self)?;
+
+            types.1 = value.resolved_type().cloned().flatten();
+        }
+
+        if let (Some(target_type), Some(value_type)) = types {
+            if !Self::can_implicit_cast(&value_type, &target_type) {
+                todo!(
+                    "Can't assign types!\nFrom: {:#?}\nTo: {:#?}",
+                    value_type,
+                    target_type
+                );
+            }
         }
 
         if stmt.is_resolved() {
