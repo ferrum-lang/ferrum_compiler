@@ -202,7 +202,6 @@ impl ir::RustIRDeclVisitor<Result<Arc<str>>> for RustCodeGen {
         out.push_str(&format!("fn {}(", decl.name));
 
         for mut param in decl.params.clone() {
-            // TODO: Handle params
             out.push_str(&format!("{}: ", param.name));
 
             out.push_str(&param.static_type_ref.accept(self)?);
