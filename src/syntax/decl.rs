@@ -240,12 +240,16 @@ impl<T: ResolvedType> TryFrom<FnDeclParam<Option<T>>> for FnDeclParam<T> {
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct FnDeclReturnType<T: ResolvedType = ()> {
+    pub colon_token: Arc<Token>,
+    pub static_type: StaticType<T>,
     pub resolved_type: T,
 }
 
 impl<T: ResolvedType> From<FnDeclReturnType<()>> for FnDeclReturnType<Option<T>> {
-    fn from(_: FnDeclReturnType<()>) -> Self {
+    fn from(value: FnDeclReturnType<()>) -> Self {
         return Self {
+            colon_token: value.colon_token,
+            static_type: from(value.static_type),
             resolved_type: None,
         };
     }
@@ -262,6 +266,8 @@ impl<T: ResolvedType> TryFrom<FnDeclReturnType<Option<T>>> for FnDeclReturnType<
 
     fn try_from(value: FnDeclReturnType<Option<T>>) -> Result<Self, Self::Error> {
         return Ok(Self {
+            colon_token: value.colon_token,
+            static_type: try_from(value.static_type)?,
             resolved_type: value.resolved_type.ok_or(FinalizeResolveTypeError {
                 file: file!(),
                 line: line!(),

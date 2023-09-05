@@ -28,7 +28,7 @@ lazy_static::lazy_static! {
         // keywords.insert("or".to_string(), TokenType::Or);
         keywords.insert("pub".to_string(), TokenType::Pub);
         // keywords.insert("pure".to_string(), TokenType::Pure);
-        // keywords.insert("return".to_string(), TokenType::Return);
+        keywords.insert("return".to_string(), TokenType::Return);
         // keywords.insert("risk".to_string(), TokenType::Risk);
         // keywords.insert("safe".to_string(), TokenType::Safe);
         // keywords.insert("self".to_string(), TokenType::SelfVal);

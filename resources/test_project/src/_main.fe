@@ -7,6 +7,11 @@ pub fn main()
     mut name = "Adam"
     hello(&name)
 
-    name = "Snowy"
+    name = get_name()
     hello(&name)
 ;
+
+fn get_name(): String
+    return "Snowy"
+;
+

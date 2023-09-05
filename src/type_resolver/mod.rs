@@ -430,7 +430,7 @@ impl DeclVisitor<Option<FeType>, Result<bool>> for FeTypeResolver {
             if let Some(resolved_type) = &param.resolved_type {
                 params.push((param.name.lexeme.clone(), resolved_type.clone()));
             } else {
-                changed = param.static_type_ref.accept(self)?;
+                changed = changed || param.static_type_ref.accept(self)?;
                 param.resolved_type = param.static_type_ref.resolved_type.clone();
 
                 if let Some(resolved_type) = &param.resolved_type {
@@ -441,7 +441,22 @@ impl DeclVisitor<Option<FeType>, Result<bool>> for FeTypeResolver {
             }
         }
 
-        // TODO: check return
+        let mut fn_return_type = None;
+
+        if let Some(return_type) = &mut decl.return_type {
+            if let Some(resolved_type) = &return_type.resolved_type {
+                fn_return_type = Some(Box::new(resolved_type.clone()));
+            } else {
+                changed = changed || return_type.static_type.accept(self)?;
+                return_type.resolved_type = return_type.static_type.resolved_type.clone();
+
+                if let Some(resolved_type) = &return_type.resolved_type {
+                    fn_return_type = Some(Box::new(resolved_type.clone()));
+                } else {
+                    all_resolved = false;
+                }
+            }
+        }
 
         if all_resolved {
             changed = true;
@@ -452,7 +467,7 @@ impl DeclVisitor<Option<FeType>, Result<bool>> for FeTypeResolver {
                     typ: FeType::Callable(Callable {
                         special: None,
                         params,
-                        return_type: None,
+                        return_type: fn_return_type,
                     }),
                 },
             );
@@ -564,6 +579,22 @@ impl StmtVisitor<Option<FeType>, Result<bool>> for FeTypeResolver {
         if stmt.is_resolved() {
             changed = true;
         }
+
+        return Ok(changed);
+    }
+
+    fn visit_return_stmt(&mut self, stmt: &mut ReturnStmt<Option<FeType>>) -> Result<bool> {
+        if stmt.is_resolved() {
+            return Ok(false);
+        }
+
+        let mut changed = false;
+
+        if let Some(value) = &stmt.value {
+            changed = changed || value.0.lock().unwrap().accept(self)?;
+        }
+
+        // TODO: Compare returned type to fn signature
 
         return Ok(changed);
     }

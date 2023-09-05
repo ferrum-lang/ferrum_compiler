@@ -113,13 +113,32 @@ impl RustCodeGen {
         return Ok(out.into());
     }
 
-    fn translate_static_type(
-        &mut self,
-        static_type: &mut ir::RustIRStaticType,
-    ) -> Result<Arc<str>> {
-        // TODO
+    fn translate_static_type(&mut self, static_type: &mut ir::RustIRStaticType) -> Arc<str> {
+        let mut out = String::new();
 
-        return Ok("".into());
+        match static_type.ref_type {
+            Some(ir::RustIRRefType::Shared) => out.push('&'),
+            Some(ir::RustIRRefType::Mut) => out.push_str("&mut "),
+            None => {}
+        }
+
+        out.push_str(&self.translate_static_path(&mut static_type.static_path));
+
+        return out.into();
+    }
+
+    fn translate_static_path(&mut self, static_path: &mut ir::RustIRStaticPath) -> Arc<str> {
+        if let Some(root) = &mut static_path.root {
+            let mut out = self.translate_static_path(&mut *root).to_string();
+
+            out.push_str("::");
+
+            out.push_str(&static_path.name);
+
+            return out.into();
+        }
+
+        return static_path.name.clone();
     }
 
     fn new_line(&self) -> String {
@@ -216,7 +235,7 @@ impl ir::RustIRDeclVisitor<Result<Arc<str>>> for RustCodeGen {
         if let Some(return_type) = &mut decl.return_type {
             out.push_str("-> ");
 
-            let code = self.translate_static_type(return_type)?;
+            let code = self.translate_static_type(return_type);
             out.push_str(&code);
 
             out.push(' ');
@@ -260,6 +279,18 @@ impl ir::RustIRStmtVisitor<Result<Arc<str>>> for RustCodeGen {
 
             let code = value.expr.accept(self)?;
             out.push_str(&code);
+        }
+
+        out.push(';');
+
+        return Ok(out.into());
+    }
+
+    fn visit_return_stmt(&mut self, stmt: &mut ir::RustIRReturnStmt) -> Result<Arc<str>> {
+        let mut out = String::from("return ");
+
+        if let Some(expr) = &mut stmt.expr {
+            out.push_str(&expr.accept(self)?);
         }
 
         out.push(';');

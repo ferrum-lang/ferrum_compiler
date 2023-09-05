@@ -114,6 +114,7 @@ pub enum TokenType {
     Pure,
     Risk,
     Safe,
+    Return,
     Use,
 
     // Literals

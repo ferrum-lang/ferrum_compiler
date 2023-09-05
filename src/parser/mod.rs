@@ -309,10 +309,11 @@ impl FeTokenSyntaxParser {
 
         let return_type =
             if let Some(colon_token) = self.match_any(&[TokenType::Colon], WithNewlines::One) {
-                // TODO
-                // Some(self.type_ref()?)
-
-                None
+                Some(FnDeclReturnType {
+                    colon_token,
+                    static_type: self.static_type_ref()?,
+                    resolved_type: (),
+                })
             } else {
                 None
             };
@@ -457,11 +458,13 @@ impl FeTokenSyntaxParser {
         if self.match_any(&[token::TokenType::If], WithNewlines::Many) {
             return Ok(ast::Stmt::If(self.if_statement()?));
         }
-
-        if self.match_any(&[token::TokenType::Return], WithNewlines::Many) {
-            return Ok(ast::Stmt::Return(self.return_statement()?));
-        }
         */
+
+        if let Some(token) = self.match_any(&[TokenType::Return], WithNewlines::Many) {
+            return Ok(Arc::new(Mutex::new(Stmt::Return(
+                self.return_statement(token)?,
+            ))));
+        }
 
         let stmt = self.expr_or_assign_statement()?;
 
@@ -502,6 +505,20 @@ impl FeTokenSyntaxParser {
             )?,
             resolved_type: (),
         }));
+    }
+
+    fn return_statement(&mut self, return_token: Arc<Token>) -> Result<ReturnStmt> {
+        let value = if self.check(&TokenType::Newline) {
+            None
+        } else {
+            Some(NestedExpr(self.expression()?))
+        };
+
+        return Ok(ReturnStmt {
+            id: NodeId::gen(),
+            return_token,
+            value,
+        });
     }
 
     fn expr_or_assign_statement(&mut self) -> Result<Arc<Mutex<Stmt>>> {

@@ -114,8 +114,8 @@ impl RustSyntaxCompiler {
     fn translate_fn_return_type(
         &self,
         return_type: &mut FnDeclReturnType<FeType>,
-    ) -> Result<ir::RustIRStaticType> {
-        todo!();
+    ) -> ir::RustIRStaticType {
+        return self.translate_static_type(&mut return_type.static_type);
     }
 
     fn translate_fn_body(&mut self, body: &mut FnDeclBody<FeType>) -> Result<ir::RustIRBlockExpr> {
@@ -248,7 +248,7 @@ impl DeclVisitor<FeType, Result> for RustSyntaxCompiler {
                 .collect(),
 
             return_type: if let Some(return_type) = &mut decl.return_type {
-                Some(self.translate_fn_return_type(return_type)?)
+                Some(self.translate_fn_return_type(return_type))
             } else {
                 None
             },
@@ -314,6 +314,16 @@ impl StmtVisitor<FeType, Result<Vec<ir::RustIRStmt>>> for RustSyntaxCompiler {
                 rhs: Box::new(rhs),
             }),
         })]);
+    }
+
+    fn visit_return_stmt(&mut self, stmt: &mut ReturnStmt<FeType>) -> Result<Vec<ir::RustIRStmt>> {
+        let expr = if let Some(value) = &mut stmt.value {
+            Some(value.0.lock().unwrap().accept(self)?)
+        } else {
+            None
+        };
+
+        return Ok(vec![ir::RustIRStmt::Return(ir::RustIRReturnStmt { expr })]);
     }
 }
 
