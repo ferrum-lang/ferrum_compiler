@@ -454,11 +454,11 @@ impl FeTokenSyntaxParser {
                 self.var_decl_statement(ast::VarDeclType::Mut)?,
             ));
         }
-
-        if self.match_any(&[token::TokenType::If], WithNewlines::Many) {
-            return Ok(ast::Stmt::If(self.if_statement()?));
-        }
         */
+
+        if let Some(token) = self.match_any(&[TokenType::If], WithNewlines::Many) {
+            return Ok(Arc::new(Mutex::new(Stmt::If(self.if_statement(token)?))));
+        }
 
         if let Some(token) = self.match_any(&[TokenType::Return], WithNewlines::Many) {
             return Ok(Arc::new(Mutex::new(Stmt::Return(
@@ -505,6 +505,90 @@ impl FeTokenSyntaxParser {
             )?,
             resolved_type: (),
         }));
+    }
+
+    fn if_statement(&mut self, if_token: Arc<Token>) -> Result<IfStmt> {
+        // TODO: Maybe if condition should be special to allow assigning or naming condition?
+        let condition = NestedExpr(self.expression()?);
+
+        let _ = self.consume(&TokenType::Newline, "Expected newline after if condition")?;
+
+        let (stmts, end_token) =
+            self.code_block_with_any_end(&[TokenType::Semicolon, TokenType::Else])?;
+
+        let then_block = CodeBlock {
+            stmts,
+            end_semicolon_token: (),
+        };
+
+        if let TokenType::Semicolon = &end_token.token_type {
+            return Ok(IfStmt {
+                id: NodeId::gen(),
+                if_token,
+                condition,
+                then_block,
+                else_ifs: vec![],
+                else_: None,
+                semicolon_token: end_token,
+            });
+        }
+
+        let mut else_token = end_token;
+        let mut else_ifs = vec![];
+        while let Some(if_token) = self.match_any(&[TokenType::If], WithNewlines::One) {
+            let condition = NestedExpr(self.expression()?);
+
+            let (stmts, end_token) =
+                self.code_block_with_any_end(&[TokenType::Semicolon, TokenType::Else])?;
+
+            let then_block = CodeBlock {
+                stmts,
+                end_semicolon_token: (),
+            };
+
+            else_ifs.push(ElseIfBranch {
+                else_token,
+                if_token,
+                condition,
+                then_block,
+            });
+
+            else_token = end_token;
+        }
+
+        if let TokenType::Semicolon = &else_token.token_type {
+            return Ok(IfStmt {
+                id: NodeId::gen(),
+                if_token,
+                condition,
+                then_block,
+                else_ifs,
+                else_: None,
+                semicolon_token: else_token,
+            });
+        }
+
+        let (stmts, semicolon_token) = self.code_block_with_any_end(&[TokenType::Semicolon])?;
+
+        let else_then_block = CodeBlock {
+            stmts,
+            end_semicolon_token: (),
+        };
+
+        let else_ = Some(ElseBranch {
+            else_token,
+            then_block: else_then_block,
+        });
+
+        return Ok(IfStmt {
+            id: NodeId::gen(),
+            if_token,
+            condition,
+            then_block,
+            else_ifs,
+            else_,
+            semicolon_token,
+        });
     }
 
     fn return_statement(&mut self, return_token: Arc<Token>) -> Result<ReturnStmt> {

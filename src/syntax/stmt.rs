@@ -9,6 +9,7 @@ pub enum Stmt<T: ResolvedType = ()> {
     VarDecl(VarDeclStmt<T>),
     Assign(AssignStmt<T>),
     Return(ReturnStmt<T>),
+    If(IfStmt<T>),
 }
 
 impl<T: ResolvedType> Node<Stmt> for Stmt<T> {
@@ -18,6 +19,7 @@ impl<T: ResolvedType> Node<Stmt> for Stmt<T> {
             Self::VarDecl(stmt) => return stmt.node_id(),
             Self::Assign(stmt) => return stmt.node_id(),
             Self::Return(stmt) => return stmt.node_id(),
+            Self::If(stmt) => return stmt.node_id(),
         }
     }
 }
@@ -29,6 +31,7 @@ impl<T: ResolvedType> From<Stmt<()>> for Stmt<Option<T>> {
             Stmt::VarDecl(stmt) => return Self::VarDecl(from(stmt)),
             Stmt::Assign(stmt) => return Self::Assign(from(stmt)),
             Stmt::Return(stmt) => return Self::Return(from(stmt)),
+            Stmt::If(stmt) => return Self::If(from(stmt)),
         }
     }
 }
@@ -40,6 +43,7 @@ impl<T: ResolvedType> Resolvable for Stmt<Option<T>> {
             Self::VarDecl(stmt) => return stmt.is_resolved(),
             Self::Assign(stmt) => return stmt.is_resolved(),
             Self::Return(stmt) => return stmt.is_resolved(),
+            Self::If(stmt) => return stmt.is_resolved(),
         }
     }
 }
@@ -53,6 +57,7 @@ impl<T: ResolvedType> TryFrom<Stmt<Option<T>>> for Stmt<T> {
             Stmt::VarDecl(stmt) => return Ok(Self::VarDecl(try_from(stmt)?)),
             Stmt::Assign(stmt) => return Ok(Self::Assign(try_from(stmt)?)),
             Stmt::Return(stmt) => return Ok(Self::Return(try_from(stmt)?)),
+            Stmt::If(stmt) => return Ok(Self::If(try_from(stmt)?)),
         }
     }
 }
@@ -391,12 +396,176 @@ impl<T: ResolvedType> TryFrom<ReturnStmt<Option<T>>> for ReturnStmt<T> {
     }
 }
 
+#[derive(Debug, Clone, PartialEq)]
+pub struct IfStmt<T: ResolvedType = ()> {
+    pub id: NodeId<Stmt>,
+    pub if_token: Arc<Token>,
+    pub condition: NestedExpr<T>,
+    pub then_block: CodeBlock<T, ()>,
+    pub else_ifs: Vec<ElseIfBranch<T>>,
+    pub else_: Option<ElseBranch<T>>,
+    pub semicolon_token: Arc<Token>,
+}
+
+impl<T: ResolvedType> Node<Stmt> for IfStmt<T> {
+    fn node_id(&self) -> &NodeId<Stmt> {
+        return &self.id;
+    }
+}
+
+impl<T: ResolvedType> From<IfStmt<()>> for IfStmt<Option<T>> {
+    fn from(value: IfStmt<()>) -> Self {
+        return Self {
+            id: value.id,
+            if_token: value.if_token,
+            condition: from(value.condition),
+            then_block: from(value.then_block),
+            else_ifs: value.else_ifs.into_iter().map(from).collect(),
+            else_: value.else_.map(from),
+            semicolon_token: value.semicolon_token,
+        };
+    }
+}
+
+impl<T: ResolvedType> Resolvable for IfStmt<Option<T>> {
+    fn is_resolved(&self) -> bool {
+        if !self.condition.is_resolved() {
+            dbg!("false");
+            return false;
+        }
+
+        if !self.then_block.is_resolved() {
+            dbg!("false");
+            return false;
+        }
+
+        for elseif in &self.else_ifs {
+            if !elseif.is_resolved() {
+                dbg!("false");
+                return false;
+            }
+        }
+
+        if let Some(else_) = &self.else_ {
+            if !else_.is_resolved() {
+                dbg!("false");
+                return false;
+            }
+        }
+
+        return true;
+    }
+}
+
+impl<T: ResolvedType> TryFrom<IfStmt<Option<T>>> for IfStmt<T> {
+    type Error = FinalizeResolveTypeError;
+
+    fn try_from(value: IfStmt<Option<T>>) -> Result<Self, Self::Error> {
+        return Ok(Self {
+            id: value.id,
+            if_token: value.if_token,
+            condition: try_from(value.condition)?,
+            then_block: try_from(value.then_block)?,
+            else_ifs: value
+                .else_ifs
+                .into_iter()
+                .map(try_from)
+                .collect::<Result<Vec<_>, Self::Error>>()?,
+            else_: invert(value.else_.map(try_from))?,
+            semicolon_token: value.semicolon_token,
+        });
+    }
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub struct ElseIfBranch<T: ResolvedType = ()> {
+    pub else_token: Arc<Token>,
+    pub if_token: Arc<Token>,
+    pub condition: NestedExpr<T>,
+    pub then_block: CodeBlock<T, ()>,
+}
+
+impl<T: ResolvedType> From<ElseIfBranch<()>> for ElseIfBranch<Option<T>> {
+    fn from(value: ElseIfBranch<()>) -> Self {
+        return Self {
+            else_token: value.else_token,
+            if_token: value.if_token,
+            condition: from(value.condition),
+            then_block: from(value.then_block),
+        };
+    }
+}
+
+impl<T: ResolvedType> Resolvable for ElseIfBranch<Option<T>> {
+    fn is_resolved(&self) -> bool {
+        if !self.condition.is_resolved() {
+            return false;
+        }
+
+        if !self.then_block.is_resolved() {
+            return false;
+        }
+
+        return true;
+    }
+}
+
+impl<T: ResolvedType> TryFrom<ElseIfBranch<Option<T>>> for ElseIfBranch<T> {
+    type Error = FinalizeResolveTypeError;
+
+    fn try_from(value: ElseIfBranch<Option<T>>) -> Result<Self, Self::Error> {
+        return Ok(Self {
+            else_token: value.else_token,
+            if_token: value.if_token,
+            condition: try_from(value.condition)?,
+            then_block: try_from(value.then_block)?,
+        });
+    }
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub struct ElseBranch<T: ResolvedType = ()> {
+    pub else_token: Arc<Token>,
+    pub then_block: CodeBlock<T, ()>,
+}
+
+impl<T: ResolvedType> From<ElseBranch<()>> for ElseBranch<Option<T>> {
+    fn from(value: ElseBranch<()>) -> Self {
+        return Self {
+            else_token: value.else_token,
+            then_block: from(value.then_block),
+        };
+    }
+}
+
+impl<T: ResolvedType> Resolvable for ElseBranch<Option<T>> {
+    fn is_resolved(&self) -> bool {
+        if !self.then_block.is_resolved() {
+            return false;
+        }
+
+        return true;
+    }
+}
+
+impl<T: ResolvedType> TryFrom<ElseBranch<Option<T>>> for ElseBranch<T> {
+    type Error = FinalizeResolveTypeError;
+
+    fn try_from(value: ElseBranch<Option<T>>) -> Result<Self, Self::Error> {
+        return Ok(Self {
+            else_token: value.else_token,
+            then_block: try_from(value.then_block)?,
+        });
+    }
+}
+
 // Visitor pattern
 pub trait StmtVisitor<T: ResolvedType, R = ()> {
     fn visit_expr_stmt(&mut self, stmt: &mut ExprStmt<T>) -> R;
     fn visit_var_decl_stmt(&mut self, stmt: &mut VarDeclStmt<T>) -> R;
     fn visit_assign_stmt(&mut self, stmt: &mut AssignStmt<T>) -> R;
     fn visit_return_stmt(&mut self, stmt: &mut ReturnStmt<T>) -> R;
+    fn visit_if_stmt(&mut self, stmt: &mut IfStmt<T>) -> R;
 }
 
 pub trait StmtAccept<T: ResolvedType, R, V: StmtVisitor<T, R>> {
@@ -410,6 +579,7 @@ impl<T: ResolvedType, R, V: StmtVisitor<T, R>> StmtAccept<T, R, V> for Stmt<T> {
             Self::VarDecl(stmt) => stmt.accept(visitor),
             Self::Assign(stmt) => stmt.accept(visitor),
             Self::Return(stmt) => stmt.accept(visitor),
+            Self::If(stmt) => stmt.accept(visitor),
         };
     }
 }
@@ -435,5 +605,11 @@ impl<T: ResolvedType, R, V: StmtVisitor<T, R>> StmtAccept<T, R, V> for AssignStm
 impl<T: ResolvedType, R, V: StmtVisitor<T, R>> StmtAccept<T, R, V> for ReturnStmt<T> {
     fn accept(&mut self, visitor: &mut V) -> R {
         return visitor.visit_return_stmt(self);
+    }
+}
+
+impl<T: ResolvedType, R, V: StmtVisitor<T, R>> StmtAccept<T, R, V> for IfStmt<T> {
+    fn accept(&mut self, visitor: &mut V) -> R {
+        return visitor.visit_if_stmt(self);
     }
 }

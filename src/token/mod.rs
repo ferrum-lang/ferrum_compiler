@@ -107,7 +107,9 @@ pub enum TokenType {
 
     // Keywords
     Const,
+    Else,
     Fn,
+    If,
     Mut,
     Norm,
     Pub,

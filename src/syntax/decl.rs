@@ -344,12 +344,12 @@ impl<T: ResolvedType> TryFrom<FnDeclBodyShort<Option<T>>> for FnDeclBodyShort<T>
 }
 
 #[derive(Debug, Clone)]
-pub struct CodeBlock<T: ResolvedType = ()> {
+pub struct CodeBlock<T: ResolvedType = (), Semicolon: PartialEq = Arc<Token>> {
     pub stmts: Vec<Arc<Mutex<Stmt<T>>>>,
-    pub end_semicolon_token: Arc<Token>,
+    pub end_semicolon_token: Semicolon,
 }
 
-impl<T: ResolvedType> PartialEq for CodeBlock<T> {
+impl<T: ResolvedType, S: PartialEq> PartialEq for CodeBlock<T, S> {
     fn eq(&self, other: &Self) -> bool {
         if self.end_semicolon_token != other.end_semicolon_token {
             return false;
@@ -376,8 +376,8 @@ impl<T: ResolvedType> PartialEq for CodeBlock<T> {
     }
 }
 
-impl<T: ResolvedType> From<CodeBlock<()>> for CodeBlock<Option<T>> {
-    fn from(value: CodeBlock<()>) -> Self {
+impl<T: ResolvedType, S: PartialEq> From<CodeBlock<(), S>> for CodeBlock<Option<T>, S> {
+    fn from(value: CodeBlock<(), S>) -> Self {
         return Self {
             stmts: value.stmts.into_iter().map(fe_from).collect(),
             end_semicolon_token: value.end_semicolon_token,
@@ -385,7 +385,7 @@ impl<T: ResolvedType> From<CodeBlock<()>> for CodeBlock<Option<T>> {
     }
 }
 
-impl<T: ResolvedType> Resolvable for CodeBlock<Option<T>> {
+impl<T: ResolvedType, S: PartialEq> Resolvable for CodeBlock<Option<T>, S> {
     fn is_resolved(&self) -> bool {
         for stmt in &self.stmts {
             if !stmt.lock().unwrap().is_resolved() {
@@ -398,10 +398,10 @@ impl<T: ResolvedType> Resolvable for CodeBlock<Option<T>> {
     }
 }
 
-impl<T: ResolvedType> TryFrom<CodeBlock<Option<T>>> for CodeBlock<T> {
+impl<T: ResolvedType, S: PartialEq> TryFrom<CodeBlock<Option<T>, S>> for CodeBlock<T, S> {
     type Error = FinalizeResolveTypeError;
 
-    fn try_from(value: CodeBlock<Option<T>>) -> Result<Self, Self::Error> {
+    fn try_from(value: CodeBlock<Option<T>, S>) -> Result<Self, Self::Error> {
         return Ok(Self {
             stmts: value
                 .stmts

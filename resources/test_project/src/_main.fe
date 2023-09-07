@@ -7,8 +7,31 @@ pub fn main()
     mut name = "Adam"
     hello(&name)
 
-    name = get_name()
-    hello(&name)
+    const is_funny = true
+    const is_cool = false
+
+    if is_funny
+        name = get_name()
+        hello(&name)
+    ;
+
+    if is_cool
+        hello(&"true")
+    else
+        hello(&"false")
+    ;
+
+    const is_weird = true
+
+    if is_cool
+        hello(&"cool person")
+    else if is_funny
+        hello(&"funny person")
+    else if is_weird
+        hello(&"weird person")
+    else
+        hello(&"random person")
+    ;
 ;
 
 fn get_name(): String

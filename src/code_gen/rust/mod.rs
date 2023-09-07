@@ -249,6 +249,13 @@ impl ir::RustIRDeclVisitor<Result<Arc<str>>> for RustCodeGen {
 }
 
 impl ir::RustIRStmtVisitor<Result<Arc<str>>> for RustCodeGen {
+    fn visit_implicit_return_stmt(
+        &mut self,
+        stmt: &mut ir::RustIRImplicitReturnStmt,
+    ) -> Result<Arc<str>> {
+        return stmt.expr.accept(self);
+    }
+
     fn visit_expr_stmt(&mut self, stmt: &mut ir::RustIRExprStmt) -> Result<Arc<str>> {
         let mut out = String::new();
 
@@ -409,6 +416,69 @@ impl ir::RustIRExprVisitor<Result<Arc<str>>> for RustCodeGen {
         out.push_str(&expr.lhs.accept(self)?);
         out.push_str(" = ");
         out.push_str(&expr.rhs.accept(self)?);
+
+        return Ok(out.into());
+    }
+
+    fn visit_if_expr(&mut self, expr: &mut ir::RustIRIfExpr) -> Result<Arc<str>> {
+        let mut out = String::from("if ");
+        out.push_str(&expr.condition.accept(self)?);
+        out.push_str(" {");
+
+        self.indent += 1;
+        out.push_str(&self.new_line());
+
+        let stmts_code = expr
+            .then
+            .iter_mut()
+            .map(|stmt| stmt.accept(self))
+            .collect::<Result<Vec<Arc<str>>>>()?
+            .join(&self.new_line());
+        out.push_str(&stmts_code);
+
+        self.indent -= 1;
+        out.push_str(&self.new_line());
+        out.push('}');
+
+        for else_if in &mut expr.else_ifs {
+            out.push_str(" else if ");
+            out.push_str(&else_if.condition.accept(self)?);
+            out.push_str(" {");
+
+            self.indent += 1;
+            out.push_str(&self.new_line());
+
+            let stmts_code = else_if
+                .then
+                .iter_mut()
+                .map(|stmt| stmt.accept(self))
+                .collect::<Result<Vec<Arc<str>>>>()?
+                .join(&self.new_line());
+            out.push_str(&stmts_code);
+
+            self.indent -= 1;
+            out.push_str(&self.new_line());
+            out.push('}');
+        }
+
+        if let Some(else_) = &mut expr.else_ {
+            out.push_str(" else {");
+
+            self.indent += 1;
+            out.push_str(&self.new_line());
+
+            let stmts_code = else_
+                .then
+                .iter_mut()
+                .map(|stmt| stmt.accept(self))
+                .collect::<Result<Vec<Arc<str>>>>()?
+                .join(&self.new_line());
+            out.push_str(&stmts_code);
+
+            self.indent -= 1;
+            out.push_str(&self.new_line());
+            out.push('}');
+        }
 
         return Ok(out.into());
     }

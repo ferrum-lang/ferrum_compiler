@@ -2,11 +2,15 @@ use super::*;
 
 #[derive(Debug, Clone, PartialEq)]
 pub enum RustIRStmt {
-    ImplicitReturn(Box<RustIRStmt>),
-
+    ImplicitReturn(RustIRImplicitReturnStmt),
     Expr(RustIRExprStmt),
     Let(RustIRLetStmt),
     Return(RustIRReturnStmt),
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub struct RustIRImplicitReturnStmt {
+    pub expr: RustIRExpr,
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -39,6 +43,7 @@ pub struct RustIRReturnStmt {
 
 // Visitor pattern
 pub trait RustIRStmtVisitor<R = ()> {
+    fn visit_implicit_return_stmt(&mut self, stmt: &mut RustIRImplicitReturnStmt) -> R;
     fn visit_expr_stmt(&mut self, stmt: &mut RustIRExprStmt) -> R;
     fn visit_let_stmt(&mut self, stmt: &mut RustIRLetStmt) -> R;
     fn visit_return_stmt(&mut self, stmt: &mut RustIRReturnStmt) -> R;
@@ -56,6 +61,12 @@ impl<R, V: RustIRStmtVisitor<R>> RustIRStmtAccept<R, V> for RustIRStmt {
             Self::Let(stmt) => stmt.accept(visitor),
             Self::Return(stmt) => stmt.accept(visitor),
         };
+    }
+}
+
+impl<R, V: RustIRStmtVisitor<R>> RustIRStmtAccept<R, V> for RustIRImplicitReturnStmt {
+    fn accept(&mut self, visitor: &mut V) -> R {
+        return visitor.visit_implicit_return_stmt(self);
     }
 }
 

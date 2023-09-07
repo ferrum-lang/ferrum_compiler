@@ -37,10 +37,12 @@ impl FeTypeResolver {
         };
 
         while !pkg.lock().unwrap().is_resolved() {
+            println!("1");
             let changed = match &mut *pkg.lock().unwrap() {
                 FeSyntaxPackage::File(file) => this.resolve_file(file)?,
                 FeSyntaxPackage::Dir(dir) => this.resolve_dir(dir)?,
             };
+            println!("2");
 
             if !changed {
                 todo!("Can't resolve! {pkg:#?}");
@@ -119,7 +121,7 @@ impl FeTypeResolver {
             let local = u.lock().unwrap().accept(self)?;
 
             if let Some(changed) = &mut changed {
-                *changed = *changed || local;
+                *changed = *changed | local;
             } else {
                 changed = Some(local);
             }
@@ -139,7 +141,7 @@ impl FeTypeResolver {
             self.decls_to_eval.insert(id, decl.clone());
 
             if let Some(changed) = &mut changed {
-                *changed = *changed || decl_changed;
+                *changed = *changed | decl_changed;
             } else {
                 changed = Some(decl_changed);
             }
@@ -151,7 +153,7 @@ impl FeTypeResolver {
                     let decl_changed = self.evaluate_decl(decl)?;
 
                     if let Some(changed) = &mut changed {
-                        *changed = *changed || decl_changed;
+                        *changed = *changed | decl_changed;
                     } else {
                         changed = Some(decl_changed);
                     }
@@ -205,7 +207,7 @@ impl FeTypeResolver {
 
                     // TODO: Check for return stmt and compare to return type
 
-                    changed = changed || stmt.accept(self)?;
+                    changed = changed | stmt.accept(self)?;
                 }
 
                 return Ok(changed);
@@ -397,7 +399,7 @@ impl StaticVisitor<Option<FeType>, Result<bool>> for FeTypeResolver {
         let mut changed = false;
 
         if let Some(root) = &mut static_path.root {
-            changed = changed || root.accept(self)?;
+            changed = changed | root.accept(self)?;
 
             // TODO: Handle package types and navigating scope
         } else {
@@ -430,7 +432,7 @@ impl DeclVisitor<Option<FeType>, Result<bool>> for FeTypeResolver {
             if let Some(resolved_type) = &param.resolved_type {
                 params.push((param.name.lexeme.clone(), resolved_type.clone()));
             } else {
-                changed = changed || param.static_type_ref.accept(self)?;
+                changed = changed | param.static_type_ref.accept(self)?;
                 param.resolved_type = param.static_type_ref.resolved_type.clone();
 
                 if let Some(resolved_type) = &param.resolved_type {
@@ -447,7 +449,7 @@ impl DeclVisitor<Option<FeType>, Result<bool>> for FeTypeResolver {
             if let Some(resolved_type) = &return_type.resolved_type {
                 fn_return_type = Some(Box::new(resolved_type.clone()));
             } else {
-                changed = changed || return_type.static_type.accept(self)?;
+                changed = changed | return_type.static_type.accept(self)?;
                 return_type.resolved_type = return_type.static_type.resolved_type.clone();
 
                 if let Some(resolved_type) = &return_type.resolved_type {
@@ -488,7 +490,7 @@ impl StmtVisitor<Option<FeType>, Result<bool>> for FeTypeResolver {
         let typ = if let Some(value) = &stmt.value {
             let value = &mut *value.value.0.lock().unwrap();
 
-            changed = changed || value.accept(self)?;
+            changed = changed | value.accept(self)?;
 
             value.resolved_type().cloned().flatten()
         } else {
@@ -514,7 +516,7 @@ impl StmtVisitor<Option<FeType>, Result<bool>> for FeTypeResolver {
                         },
                     );
 
-                    changed = changed || ident.accept(self)?;
+                    changed = changed | ident.accept(self)?;
                 }
             }
         }
@@ -532,7 +534,7 @@ impl StmtVisitor<Option<FeType>, Result<bool>> for FeTypeResolver {
 
         {
             let mut target = stmt.target.0.lock().unwrap();
-            changed = changed || target.accept(self)?;
+            changed = changed | target.accept(self)?;
 
             // TODO: ensure LHS expr is assignable (unassigned const ident || mut ident || instance_ref)
 
@@ -561,7 +563,7 @@ impl StmtVisitor<Option<FeType>, Result<bool>> for FeTypeResolver {
 
         {
             let mut value = stmt.value.0.lock().unwrap();
-            changed = changed || value.accept(self)?;
+            changed = changed | value.accept(self)?;
 
             types.1 = value.resolved_type().cloned().flatten();
         }
@@ -591,10 +593,68 @@ impl StmtVisitor<Option<FeType>, Result<bool>> for FeTypeResolver {
         let mut changed = false;
 
         if let Some(value) = &stmt.value {
-            changed = changed || value.0.lock().unwrap().accept(self)?;
+            changed = changed | value.0.lock().unwrap().accept(self)?;
         }
 
         // TODO: Compare returned type to fn signature
+
+        return Ok(changed);
+    }
+
+    fn visit_if_stmt(&mut self, stmt: &mut IfStmt<Option<FeType>>) -> Result<bool> {
+        if stmt.is_resolved() {
+            return Ok(false);
+        }
+
+        let mut changed = false;
+
+        {
+            let mut condition = stmt.condition.0.lock().unwrap();
+            if !condition.is_resolved() {
+                changed = changed | condition.accept(self)?;
+
+                let Some(resolved_type) = condition.resolved_type() else {
+                    todo!("Can't check if condition on no type!");
+                };
+
+                if let Some(resolved_type) = resolved_type {
+                    if !Self::can_implicit_cast(resolved_type, &FeType::Bool(None)) {
+                        todo!("Can't cast to bool!");
+                    }
+                }
+            }
+        }
+
+        for stmt in &mut stmt.then_block.stmts {
+            changed = changed | stmt.lock().unwrap().accept(self)?;
+        }
+
+        for else_if in &mut stmt.else_ifs {
+            let mut condition = else_if.condition.0.lock().unwrap();
+            if !condition.is_resolved() {
+                changed = changed | condition.accept(self)?;
+
+                let Some(resolved_type) = condition.resolved_type() else {
+                    todo!("Can't check else-if condition on no type!");
+                };
+
+                if let Some(resolved_type) = resolved_type {
+                    if !Self::can_implicit_cast(resolved_type, &FeType::Bool(None)) {
+                        todo!("Can't cast to bool!");
+                    }
+                }
+            }
+
+            for stmt in &mut else_if.then_block.stmts {
+                changed = changed | stmt.lock().unwrap().accept(self)?;
+            }
+        }
+
+        if let Some(else_) = &mut stmt.else_ {
+            for stmt in &mut else_.then_block.stmts {
+                changed = changed | stmt.lock().unwrap().accept(self)?;
+            }
+        }
 
         return Ok(changed);
     }
@@ -645,7 +705,7 @@ impl ExprVisitor<Option<FeType>, Result<bool>> for FeTypeResolver {
         let mut is_all_checked = true;
 
         for part in &mut expr.rest {
-            changed = changed || part.expr.0.lock().unwrap().accept(self)?;
+            changed = changed | part.expr.0.lock().unwrap().accept(self)?;
 
             if !part.expr.0.lock().unwrap().is_resolved() {
                 is_all_checked = false;
@@ -745,7 +805,7 @@ impl ExprVisitor<Option<FeType>, Result<bool>> for FeTypeResolver {
 
         let mut changed = false;
 
-        changed = changed || expr.value.0.lock().unwrap().accept(self)?;
+        changed = changed | expr.value.0.lock().unwrap().accept(self)?;
 
         if let Some(resolved_type) = expr
             .value

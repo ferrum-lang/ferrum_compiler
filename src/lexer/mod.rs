@@ -15,11 +15,11 @@ lazy_static::lazy_static! {
         // keywords.insert("as".to_string(), TokenType::As);
         keywords.insert("const".to_string(), TokenType::Const);
         // keywords.insert("CRASH!".to_string(), TokenType::Crash);
-        // keywords.insert("else".to_string(), TokenType::Else);
+        keywords.insert("else".to_string(), TokenType::Else);
         keywords.insert("false".to_string(), TokenType::False);
         keywords.insert("fn".to_string(), TokenType::Fn);
         // keywords.insert("for".to_string(), TokenType::For);
-        // keywords.insert("if".to_string(), TokenType::If);
+        keywords.insert("if".to_string(), TokenType::If);
         // keywords.insert("impl".to_string(), TokenType::Impl);
         // keywords.insert("in".to_string(), TokenType::In);
         // keywords.insert("match".to_string(), TokenType::Match);

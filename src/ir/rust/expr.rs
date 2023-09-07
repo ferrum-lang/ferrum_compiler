@@ -11,6 +11,7 @@ pub enum RustIRExpr {
     StaticRef(RustIRStaticRefExpr),
     Unary(RustIRUnaryExpr),
     Assign(RustIRAssignExpr),
+    If(RustIRIfExpr),
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -67,6 +68,25 @@ pub struct RustIRAssignExpr {
     pub rhs: Box<RustIRExpr>,
 }
 
+#[derive(Debug, Clone, PartialEq)]
+pub struct RustIRIfExpr {
+    pub condition: Box<RustIRExpr>,
+    pub then: Vec<RustIRStmt>,
+    pub else_ifs: Vec<RustIRElseIf>,
+    pub else_: Option<RustIRElse>,
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub struct RustIRElseIf {
+    pub condition: Box<RustIRExpr>,
+    pub then: Vec<RustIRStmt>,
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub struct RustIRElse {
+    pub then: Vec<RustIRStmt>,
+}
+
 // Visitor pattern
 pub trait RustIRExprVisitor<R = ()> {
     fn visit_bool_literal_expr(&mut self, expr: &mut RustIRBoolLiteralExpr) -> R;
@@ -78,6 +98,7 @@ pub trait RustIRExprVisitor<R = ()> {
     fn visit_static_ref_expr(&mut self, expr: &mut RustIRStaticRefExpr) -> R;
     fn visit_unary_expr(&mut self, expr: &mut RustIRUnaryExpr) -> R;
     fn visit_assign_expr(&mut self, expr: &mut RustIRAssignExpr) -> R;
+    fn visit_if_expr(&mut self, expr: &mut RustIRIfExpr) -> R;
 }
 
 pub trait RustIRExprAccept<R, V: RustIRExprVisitor<R>> {
@@ -96,6 +117,7 @@ impl<R, V: RustIRExprVisitor<R>> RustIRExprAccept<R, V> for RustIRExpr {
             Self::StaticRef(expr) => expr.accept(visitor),
             Self::Unary(expr) => expr.accept(visitor),
             Self::Assign(expr) => expr.accept(visitor),
+            Self::If(expr) => expr.accept(visitor),
         };
     }
 }
@@ -151,5 +173,11 @@ impl<R, V: RustIRExprVisitor<R>> RustIRExprAccept<R, V> for RustIRUnaryExpr {
 impl<R, V: RustIRExprVisitor<R>> RustIRExprAccept<R, V> for RustIRAssignExpr {
     fn accept(&mut self, visitor: &mut V) -> R {
         return visitor.visit_assign_expr(self);
+    }
+}
+
+impl<R, V: RustIRExprVisitor<R>> RustIRExprAccept<R, V> for RustIRIfExpr {
+    fn accept(&mut self, visitor: &mut V) -> R {
+        return visitor.visit_if_expr(self);
     }
 }
