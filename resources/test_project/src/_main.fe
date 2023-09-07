@@ -4,7 +4,7 @@ pub fn main()
     const world = "World"
     hello(&world)
 
-    mut name = "Adam"
+    mut name = "TEST"
     hello(&name)
 
     const is_funny = true
