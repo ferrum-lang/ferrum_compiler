@@ -658,6 +658,23 @@ impl StmtVisitor<Option<FeType>, Result<bool>> for FeTypeResolver {
 
         return Ok(changed);
     }
+
+    fn visit_loop_stmt(&mut self, stmt: &mut LoopStmt<Option<FeType>>) -> Result<bool> {
+        // TODO: Think about how looping affects types
+        // TODO: Look for infinite loops with code after loop? Or is that linter issue?
+
+        if stmt.is_resolved() {
+            return Ok(false);
+        }
+
+        let mut changed = false;
+
+        for stmt in &mut stmt.block.stmts {
+            changed |= stmt.lock().unwrap().accept(self)?;
+        }
+
+        return Ok(changed);
+    }
 }
 
 impl ExprVisitor<Option<FeType>, Result<bool>> for FeTypeResolver {
@@ -830,6 +847,18 @@ impl ExprVisitor<Option<FeType>, Result<bool>> for FeTypeResolver {
                         ref_type: FeRefType::Mut,
                         of: Box::new(resolved_type),
                     }));
+                }
+                UnaryOp::Not(_) => {
+                    // Only apply to bool
+                    if !Self::can_implicit_cast(&resolved_type, &FeType::Bool(None)) {
+                        todo!("Can't cast implicitly to bool");
+                    }
+
+                    expr.resolved_type = if let FeType::Bool(details) = &resolved_type {
+                        Some(FeType::Bool(details.map(|known_val| !known_val)))
+                    } else {
+                        Some(FeType::Bool(None))
+                    };
                 }
             }
         }

@@ -536,6 +536,7 @@ impl<T: ResolvedType> TryFrom<UnaryExpr<Option<T>>> for UnaryExpr<T> {
 #[derive(Debug, Clone, PartialEq)]
 pub enum UnaryOp {
     Ref(RefType),
+    Not(Arc<Token>),
 }
 
 // Visitor pattern

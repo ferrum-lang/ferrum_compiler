@@ -22,9 +22,11 @@ lazy_static::lazy_static! {
         keywords.insert("if".to_string(), TokenType::If);
         // keywords.insert("impl".to_string(), TokenType::Impl);
         // keywords.insert("in".to_string(), TokenType::In);
+        keywords.insert("loop".to_string(), TokenType::Loop);
         // keywords.insert("match".to_string(), TokenType::Match);
         keywords.insert("mut".to_string(), TokenType::Mut);
         // keywords.insert("norm".to_string(), TokenType::Norm);
+        keywords.insert("not".to_string(), TokenType::Not);
         // keywords.insert("or".to_string(), TokenType::Or);
         keywords.insert("pub".to_string(), TokenType::Pub);
         // keywords.insert("pure".to_string(), TokenType::Pure);

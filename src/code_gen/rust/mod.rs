@@ -304,6 +304,27 @@ impl ir::RustIRStmtVisitor<Result<Arc<str>>> for RustCodeGen {
 
         return Ok(out.into());
     }
+
+    fn visit_loop_stmt(&mut self, stmt: &mut ir::RustIRLoopStmt) -> Result<Arc<str>> {
+        let mut out = String::from("loop {");
+
+        self.indent += 1;
+        out.push_str(&self.new_line());
+
+        let stmts_code = stmt
+            .stmts
+            .iter_mut()
+            .map(|stmt| stmt.accept(self))
+            .collect::<Result<Vec<Arc<str>>>>()?
+            .join(&self.new_line());
+        out.push_str(&stmts_code);
+
+        self.indent -= 1;
+        out.push_str(&self.new_line());
+        out.push('}');
+
+        return Ok(out.into());
+    }
 }
 
 impl ir::RustIRExprVisitor<Result<Arc<str>>> for RustCodeGen {
@@ -402,6 +423,9 @@ impl ir::RustIRExprVisitor<Result<Arc<str>>> for RustCodeGen {
             }
             ir::RustIRUnaryOp::Ref(RustIRRefType::Mut) => {
                 out.push_str("&mut ");
+            }
+            ir::RustIRUnaryOp::Not => {
+                out.push('!');
             }
         }
 

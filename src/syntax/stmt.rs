@@ -10,6 +10,7 @@ pub enum Stmt<T: ResolvedType = ()> {
     Assign(AssignStmt<T>),
     Return(ReturnStmt<T>),
     If(IfStmt<T>),
+    Loop(LoopStmt<T>),
 }
 
 impl<T: ResolvedType> Node<Stmt> for Stmt<T> {
@@ -20,6 +21,7 @@ impl<T: ResolvedType> Node<Stmt> for Stmt<T> {
             Self::Assign(stmt) => return stmt.node_id(),
             Self::Return(stmt) => return stmt.node_id(),
             Self::If(stmt) => return stmt.node_id(),
+            Self::Loop(stmt) => return stmt.node_id(),
         }
     }
 }
@@ -32,6 +34,7 @@ impl<T: ResolvedType> From<Stmt<()>> for Stmt<Option<T>> {
             Stmt::Assign(stmt) => return Self::Assign(from(stmt)),
             Stmt::Return(stmt) => return Self::Return(from(stmt)),
             Stmt::If(stmt) => return Self::If(from(stmt)),
+            Stmt::Loop(stmt) => return Self::Loop(from(stmt)),
         }
     }
 }
@@ -44,6 +47,7 @@ impl<T: ResolvedType> Resolvable for Stmt<Option<T>> {
             Self::Assign(stmt) => return stmt.is_resolved(),
             Self::Return(stmt) => return stmt.is_resolved(),
             Self::If(stmt) => return stmt.is_resolved(),
+            Self::Loop(stmt) => return stmt.is_resolved(),
         }
     }
 }
@@ -58,6 +62,7 @@ impl<T: ResolvedType> TryFrom<Stmt<Option<T>>> for Stmt<T> {
             Stmt::Assign(stmt) => return Ok(Self::Assign(try_from(stmt)?)),
             Stmt::Return(stmt) => return Ok(Self::Return(try_from(stmt)?)),
             Stmt::If(stmt) => return Ok(Self::If(try_from(stmt)?)),
+            Stmt::Loop(stmt) => return Ok(Self::Loop(try_from(stmt)?)),
         }
     }
 }
@@ -559,6 +564,52 @@ impl<T: ResolvedType> TryFrom<ElseBranch<Option<T>>> for ElseBranch<T> {
     }
 }
 
+#[derive(Debug, Clone, PartialEq)]
+pub struct LoopStmt<T: ResolvedType = ()> {
+    pub id: NodeId<Stmt>,
+    pub loop_token: Arc<Token>,
+    pub block: CodeBlock<T>,
+}
+
+impl<T: ResolvedType> Node<Stmt> for LoopStmt<T> {
+    fn node_id(&self) -> &NodeId<Stmt> {
+        return &self.id;
+    }
+}
+
+impl<T: ResolvedType> From<LoopStmt<()>> for LoopStmt<Option<T>> {
+    fn from(value: LoopStmt<()>) -> Self {
+        return Self {
+            id: value.id,
+            loop_token: value.loop_token,
+            block: from(value.block),
+        };
+    }
+}
+
+impl<T: ResolvedType> Resolvable for LoopStmt<Option<T>> {
+    fn is_resolved(&self) -> bool {
+        if !self.block.is_resolved() {
+            dbg!("false");
+            return false;
+        }
+
+        return true;
+    }
+}
+
+impl<T: ResolvedType> TryFrom<LoopStmt<Option<T>>> for LoopStmt<T> {
+    type Error = FinalizeResolveTypeError;
+
+    fn try_from(value: LoopStmt<Option<T>>) -> Result<Self, Self::Error> {
+        return Ok(Self {
+            id: value.id,
+            loop_token: value.loop_token,
+            block: try_from(value.block)?,
+        });
+    }
+}
+
 // Visitor pattern
 pub trait StmtVisitor<T: ResolvedType, R = ()> {
     fn visit_expr_stmt(&mut self, stmt: &mut ExprStmt<T>) -> R;
@@ -566,6 +617,7 @@ pub trait StmtVisitor<T: ResolvedType, R = ()> {
     fn visit_assign_stmt(&mut self, stmt: &mut AssignStmt<T>) -> R;
     fn visit_return_stmt(&mut self, stmt: &mut ReturnStmt<T>) -> R;
     fn visit_if_stmt(&mut self, stmt: &mut IfStmt<T>) -> R;
+    fn visit_loop_stmt(&mut self, stmt: &mut LoopStmt<T>) -> R;
 }
 
 pub trait StmtAccept<T: ResolvedType, R, V: StmtVisitor<T, R>> {
@@ -580,6 +632,7 @@ impl<T: ResolvedType, R, V: StmtVisitor<T, R>> StmtAccept<T, R, V> for Stmt<T> {
             Self::Assign(stmt) => stmt.accept(visitor),
             Self::Return(stmt) => stmt.accept(visitor),
             Self::If(stmt) => stmt.accept(visitor),
+            Self::Loop(stmt) => stmt.accept(visitor),
         };
     }
 }
@@ -611,5 +664,11 @@ impl<T: ResolvedType, R, V: StmtVisitor<T, R>> StmtAccept<T, R, V> for ReturnStm
 impl<T: ResolvedType, R, V: StmtVisitor<T, R>> StmtAccept<T, R, V> for IfStmt<T> {
     fn accept(&mut self, visitor: &mut V) -> R {
         return visitor.visit_if_stmt(self);
+    }
+}
+
+impl<T: ResolvedType, R, V: StmtVisitor<T, R>> StmtAccept<T, R, V> for LoopStmt<T> {
+    fn accept(&mut self, visitor: &mut V) -> R {
+        return visitor.visit_loop_stmt(self);
     }
 }

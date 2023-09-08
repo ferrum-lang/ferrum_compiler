@@ -1,40 +1,37 @@
-use ./utils::hello
+use ::fe::print
 
 pub fn main()
-    const world = "World"
-    hello(&world)
+    mut x1 = false
+    mut x2 = false
+    mut x3 = false
 
-    mut name = "TEST"
-    hello(&name)
+    loop
+        print("LOOPING")
 
-    const is_funny = true
-    const is_cool = false
-
-    if is_funny
-        name = get_name()
-        hello(&name)
-    ;
-
-    if is_cool
-        hello(&"true")
-    else
-        hello(&"false")
-    ;
-
-    const is_weird = true
-
-    if is_cool
-        hello(&"cool person")
-    else if is_funny
-        hello(&"funny person")
-    else if is_weird
-        hello(&"weird person")
-    else
-        hello(&"random person")
+        if not x1
+            x1 = true
+        else if not x2
+            x2 = true
+        else if not x3
+            x3 = true
+        else
+            // TODO: support 'break'
+            return
+        ;
     ;
 ;
 
-fn get_name(): String
-    return "Snowy"
-;
+
+
+
+
+
+
+
+
+
+
+
+
+
 

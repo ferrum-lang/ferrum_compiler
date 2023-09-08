@@ -433,8 +433,13 @@ impl FeTokenSyntaxParser {
         if self.match_any(&[token::TokenType::For], WithNewlines::Many) {
             return Ok(ast::Stmt::For(self.for_statement()?));
         }
-
         */
+
+        if let Some(token) = self.match_any(&[TokenType::Loop], WithNewlines::Many) {
+            return Ok(Arc::new(Mutex::new(Stmt::Loop(
+                self.loop_statement(token)?,
+            ))));
+        }
 
         if let Some(token) = self.match_any(&[TokenType::Const], WithNewlines::Many) {
             return Ok(Arc::new(Mutex::new(Stmt::VarDecl(
@@ -469,6 +474,18 @@ impl FeTokenSyntaxParser {
         let stmt = self.expr_or_assign_statement()?;
 
         return Ok(stmt);
+    }
+
+    fn loop_statement(&mut self, loop_token: Arc<Token>) -> Result<LoopStmt> {
+        let _ = self.consume(&TokenType::Newline, "Expected newline after 'loop' keyword")?;
+
+        let block = self.code_block()?;
+
+        return Ok(LoopStmt {
+            id: NodeId::gen(),
+            loop_token,
+            block,
+        });
     }
 
     fn var_decl_statement(&mut self, var_mut: VarDeclMut) -> Result<VarDeclStmt> {
@@ -886,12 +903,14 @@ impl FeTokenSyntaxParser {
     }
 
     fn unary(&mut self) -> Result<Arc<Mutex<Expr>>> {
+        // TODO: Do we want to stop 'not' and '&' chains?
+
         if let Some(op_token) = self.match_any(
-            &[/*TokenType::Bang, TokenType::Minus,*/ TokenType::Amp],
+            &[TokenType::Not, /*TokenType::Minus,*/ TokenType::Amp],
             WithNewlines::One,
         ) {
             let op = match &op_token.token_type {
-                // TokenType::Bang => (UnaryOp::Not, op_token),
+                TokenType::Not => UnaryOp::Not(op_token),
                 // TokenType::Minus => (UnaryOp::Minus, op_token),
                 TokenType::Amp => {
                     if let Some(mut_token) = self.match_any(&[TokenType::Mut], WithNewlines::None) {

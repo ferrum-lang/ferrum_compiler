@@ -60,6 +60,7 @@ pub struct RustIRUnaryExpr {
 #[derive(Debug, Clone, PartialEq)]
 pub enum RustIRUnaryOp {
     Ref(RustIRRefType),
+    Not,
 }
 
 #[derive(Debug, Clone, PartialEq)]

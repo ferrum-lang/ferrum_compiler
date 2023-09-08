@@ -374,6 +374,17 @@ impl StmtVisitor<FeType, Result<Vec<ir::RustIRStmt>>> for RustSyntaxCompiler {
             },
         )]);
     }
+
+    fn visit_loop_stmt(&mut self, stmt: &mut LoopStmt<FeType>) -> Result<Vec<ir::RustIRStmt>> {
+        let mut stmts = vec![];
+
+        for stmt in &mut stmt.block.stmts {
+            let ir_stmts = stmt.lock().unwrap().accept(self)?;
+            stmts.extend(ir_stmts);
+        }
+
+        return Ok(vec![ir::RustIRStmt::Loop(ir::RustIRLoopStmt { stmts })]);
+    }
 }
 
 impl ExprVisitor<FeType, Result<ir::RustIRExpr>> for RustSyntaxCompiler {
@@ -487,6 +498,12 @@ impl ExprVisitor<FeType, Result<ir::RustIRExpr>> for RustSyntaxCompiler {
                     op: ir::RustIRUnaryOp::Ref(ir::RustIRRefType::Mut),
                     value: Box::new(expr.value.0.lock().unwrap().accept(self)?),
                 }))
+            }
+            UnaryOp::Not(_) => {
+                return Ok(ir::RustIRExpr::Unary(ir::RustIRUnaryExpr {
+                    op: ir::RustIRUnaryOp::Not,
+                    value: Box::new(expr.value.0.lock().unwrap().accept(self)?),
+                }));
             }
         }
     }
