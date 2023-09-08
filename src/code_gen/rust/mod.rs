@@ -325,6 +325,10 @@ impl ir::RustIRStmtVisitor<Result<Arc<str>>> for RustCodeGen {
 
         return Ok(out.into());
     }
+
+    fn visit_break_stmt(&mut self, stmt: &mut ir::RustIRBreakStmt) -> Result<Arc<str>> {
+        return Ok("break;".into());
+    }
 }
 
 impl ir::RustIRExprVisitor<Result<Arc<str>>> for RustCodeGen {

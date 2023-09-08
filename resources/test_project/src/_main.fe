@@ -5,6 +5,8 @@ pub fn main()
     mut x2 = false
     mut x3 = false
 
+    print("Starting to loop...")
+
     loop
         print("LOOPING")
 
@@ -15,10 +17,11 @@ pub fn main()
         else if not x3
             x3 = true
         else
-            // TODO: support 'break'
-            return
+            break
         ;
     ;
+
+    print("Done looping :)")
 ;
 
 

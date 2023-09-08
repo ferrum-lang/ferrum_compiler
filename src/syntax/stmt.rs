@@ -1,3 +1,5 @@
+use std::marker;
+
 use super::*;
 
 use crate::token::Token;
@@ -11,6 +13,7 @@ pub enum Stmt<T: ResolvedType = ()> {
     Return(ReturnStmt<T>),
     If(IfStmt<T>),
     Loop(LoopStmt<T>),
+    Break(BreakStmt<T>),
 }
 
 impl<T: ResolvedType> Node<Stmt> for Stmt<T> {
@@ -22,6 +25,7 @@ impl<T: ResolvedType> Node<Stmt> for Stmt<T> {
             Self::Return(stmt) => return stmt.node_id(),
             Self::If(stmt) => return stmt.node_id(),
             Self::Loop(stmt) => return stmt.node_id(),
+            Self::Break(stmt) => return stmt.node_id(),
         }
     }
 }
@@ -35,6 +39,7 @@ impl<T: ResolvedType> From<Stmt<()>> for Stmt<Option<T>> {
             Stmt::Return(stmt) => return Self::Return(from(stmt)),
             Stmt::If(stmt) => return Self::If(from(stmt)),
             Stmt::Loop(stmt) => return Self::Loop(from(stmt)),
+            Stmt::Break(stmt) => return Self::Break(from(stmt)),
         }
     }
 }
@@ -48,6 +53,7 @@ impl<T: ResolvedType> Resolvable for Stmt<Option<T>> {
             Self::Return(stmt) => return stmt.is_resolved(),
             Self::If(stmt) => return stmt.is_resolved(),
             Self::Loop(stmt) => return stmt.is_resolved(),
+            Self::Break(stmt) => return stmt.is_resolved(),
         }
     }
 }
@@ -63,6 +69,7 @@ impl<T: ResolvedType> TryFrom<Stmt<Option<T>>> for Stmt<T> {
             Stmt::Return(stmt) => return Ok(Self::Return(try_from(stmt)?)),
             Stmt::If(stmt) => return Ok(Self::If(try_from(stmt)?)),
             Stmt::Loop(stmt) => return Ok(Self::Loop(try_from(stmt)?)),
+            Stmt::Break(stmt) => return Ok(Self::Break(try_from(stmt)?)),
         }
     }
 }
@@ -610,6 +617,47 @@ impl<T: ResolvedType> TryFrom<LoopStmt<Option<T>>> for LoopStmt<T> {
     }
 }
 
+#[derive(Debug, Clone, PartialEq)]
+pub struct BreakStmt<T: ResolvedType = ()> {
+    pub id: NodeId<Stmt>,
+    pub break_token: Arc<Token>,
+    pub _resolved_type: marker::PhantomData<T>,
+}
+
+impl<T: ResolvedType> Node<Stmt> for BreakStmt<T> {
+    fn node_id(&self) -> &NodeId<Stmt> {
+        return &self.id;
+    }
+}
+
+impl<T: ResolvedType> From<BreakStmt<()>> for BreakStmt<Option<T>> {
+    fn from(value: BreakStmt<()>) -> Self {
+        return Self {
+            id: value.id,
+            break_token: value.break_token,
+            _resolved_type: marker::PhantomData {},
+        };
+    }
+}
+
+impl<T: ResolvedType> Resolvable for BreakStmt<Option<T>> {
+    fn is_resolved(&self) -> bool {
+        return true;
+    }
+}
+
+impl<T: ResolvedType> TryFrom<BreakStmt<Option<T>>> for BreakStmt<T> {
+    type Error = FinalizeResolveTypeError;
+
+    fn try_from(value: BreakStmt<Option<T>>) -> Result<Self, Self::Error> {
+        return Ok(Self {
+            id: value.id,
+            break_token: value.break_token,
+            _resolved_type: marker::PhantomData {},
+        });
+    }
+}
+
 // Visitor pattern
 pub trait StmtVisitor<T: ResolvedType, R = ()> {
     fn visit_expr_stmt(&mut self, stmt: &mut ExprStmt<T>) -> R;
@@ -618,6 +666,7 @@ pub trait StmtVisitor<T: ResolvedType, R = ()> {
     fn visit_return_stmt(&mut self, stmt: &mut ReturnStmt<T>) -> R;
     fn visit_if_stmt(&mut self, stmt: &mut IfStmt<T>) -> R;
     fn visit_loop_stmt(&mut self, stmt: &mut LoopStmt<T>) -> R;
+    fn visit_break_stmt(&mut self, stmt: &mut BreakStmt<T>) -> R;
 }
 
 pub trait StmtAccept<T: ResolvedType, R, V: StmtVisitor<T, R>> {
@@ -633,6 +682,7 @@ impl<T: ResolvedType, R, V: StmtVisitor<T, R>> StmtAccept<T, R, V> for Stmt<T> {
             Self::Return(stmt) => stmt.accept(visitor),
             Self::If(stmt) => stmt.accept(visitor),
             Self::Loop(stmt) => stmt.accept(visitor),
+            Self::Break(stmt) => stmt.accept(visitor),
         };
     }
 }
@@ -670,5 +720,11 @@ impl<T: ResolvedType, R, V: StmtVisitor<T, R>> StmtAccept<T, R, V> for IfStmt<T>
 impl<T: ResolvedType, R, V: StmtVisitor<T, R>> StmtAccept<T, R, V> for LoopStmt<T> {
     fn accept(&mut self, visitor: &mut V) -> R {
         return visitor.visit_loop_stmt(self);
+    }
+}
+
+impl<T: ResolvedType, R, V: StmtVisitor<T, R>> StmtAccept<T, R, V> for BreakStmt<T> {
+    fn accept(&mut self, visitor: &mut V) -> R {
+        return visitor.visit_break_stmt(self);
     }
 }

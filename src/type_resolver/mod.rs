@@ -669,11 +669,17 @@ impl StmtVisitor<Option<FeType>, Result<bool>> for FeTypeResolver {
 
         let mut changed = false;
 
+        // TODO: ensure no stmts follow break
         for stmt in &mut stmt.block.stmts {
             changed |= stmt.lock().unwrap().accept(self)?;
         }
 
         return Ok(changed);
+    }
+
+    fn visit_break_stmt(&mut self, stmt: &mut BreakStmt<Option<FeType>>) -> Result<bool> {
+        // TODO: Ensure inside loop
+        return Ok(false);
     }
 }
 

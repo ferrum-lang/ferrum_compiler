@@ -385,6 +385,10 @@ impl StmtVisitor<FeType, Result<Vec<ir::RustIRStmt>>> for RustSyntaxCompiler {
 
         return Ok(vec![ir::RustIRStmt::Loop(ir::RustIRLoopStmt { stmts })]);
     }
+
+    fn visit_break_stmt(&mut self, _stmt: &mut BreakStmt<FeType>) -> Result<Vec<ir::RustIRStmt>> {
+        return Ok(vec![ir::RustIRStmt::Break(ir::RustIRBreakStmt {})]);
+    }
 }
 
 impl ExprVisitor<FeType, Result<ir::RustIRExpr>> for RustSyntaxCompiler {

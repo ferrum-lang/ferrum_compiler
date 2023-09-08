@@ -13,6 +13,7 @@ lazy_static::lazy_static! {
         let mut keywords = HashMap::new();
         // keywords.insert("and".to_string(), TokenType::And);
         // keywords.insert("as".to_string(), TokenType::As);
+        keywords.insert("break".to_string(), TokenType::Break);
         keywords.insert("const".to_string(), TokenType::Const);
         // keywords.insert("CRASH!".to_string(), TokenType::Crash);
         keywords.insert("else".to_string(), TokenType::Else);

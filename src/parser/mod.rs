@@ -3,6 +3,7 @@ use crate::result::Result;
 use crate::syntax::*;
 use crate::token::*;
 
+use std::marker;
 use std::sync::{Arc, Mutex};
 
 use thiserror::Error;
@@ -471,6 +472,12 @@ impl FeTokenSyntaxParser {
             ))));
         }
 
+        if let Some(token) = self.match_any(&[TokenType::Break], WithNewlines::Many) {
+            return Ok(Arc::new(Mutex::new(Stmt::Break(
+                self.break_statement(token)?,
+            ))));
+        }
+
         let stmt = self.expr_or_assign_statement()?;
 
         return Ok(stmt);
@@ -619,6 +626,14 @@ impl FeTokenSyntaxParser {
             id: NodeId::gen(),
             return_token,
             value,
+        });
+    }
+
+    fn break_statement(&mut self, break_token: Arc<Token>) -> Result<BreakStmt> {
+        return Ok(BreakStmt {
+            id: NodeId::gen(),
+            break_token,
+            _resolved_type: marker::PhantomData {},
         });
     }
 

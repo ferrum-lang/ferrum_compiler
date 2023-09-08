@@ -106,6 +106,7 @@ pub enum TokenType {
     TildeSlash, // ~/
 
     // Keywords
+    Break,
     Const,
     Else,
     Fn,
