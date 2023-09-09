@@ -6,6 +6,7 @@ use crate::result::Result;
 use crate::token::TokenType;
 
 use std::collections::HashMap;
+use std::collections::HashSet;
 use std::sync::{Arc, Mutex};
 
 pub struct FeTypeResolver {
@@ -16,6 +17,9 @@ pub struct FeTypeResolver {
 
     root_pkg_exports: Arc<Mutex<ExportsPackage>>,
     current_pkg_exports: Arc<Mutex<ExportsPackage>>,
+
+    current_return_type: Option<Option<FeType>>,
+    breakable_count: usize,
 }
 
 impl FeTypeResolver {
@@ -34,6 +38,9 @@ impl FeTypeResolver {
 
             root_pkg_exports: exports.clone(),
             current_pkg_exports: exports,
+
+            current_return_type: None,
+            breakable_count: 0,
         };
 
         while !pkg.lock().unwrap().is_resolved() {
@@ -70,6 +77,9 @@ impl FeTypeResolver {
 
             root_pkg_exports,
             current_pkg_exports,
+
+            current_return_type: None,
+            breakable_count: 0,
         };
 
         match &mut *pkg.lock().unwrap() {
@@ -167,9 +177,22 @@ impl FeTypeResolver {
     fn evaluate_decl(&mut self, decl: Arc<Mutex<Decl<Option<FeType>>>>) -> Result<bool> {
         match &mut *decl.lock().unwrap() {
             Decl::Fn(decl) => {
+                if let Some(return_type) = &decl.return_type {
+                    if let Some(return_type) = &return_type.resolved_type {
+                        self.current_return_type = Some(Some(return_type.clone()));
+                    } else {
+                        // There is a return type, but haven't resolved it yet?
+                        todo!("I don't think this should ever happen?");
+                    }
+                } else {
+                    self.current_return_type = Some(None);
+                }
+
                 self.scope.lock().unwrap().begin_scope();
                 let res = self.evaluate_fn_decl(decl);
                 self.scope.lock().unwrap().end_scope();
+
+                self.current_return_type = None;
 
                 return res;
             }
@@ -202,17 +225,50 @@ impl FeTypeResolver {
             FnDeclBody::Block(body) => {
                 let mut changed = false;
 
-                for stmt in &mut body.stmts {
-                    let stmt = &mut *stmt.lock().unwrap();
-
-                    // TODO: Check for return stmt and compare to return type
-
-                    changed = changed | stmt.accept(self)?;
-                }
+                changed |= self.resolve_stmts(&body.stmts)?.0;
 
                 return Ok(changed);
             }
         }
+    }
+
+    fn resolve_stmts(
+        &mut self,
+        stmts: &[Arc<Mutex<Stmt<Option<FeType>>>>],
+    ) -> Result<(bool, Option<TerminationType>)> {
+        let mut changed = false;
+        let mut contains = HashSet::new();
+
+        let mut termination = None;
+        for stmt in stmts {
+            if let Some(term) = &termination {
+                todo!("Unreachable code after {term:?}! {stmt:#?}");
+            }
+
+            let mut stmt = stmt.lock().unwrap();
+            changed = changed | stmt.accept(self)?;
+
+            match stmt.is_terminal() {
+                Some(TerminationType::Contains(terms)) => {
+                    contains.extend(terms);
+                    termination = None;
+                }
+
+                term => {
+                    termination = term;
+                }
+            }
+        }
+
+        if termination.is_some() {
+            return Ok((changed, termination));
+        }
+
+        if !contains.is_empty() {
+            return Ok((changed, Some(TerminationType::Contains(contains))));
+        }
+
+        return Ok((changed, None));
     }
 
     fn can_implicit_cast(from: &FeType, to: &FeType) -> bool {
@@ -586,6 +642,16 @@ impl StmtVisitor<Option<FeType>, Result<bool>> for FeTypeResolver {
     }
 
     fn visit_return_stmt(&mut self, stmt: &mut ReturnStmt<Option<FeType>>) -> Result<bool> {
+        let Some(current_return_type) = self.current_return_type.clone() else {
+            todo!("Return statements not allowed!");
+        };
+
+        if stmt.value.is_none() {
+            if let Some(_) = &current_return_type {
+                todo!("Can't return without a value!");
+            }
+        }
+
         if stmt.is_resolved() {
             return Ok(false);
         }
@@ -594,9 +660,20 @@ impl StmtVisitor<Option<FeType>, Result<bool>> for FeTypeResolver {
 
         if let Some(value) = &stmt.value {
             changed = changed | value.0.lock().unwrap().accept(self)?;
-        }
 
-        // TODO: Compare returned type to fn signature
+            if let Some(resolved_type) = value.0.lock().unwrap().resolved_type().cloned().flatten()
+            {
+                match current_return_type {
+                    Some(return_type) => {
+                        if !Self::can_implicit_cast(&resolved_type, &return_type) {
+                            todo!("Can't cast to return type!")
+                        }
+                    }
+
+                    None => todo!("Can't return a value! No return type!"),
+                }
+            }
+        }
 
         return Ok(changed);
     }
@@ -625,9 +702,7 @@ impl StmtVisitor<Option<FeType>, Result<bool>> for FeTypeResolver {
             }
         }
 
-        for stmt in &mut stmt.then_block.stmts {
-            changed = changed | stmt.lock().unwrap().accept(self)?;
-        }
+        changed |= self.resolve_stmts(&stmt.then_block.stmts)?.0;
 
         for else_if in &mut stmt.else_ifs {
             let mut condition = else_if.condition.0.lock().unwrap();
@@ -645,15 +720,11 @@ impl StmtVisitor<Option<FeType>, Result<bool>> for FeTypeResolver {
                 }
             }
 
-            for stmt in &mut else_if.then_block.stmts {
-                changed = changed | stmt.lock().unwrap().accept(self)?;
-            }
+            changed |= self.resolve_stmts(&else_if.then_block.stmts)?.0;
         }
 
         if let Some(else_) = &mut stmt.else_ {
-            for stmt in &mut else_.then_block.stmts {
-                changed = changed | stmt.lock().unwrap().accept(self)?;
-            }
+            changed |= self.resolve_stmts(&else_.then_block.stmts)?.0;
         }
 
         return Ok(changed);
@@ -661,7 +732,6 @@ impl StmtVisitor<Option<FeType>, Result<bool>> for FeTypeResolver {
 
     fn visit_loop_stmt(&mut self, stmt: &mut LoopStmt<Option<FeType>>) -> Result<bool> {
         // TODO: Think about how looping affects types
-        // TODO: Look for infinite loops with code after loop? Or is that linter issue?
 
         if stmt.is_resolved() {
             return Ok(false);
@@ -669,16 +739,23 @@ impl StmtVisitor<Option<FeType>, Result<bool>> for FeTypeResolver {
 
         let mut changed = false;
 
-        // TODO: ensure no stmts follow break
-        for stmt in &mut stmt.block.stmts {
-            changed |= stmt.lock().unwrap().accept(self)?;
+        self.breakable_count += 1;
+        let (changes, term) = self.resolve_stmts(&stmt.block.stmts)?;
+        changed |= changes;
+        self.breakable_count -= 1;
+
+        if let Some(TerminationType::Base(BaseTerminationType::InfiniteLoop)) = term {
+            todo!("Infinite loop??");
         }
 
         return Ok(changed);
     }
 
     fn visit_break_stmt(&mut self, stmt: &mut BreakStmt<Option<FeType>>) -> Result<bool> {
-        // TODO: Ensure inside loop
+        if self.breakable_count == 0 {
+            todo!("Can't break here! {stmt:#?}");
+        }
+
         return Ok(false);
     }
 }

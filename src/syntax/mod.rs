@@ -21,7 +21,7 @@ use crate::result::Result;
 use crate::token;
 use crate::utils::{fe_from, fe_try_from};
 
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use std::path::PathBuf;
 use std::sync::{Arc, Mutex};
 
@@ -298,3 +298,22 @@ pub trait ResolvedType: std::fmt::Debug + Clone + PartialEq {}
 impl ResolvedType for () {}
 impl ResolvedType for FeType {}
 impl<T: ResolvedType> ResolvedType for Option<T> {}
+
+#[derive(Debug, Clone, PartialEq, Hash, Eq)]
+pub enum BaseTerminationType {
+    Break,
+    Return,
+    InfiniteLoop,
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub enum TerminationType {
+    Contains(HashSet<BaseTerminationType>),
+    Base(BaseTerminationType),
+}
+
+pub trait IsTerminal {
+    fn is_terminal(&mut self) -> Option<TerminationType> {
+        return None;
+    }
+}

@@ -30,6 +30,20 @@ impl<T: ResolvedType> Node<Stmt> for Stmt<T> {
     }
 }
 
+impl<T: ResolvedType> IsTerminal for Stmt<T> {
+    fn is_terminal(&mut self) -> Option<TerminationType> {
+        match self {
+            Self::Expr(stmt) => return stmt.is_terminal(),
+            Self::VarDecl(stmt) => return stmt.is_terminal(),
+            Self::Assign(stmt) => return stmt.is_terminal(),
+            Self::Return(stmt) => return stmt.is_terminal(),
+            Self::If(stmt) => return stmt.is_terminal(),
+            Self::Loop(stmt) => return stmt.is_terminal(),
+            Self::Break(stmt) => return stmt.is_terminal(),
+        }
+    }
+}
+
 impl<T: ResolvedType> From<Stmt<()>> for Stmt<Option<T>> {
     fn from(value: Stmt<()>) -> Self {
         match value {
@@ -85,6 +99,8 @@ impl<T: ResolvedType> Node<Stmt> for ExprStmt<T> {
         return &self.id;
     }
 }
+
+impl<T: ResolvedType> IsTerminal for ExprStmt<T> {}
 
 impl<T: ResolvedType> PartialEq for ExprStmt<T> {
     fn eq(&self, other: &Self) -> bool {
@@ -147,6 +163,8 @@ impl<T: ResolvedType> Node<Stmt> for VarDeclStmt<T> {
         return &self.id;
     }
 }
+
+impl<T: ResolvedType> IsTerminal for VarDeclStmt<T> {}
 
 impl<T: ResolvedType> From<VarDeclStmt<()>> for VarDeclStmt<Option<T>> {
     fn from(value: VarDeclStmt<()>) -> Self {
@@ -312,6 +330,8 @@ pub struct AssignStmt<T: ResolvedType = ()> {
     pub value: NestedExpr<T>,
 }
 
+impl<T: ResolvedType> IsTerminal for AssignStmt<T> {}
+
 impl<T: ResolvedType> Node<Stmt> for AssignStmt<T> {
     fn node_id(&self) -> &NodeId<Stmt> {
         return &self.id;
@@ -374,6 +394,12 @@ impl<T: ResolvedType> Node<Stmt> for ReturnStmt<T> {
     }
 }
 
+impl<T: ResolvedType> IsTerminal for ReturnStmt<T> {
+    fn is_terminal(&mut self) -> Option<TerminationType> {
+        return Some(TerminationType::Base(BaseTerminationType::Return));
+    }
+}
+
 impl<T: ResolvedType> From<ReturnStmt<()>> for ReturnStmt<Option<T>> {
     fn from(value: ReturnStmt<()>) -> Self {
         return Self {
@@ -417,11 +443,131 @@ pub struct IfStmt<T: ResolvedType = ()> {
     pub else_ifs: Vec<ElseIfBranch<T>>,
     pub else_: Option<ElseBranch<T>>,
     pub semicolon_token: Arc<Token>,
+    pub resolved_terminal: Option<Option<TerminationType>>,
 }
 
 impl<T: ResolvedType> Node<Stmt> for IfStmt<T> {
     fn node_id(&self) -> &NodeId<Stmt> {
         return &self.id;
+    }
+}
+
+impl<T: ResolvedType> IsTerminal for IfStmt<T> {
+    fn is_terminal(&mut self) -> Option<TerminationType> {
+        if let Some(resolved) = &self.resolved_terminal {
+            return resolved.clone();
+        }
+
+        let mut contains = HashSet::new();
+
+        let mut then_term = None;
+        for stmt in &self.then_block.stmts {
+            if let Some(term) = stmt.lock().unwrap().is_terminal() {
+                match term.clone() {
+                    TerminationType::Contains(terms) => contains.extend(terms),
+                    TerminationType::Base(other) => {
+                        then_term = Some(other);
+                        break;
+                    }
+                }
+            }
+        }
+
+        for elseif in &self.else_ifs {
+            let mut elseif_term = None;
+
+            for stmt in &elseif.then_block.stmts {
+                if let Some(term) = stmt.lock().unwrap().is_terminal() {
+                    match term.clone() {
+                        TerminationType::Contains(terms) => contains.extend(terms),
+                        TerminationType::Base(other) => {
+                            elseif_term = Some(other);
+                            break;
+                        }
+                    }
+                }
+            }
+
+            match (&then_term, elseif_term) {
+                (None, None) => {}
+
+                (None, Some(term)) => {
+                    contains.insert(term);
+                }
+
+                (Some(term), None) => {
+                    contains.insert(term.clone());
+                    then_term = None;
+                }
+
+                (Some(BaseTerminationType::Break), Some(_any)) => {}
+                (Some(_any), Some(BaseTerminationType::Break)) => {
+                    then_term = Some(BaseTerminationType::Break);
+                }
+
+                (Some(BaseTerminationType::Return), Some(_any)) => {}
+                (Some(_any), Some(BaseTerminationType::Return)) => {
+                    then_term = Some(BaseTerminationType::Return);
+                }
+
+                (
+                    Some(BaseTerminationType::InfiniteLoop),
+                    Some(BaseTerminationType::InfiniteLoop),
+                ) => {}
+            }
+        }
+
+        if let Some(else_) = &self.else_ {
+            let mut else_term = None;
+
+            for stmt in &else_.then_block.stmts {
+                if let Some(term) = stmt.lock().unwrap().is_terminal() {
+                    match term.clone() {
+                        TerminationType::Contains(terms) => contains.extend(terms),
+                        TerminationType::Base(other) => {
+                            else_term = Some(other);
+                            break;
+                        }
+                    }
+                }
+            }
+
+            match (&then_term, else_term) {
+                (None, None) => {}
+
+                (None, Some(term)) => {
+                    contains.insert(term);
+                }
+
+                (Some(term), None) => {
+                    contains.insert(term.clone());
+                    then_term = None;
+                }
+
+                (Some(BaseTerminationType::Break), Some(_any)) => {}
+                (Some(_any), Some(BaseTerminationType::Break)) => {
+                    then_term = Some(BaseTerminationType::Break);
+                }
+
+                (Some(BaseTerminationType::Return), Some(_any)) => {}
+                (Some(_any), Some(BaseTerminationType::Return)) => {
+                    then_term = Some(BaseTerminationType::Return);
+                }
+
+                (
+                    Some(BaseTerminationType::InfiniteLoop),
+                    Some(BaseTerminationType::InfiniteLoop),
+                ) => {}
+            }
+        }
+
+        if contains.is_empty() {
+            self.resolved_terminal = Some(then_term.map(TerminationType::Base));
+        } else {
+            self.resolved_terminal = Some(Some(TerminationType::Contains(contains)));
+        }
+
+        return self.resolved_terminal.as_ref().unwrap().clone();
     }
 }
 
@@ -435,6 +581,7 @@ impl<T: ResolvedType> From<IfStmt<()>> for IfStmt<Option<T>> {
             else_ifs: value.else_ifs.into_iter().map(from).collect(),
             else_: value.else_.map(from),
             semicolon_token: value.semicolon_token,
+            resolved_terminal: value.resolved_terminal,
         };
     }
 }
@@ -485,6 +632,7 @@ impl<T: ResolvedType> TryFrom<IfStmt<Option<T>>> for IfStmt<T> {
                 .collect::<Result<Vec<_>, Self::Error>>()?,
             else_: invert(value.else_.map(try_from))?,
             semicolon_token: value.semicolon_token,
+            resolved_terminal: value.resolved_terminal,
         });
     }
 }
@@ -576,11 +724,60 @@ pub struct LoopStmt<T: ResolvedType = ()> {
     pub id: NodeId<Stmt>,
     pub loop_token: Arc<Token>,
     pub block: CodeBlock<T>,
+    pub resolved_terminal: Option<Option<TerminationType>>,
 }
 
 impl<T: ResolvedType> Node<Stmt> for LoopStmt<T> {
     fn node_id(&self) -> &NodeId<Stmt> {
         return &self.id;
+    }
+}
+
+impl<T: ResolvedType> IsTerminal for LoopStmt<T> {
+    fn is_terminal(&mut self) -> Option<TerminationType> {
+        if let Some(term) = &self.resolved_terminal {
+            return term.clone();
+        }
+
+        let mut contains = HashSet::new();
+        let mut term = None;
+        for stmt in &self.block.stmts {
+            match stmt.lock().unwrap().is_terminal() {
+                None => {}
+
+                Some(TerminationType::Base(other)) => {
+                    term = Some(other);
+                    break;
+                }
+
+                Some(TerminationType::Contains(terms)) => {
+                    contains.extend(terms);
+                }
+            }
+        }
+
+        if !contains.is_empty() {
+            if contains.len() == 1 && contains.contains(&BaseTerminationType::Return) {
+                self.resolved_terminal =
+                    Some(Some(TerminationType::Base(BaseTerminationType::Return)));
+            } else {
+                self.resolved_terminal = Some(Some(TerminationType::Contains(contains)));
+            }
+        } else {
+            match term {
+                Some(term) => {
+                    self.resolved_terminal = Some(Some(TerminationType::Base(term)));
+                }
+
+                None => {
+                    self.resolved_terminal = Some(Some(TerminationType::Base(
+                        BaseTerminationType::InfiniteLoop,
+                    )));
+                }
+            }
+        }
+
+        return self.resolved_terminal.as_ref().unwrap().clone();
     }
 }
 
@@ -590,6 +787,7 @@ impl<T: ResolvedType> From<LoopStmt<()>> for LoopStmt<Option<T>> {
             id: value.id,
             loop_token: value.loop_token,
             block: from(value.block),
+            resolved_terminal: value.resolved_terminal,
         };
     }
 }
@@ -613,6 +811,7 @@ impl<T: ResolvedType> TryFrom<LoopStmt<Option<T>>> for LoopStmt<T> {
             id: value.id,
             loop_token: value.loop_token,
             block: try_from(value.block)?,
+            resolved_terminal: value.resolved_terminal,
         });
     }
 }
@@ -627,6 +826,12 @@ pub struct BreakStmt<T: ResolvedType = ()> {
 impl<T: ResolvedType> Node<Stmt> for BreakStmt<T> {
     fn node_id(&self) -> &NodeId<Stmt> {
         return &self.id;
+    }
+}
+
+impl<T: ResolvedType> IsTerminal for BreakStmt<T> {
+    fn is_terminal(&mut self) -> Option<TerminationType> {
+        return Some(TerminationType::Base(BaseTerminationType::Break));
     }
 }
 

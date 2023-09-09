@@ -492,6 +492,7 @@ impl FeTokenSyntaxParser {
             id: NodeId::gen(),
             loop_token,
             block,
+            resolved_terminal: None,
         });
     }
 
@@ -554,6 +555,7 @@ impl FeTokenSyntaxParser {
                 else_ifs: vec![],
                 else_: None,
                 semicolon_token: end_token,
+                resolved_terminal: None,
             });
         }
 
@@ -589,6 +591,7 @@ impl FeTokenSyntaxParser {
                 else_ifs,
                 else_: None,
                 semicolon_token: else_token,
+                resolved_terminal: None,
             });
         }
 
@@ -612,6 +615,7 @@ impl FeTokenSyntaxParser {
             else_ifs,
             else_,
             semicolon_token,
+            resolved_terminal: None,
         });
     }
 

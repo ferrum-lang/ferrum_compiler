@@ -16,25 +16,13 @@ pub fn main()
             x2 = true
         else if not x3
             x3 = true
+            return
         else
             break
         ;
     ;
 
     print("Done looping :)")
+
+    return
 ;
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
