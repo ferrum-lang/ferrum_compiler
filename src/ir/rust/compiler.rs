@@ -472,6 +472,17 @@ impl ExprVisitor<FeType, Result<ir::RustIRExpr>> for RustSyntaxCompiler {
             ..
         })) = expr.callee.0.lock().unwrap().resolved_type()
         {
+            if expr.args.len() == 1 {
+                if let Expr::PlainStringLiteral(literal) = &*expr.args[0].value.0.lock().unwrap() {
+                    return Ok(ir::RustIRExpr::MacroFnCall(ir::RustIRMacroFnCallExpr {
+                        callee: "println".into(),
+                        args: vec![ir::RustIRExpr::StringLiteral(ir::RustIRStringLiteralExpr {
+                            literal: literal.literal.lexeme.clone(),
+                        })],
+                    }));
+                }
+            }
+
             let mut args = vec![ir::RustIRExpr::StringLiteral(ir::RustIRStringLiteralExpr {
                 literal: "\"{}\"".into(),
             })];
