@@ -915,6 +915,11 @@ impl<T: ResolvedType> From<WhileStmt<()>> for WhileStmt<Option<T>> {
 
 impl<T: ResolvedType> Resolvable for WhileStmt<Option<T>> {
     fn is_resolved(&self) -> bool {
+        if !self.condition.is_resolved() {
+            dbg!("false");
+            return false;
+        }
+
         if !self.block.is_resolved() {
             dbg!("false");
             return false;
