@@ -441,10 +441,23 @@ impl ExprVisitor<FeType, Result<ir::RustIRExpr>> for RustSyntaxCompiler {
         &mut self,
         expr: &mut FmtStringLiteralExpr<FeType>,
     ) -> Result<ir::RustIRExpr> {
-        let mut fmt_str = expr.first.lexeme.to_string();
+        let mut fmt_str = String::new();
+        fmt_str.push_str(
+            &expr.first.lexeme[0..expr.first.lexeme.len() - 1]
+                .replace("\\{", "{{")
+                .replace("}", "}}"),
+        );
+
         for part in &expr.rest {
-            fmt_str.push_str(&part.string);
+            fmt_str.push_str("{}");
+
+            fmt_str.push_str(
+                &part.string[1..part.string.len() - 1]
+                    .replace("\\{", "{{")
+                    .replace("}", "}}"),
+            );
         }
+        fmt_str.push('"');
 
         let mut args = vec![ir::RustIRExpr::StringLiteral(ir::RustIRStringLiteralExpr {
             literal: fmt_str.into(),
@@ -473,13 +486,38 @@ impl ExprVisitor<FeType, Result<ir::RustIRExpr>> for RustSyntaxCompiler {
         })) = expr.callee.0.lock().unwrap().resolved_type()
         {
             if expr.args.len() == 1 {
-                if let Expr::PlainStringLiteral(literal) = &*expr.args[0].value.0.lock().unwrap() {
-                    return Ok(ir::RustIRExpr::MacroFnCall(ir::RustIRMacroFnCallExpr {
-                        callee: "println".into(),
-                        args: vec![ir::RustIRExpr::StringLiteral(ir::RustIRStringLiteralExpr {
-                            literal: literal.literal.lexeme.clone(),
-                        })],
-                    }));
+                match &mut *expr.args[0].value.0.lock().unwrap() {
+                    Expr::PlainStringLiteral(literal) => {
+                        return Ok(ir::RustIRExpr::MacroFnCall(ir::RustIRMacroFnCallExpr {
+                            callee: "println".into(),
+                            args: vec![ir::RustIRExpr::StringLiteral(
+                                ir::RustIRStringLiteralExpr {
+                                    literal: literal
+                                        .literal
+                                        .lexeme
+                                        .clone()
+                                        .replace("\\{", "{{")
+                                        .replace("}", "}}")
+                                        .into(),
+                                },
+                            )],
+                        }));
+                    }
+
+                    Expr::FmtStringLiteral(fmt_str) => {
+                        if let RustIRExpr::MacroFnCall(macro_call) = fmt_str.accept(self)? {
+                            if macro_call.callee.as_ref() == "format" {
+                                return Ok(ir::RustIRExpr::MacroFnCall(
+                                    ir::RustIRMacroFnCallExpr {
+                                        callee: "println".into(),
+                                        args: macro_call.args,
+                                    },
+                                ));
+                            }
+                        }
+                    }
+
+                    _ => {}
                 }
             }
 

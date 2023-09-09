@@ -17,7 +17,7 @@ pub fn main()
         else if not round3
             round3 = true
         ;        
-   ;
+    ;
 
     print("Done looping :)")
 ;
