@@ -41,7 +41,7 @@ lazy_static::lazy_static! {
         keywords.insert("true".to_string(), TokenType::True);
         // keywords.insert("type".to_string(), TokenType::Type);
         keywords.insert("use".to_string(), TokenType::Use);
-        // keywords.insert("while".to_string(), TokenType::While);
+        keywords.insert("while".to_string(), TokenType::While);
         // keywords.insert("yield".to_string(), TokenType::Yield);
 
         keywords

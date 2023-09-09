@@ -7,6 +7,7 @@ pub enum RustIRStmt {
     Let(RustIRLetStmt),
     Return(RustIRReturnStmt),
     Loop(RustIRLoopStmt),
+    While(RustIRWhileStmt),
     Break(RustIRBreakStmt),
 }
 
@@ -49,6 +50,12 @@ pub struct RustIRLoopStmt {
 }
 
 #[derive(Debug, Clone, PartialEq)]
+pub struct RustIRWhileStmt {
+    pub condition: RustIRExpr,
+    pub stmts: Vec<RustIRStmt>,
+}
+
+#[derive(Debug, Clone, PartialEq)]
 pub struct RustIRBreakStmt {}
 
 // Visitor pattern
@@ -58,6 +65,7 @@ pub trait RustIRStmtVisitor<R = ()> {
     fn visit_let_stmt(&mut self, stmt: &mut RustIRLetStmt) -> R;
     fn visit_return_stmt(&mut self, stmt: &mut RustIRReturnStmt) -> R;
     fn visit_loop_stmt(&mut self, stmt: &mut RustIRLoopStmt) -> R;
+    fn visit_while_stmt(&mut self, stmt: &mut RustIRWhileStmt) -> R;
     fn visit_break_stmt(&mut self, stmt: &mut RustIRBreakStmt) -> R;
 }
 
@@ -73,6 +81,7 @@ impl<R, V: RustIRStmtVisitor<R>> RustIRStmtAccept<R, V> for RustIRStmt {
             Self::Let(stmt) => stmt.accept(visitor),
             Self::Return(stmt) => stmt.accept(visitor),
             Self::Loop(stmt) => stmt.accept(visitor),
+            Self::While(stmt) => stmt.accept(visitor),
             Self::Break(stmt) => stmt.accept(visitor),
         };
     }
@@ -105,6 +114,12 @@ impl<R, V: RustIRStmtVisitor<R>> RustIRStmtAccept<R, V> for RustIRReturnStmt {
 impl<R, V: RustIRStmtVisitor<R>> RustIRStmtAccept<R, V> for RustIRLoopStmt {
     fn accept(&mut self, visitor: &mut V) -> R {
         return visitor.visit_loop_stmt(self);
+    }
+}
+
+impl<R, V: RustIRStmtVisitor<R>> RustIRStmtAccept<R, V> for RustIRWhileStmt {
+    fn accept(&mut self, visitor: &mut V) -> R {
+        return visitor.visit_while_stmt(self);
     }
 }
 

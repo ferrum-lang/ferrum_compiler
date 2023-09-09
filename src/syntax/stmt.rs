@@ -13,6 +13,7 @@ pub enum Stmt<T: ResolvedType = ()> {
     Return(ReturnStmt<T>),
     If(IfStmt<T>),
     Loop(LoopStmt<T>),
+    While(WhileStmt<T>),
     Break(BreakStmt<T>),
 }
 
@@ -25,6 +26,7 @@ impl<T: ResolvedType> Node<Stmt> for Stmt<T> {
             Self::Return(stmt) => return stmt.node_id(),
             Self::If(stmt) => return stmt.node_id(),
             Self::Loop(stmt) => return stmt.node_id(),
+            Self::While(stmt) => return stmt.node_id(),
             Self::Break(stmt) => return stmt.node_id(),
         }
     }
@@ -39,6 +41,7 @@ impl<T: ResolvedType> IsTerminal for Stmt<T> {
             Self::Return(stmt) => return stmt.is_terminal(),
             Self::If(stmt) => return stmt.is_terminal(),
             Self::Loop(stmt) => return stmt.is_terminal(),
+            Self::While(stmt) => return stmt.is_terminal(),
             Self::Break(stmt) => return stmt.is_terminal(),
         }
     }
@@ -53,6 +56,7 @@ impl<T: ResolvedType> From<Stmt<()>> for Stmt<Option<T>> {
             Stmt::Return(stmt) => return Self::Return(from(stmt)),
             Stmt::If(stmt) => return Self::If(from(stmt)),
             Stmt::Loop(stmt) => return Self::Loop(from(stmt)),
+            Stmt::While(stmt) => return Self::While(from(stmt)),
             Stmt::Break(stmt) => return Self::Break(from(stmt)),
         }
     }
@@ -67,6 +71,7 @@ impl<T: ResolvedType> Resolvable for Stmt<Option<T>> {
             Self::Return(stmt) => return stmt.is_resolved(),
             Self::If(stmt) => return stmt.is_resolved(),
             Self::Loop(stmt) => return stmt.is_resolved(),
+            Self::While(stmt) => return stmt.is_resolved(),
             Self::Break(stmt) => return stmt.is_resolved(),
         }
     }
@@ -83,6 +88,7 @@ impl<T: ResolvedType> TryFrom<Stmt<Option<T>>> for Stmt<T> {
             Stmt::Return(stmt) => return Ok(Self::Return(try_from(stmt)?)),
             Stmt::If(stmt) => return Ok(Self::If(try_from(stmt)?)),
             Stmt::Loop(stmt) => return Ok(Self::Loop(try_from(stmt)?)),
+            Stmt::While(stmt) => return Ok(Self::While(try_from(stmt)?)),
             Stmt::Break(stmt) => return Ok(Self::Break(try_from(stmt)?)),
         }
     }
@@ -562,7 +568,15 @@ impl<T: ResolvedType> IsTerminal for IfStmt<T> {
         }
 
         if contains.is_empty() {
-            self.resolved_terminal = Some(then_term.map(TerminationType::Base));
+            if self.else_ifs.is_empty() && self.else_.is_none() {
+                if let Some(term) = &then_term {
+                    contains.insert(term.clone());
+                    then_term = None;
+                    self.resolved_terminal = Some(Some(TerminationType::Contains(contains)));
+                }
+            } else {
+                self.resolved_terminal = Some(then_term.map(TerminationType::Base));
+            }
         } else {
             self.resolved_terminal = Some(Some(TerminationType::Contains(contains)));
         }
@@ -765,6 +779,11 @@ impl<T: ResolvedType> IsTerminal for LoopStmt<T> {
             }
         } else {
             match term {
+                Some(BaseTerminationType::Break) => {
+                    contains.insert(BaseTerminationType::Break);
+                    self.resolved_terminal = Some(Some(TerminationType::Contains(contains)));
+                }
+
                 Some(term) => {
                     self.resolved_terminal = Some(Some(TerminationType::Base(term)));
                 }
@@ -810,6 +829,109 @@ impl<T: ResolvedType> TryFrom<LoopStmt<Option<T>>> for LoopStmt<T> {
         return Ok(Self {
             id: value.id,
             loop_token: value.loop_token,
+            block: try_from(value.block)?,
+            resolved_terminal: value.resolved_terminal,
+        });
+    }
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub struct WhileStmt<T: ResolvedType = ()> {
+    pub id: NodeId<Stmt>,
+    pub while_token: Arc<Token>,
+    pub condition: NestedExpr<T>,
+    pub block: CodeBlock<T>,
+    pub resolved_terminal: Option<Option<TerminationType>>,
+}
+
+impl<T: ResolvedType> Node<Stmt> for WhileStmt<T> {
+    fn node_id(&self) -> &NodeId<Stmt> {
+        return &self.id;
+    }
+}
+
+impl<T: ResolvedType> IsTerminal for WhileStmt<T> {
+    fn is_terminal(&mut self) -> Option<TerminationType> {
+        if let Some(term) = &self.resolved_terminal {
+            return term.clone();
+        }
+
+        let mut contains = HashSet::new();
+        let mut term = None;
+        for stmt in &self.block.stmts {
+            match stmt.lock().unwrap().is_terminal() {
+                None => {}
+
+                Some(TerminationType::Base(other)) => {
+                    term = Some(other);
+                    break;
+                }
+
+                Some(TerminationType::Contains(terms)) => {
+                    contains.extend(terms);
+                }
+            }
+        }
+
+        if !contains.is_empty() {
+            if contains.len() == 1 && contains.contains(&BaseTerminationType::Return) {
+                self.resolved_terminal =
+                    Some(Some(TerminationType::Base(BaseTerminationType::Return)));
+            } else {
+                self.resolved_terminal = Some(Some(TerminationType::Contains(contains)));
+            }
+        } else {
+            match term {
+                Some(BaseTerminationType::Break) => {
+                    contains.insert(BaseTerminationType::Break);
+                    self.resolved_terminal = Some(Some(TerminationType::Contains(contains)));
+                }
+
+                Some(term) => {
+                    self.resolved_terminal = Some(Some(TerminationType::Base(term)));
+                }
+
+                None => {
+                    self.resolved_terminal = Some(None);
+                }
+            }
+        }
+
+        return self.resolved_terminal.as_ref().unwrap().clone();
+    }
+}
+
+impl<T: ResolvedType> From<WhileStmt<()>> for WhileStmt<Option<T>> {
+    fn from(value: WhileStmt<()>) -> Self {
+        return Self {
+            id: value.id,
+            while_token: value.while_token,
+            condition: from(value.condition),
+            block: from(value.block),
+            resolved_terminal: value.resolved_terminal,
+        };
+    }
+}
+
+impl<T: ResolvedType> Resolvable for WhileStmt<Option<T>> {
+    fn is_resolved(&self) -> bool {
+        if !self.block.is_resolved() {
+            dbg!("false");
+            return false;
+        }
+
+        return true;
+    }
+}
+
+impl<T: ResolvedType> TryFrom<WhileStmt<Option<T>>> for WhileStmt<T> {
+    type Error = FinalizeResolveTypeError;
+
+    fn try_from(value: WhileStmt<Option<T>>) -> Result<Self, Self::Error> {
+        return Ok(Self {
+            id: value.id,
+            while_token: value.while_token,
+            condition: try_from(value.condition)?,
             block: try_from(value.block)?,
             resolved_terminal: value.resolved_terminal,
         });
@@ -871,6 +993,7 @@ pub trait StmtVisitor<T: ResolvedType, R = ()> {
     fn visit_return_stmt(&mut self, stmt: &mut ReturnStmt<T>) -> R;
     fn visit_if_stmt(&mut self, stmt: &mut IfStmt<T>) -> R;
     fn visit_loop_stmt(&mut self, stmt: &mut LoopStmt<T>) -> R;
+    fn visit_while_stmt(&mut self, stmt: &mut WhileStmt<T>) -> R;
     fn visit_break_stmt(&mut self, stmt: &mut BreakStmt<T>) -> R;
 }
 
@@ -887,6 +1010,7 @@ impl<T: ResolvedType, R, V: StmtVisitor<T, R>> StmtAccept<T, R, V> for Stmt<T> {
             Self::Return(stmt) => stmt.accept(visitor),
             Self::If(stmt) => stmt.accept(visitor),
             Self::Loop(stmt) => stmt.accept(visitor),
+            Self::While(stmt) => stmt.accept(visitor),
             Self::Break(stmt) => stmt.accept(visitor),
         };
     }
@@ -925,6 +1049,12 @@ impl<T: ResolvedType, R, V: StmtVisitor<T, R>> StmtAccept<T, R, V> for IfStmt<T>
 impl<T: ResolvedType, R, V: StmtVisitor<T, R>> StmtAccept<T, R, V> for LoopStmt<T> {
     fn accept(&mut self, visitor: &mut V) -> R {
         return visitor.visit_loop_stmt(self);
+    }
+}
+
+impl<T: ResolvedType, R, V: StmtVisitor<T, R>> StmtAccept<T, R, V> for WhileStmt<T> {
+    fn accept(&mut self, visitor: &mut V) -> R {
+        return visitor.visit_while_stmt(self);
     }
 }
 

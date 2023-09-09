@@ -121,6 +121,7 @@ pub enum TokenType {
     Safe,
     Return,
     Use,
+    While,
 
     // Literals
     True,

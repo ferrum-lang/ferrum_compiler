@@ -744,9 +744,25 @@ impl StmtVisitor<Option<FeType>, Result<bool>> for FeTypeResolver {
         changed |= changes;
         self.breakable_count -= 1;
 
-        if let Some(TerminationType::Base(BaseTerminationType::InfiniteLoop)) = term {
-            todo!("Infinite loop??");
+        // if let Some(TerminationType::Base(BaseTerminationType::InfiniteLoop)) = term {
+        //     todo!("Infinite loop!");
+        // }
+
+        return Ok(changed);
+    }
+
+    fn visit_while_stmt(&mut self, stmt: &mut WhileStmt<Option<FeType>>) -> Result<bool> {
+        if stmt.is_resolved() {
+            return Ok(false);
         }
+
+        let mut changed = false;
+
+        changed |= stmt.condition.0.lock().unwrap().accept(self)?;
+
+        self.breakable_count += 1;
+        changed |= self.resolve_stmts(&stmt.block.stmts)?.0;
+        self.breakable_count -= 1;
 
         return Ok(changed);
     }

@@ -414,7 +414,15 @@ impl FeTokenSyntaxParser {
     ) -> Result<(Vec<Arc<Mutex<Stmt>>>, Arc<Token>)> {
         let mut block = vec![];
 
-        while !self.match_any(any_end, WithNewlines::Many).is_some() && !self.is_at_end() {
+        let close = loop {
+            if let Some(close) = self.match_any(any_end, WithNewlines::Many) {
+                break close;
+            }
+
+            if self.is_at_end() {
+                todo!("Unexpected end of file! Expected one of: {any_end:?}");
+            }
+
             if self.allow_many_newlines() == 0 {
                 block.push(self.statement()?);
 
@@ -422,9 +430,7 @@ impl FeTokenSyntaxParser {
                     self.consume(&TokenType::Newline, "Expect newline after statement")?;
                 }
             }
-        }
-
-        let close = self.previous().unwrap_or_else(|| self.tokens[0].clone());
+        };
 
         return Ok((block, close));
     }
@@ -439,6 +445,12 @@ impl FeTokenSyntaxParser {
         if let Some(token) = self.match_any(&[TokenType::Loop], WithNewlines::Many) {
             return Ok(Arc::new(Mutex::new(Stmt::Loop(
                 self.loop_statement(token)?,
+            ))));
+        }
+
+        if let Some(token) = self.match_any(&[TokenType::While], WithNewlines::Many) {
+            return Ok(Arc::new(Mutex::new(Stmt::While(
+                self.while_statement(token)?,
             ))));
         }
 
@@ -491,6 +503,25 @@ impl FeTokenSyntaxParser {
         return Ok(LoopStmt {
             id: NodeId::gen(),
             loop_token,
+            block,
+            resolved_terminal: None,
+        });
+    }
+
+    fn while_statement(&mut self, while_token: Arc<Token>) -> Result<WhileStmt> {
+        let condition = NestedExpr(self.expression()?);
+
+        let _ = self.consume(
+            &TokenType::Newline,
+            "Expected newline after 'while' condition",
+        )?;
+
+        let block = self.code_block()?;
+
+        return Ok(WhileStmt {
+            id: NodeId::gen(),
+            while_token,
+            condition,
             block,
             resolved_terminal: None,
         });

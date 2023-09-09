@@ -1,25 +1,23 @@
 use ::fe::print
 
 pub fn main()
-    mut x1 = false
-    mut x2 = false
-    mut x3 = false
+    mut round1 = false
+    mut round2 = false
+    mut round3 = false
 
     print("Starting to loop...")
 
-    loop
+    while not round3
         print("LOOPING")
 
-        if not x1
-            x1 = true
-        else if not x2
-            x2 = true
-        else if not x3
-            x3 = true
-        else
-            break
-        ;
-    ;
+        if not round1
+            round1 = true
+        else if not round2
+            round2 = true
+        else if not round3
+            round3 = true
+        ;        
+   ;
 
     print("Done looping :)")
 ;

@@ -386,6 +386,22 @@ impl StmtVisitor<FeType, Result<Vec<ir::RustIRStmt>>> for RustSyntaxCompiler {
         return Ok(vec![ir::RustIRStmt::Loop(ir::RustIRLoopStmt { stmts })]);
     }
 
+    fn visit_while_stmt(&mut self, stmt: &mut WhileStmt<FeType>) -> Result<Vec<ir::RustIRStmt>> {
+        let condition = stmt.condition.0.lock().unwrap().accept(self)?;
+
+        let mut stmts = vec![];
+
+        for stmt in &mut stmt.block.stmts {
+            let ir_stmts = stmt.lock().unwrap().accept(self)?;
+            stmts.extend(ir_stmts);
+        }
+
+        return Ok(vec![ir::RustIRStmt::While(ir::RustIRWhileStmt {
+            condition,
+            stmts,
+        })]);
+    }
+
     fn visit_break_stmt(&mut self, _stmt: &mut BreakStmt<FeType>) -> Result<Vec<ir::RustIRStmt>> {
         return Ok(vec![ir::RustIRStmt::Break(ir::RustIRBreakStmt {})]);
     }

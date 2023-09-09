@@ -326,6 +326,31 @@ impl ir::RustIRStmtVisitor<Result<Arc<str>>> for RustCodeGen {
         return Ok(out.into());
     }
 
+    fn visit_while_stmt(&mut self, stmt: &mut ir::RustIRWhileStmt) -> Result<Arc<str>> {
+        let mut out = String::from("while ");
+
+        out.push_str(&stmt.condition.accept(self)?);
+
+        out.push_str(" {");
+
+        self.indent += 1;
+        out.push_str(&self.new_line());
+
+        let stmts_code = stmt
+            .stmts
+            .iter_mut()
+            .map(|stmt| stmt.accept(self))
+            .collect::<Result<Vec<Arc<str>>>>()?
+            .join(&self.new_line());
+        out.push_str(&stmts_code);
+
+        self.indent -= 1;
+        out.push_str(&self.new_line());
+        out.push('}');
+
+        return Ok(out.into());
+    }
+
     fn visit_break_stmt(&mut self, stmt: &mut ir::RustIRBreakStmt) -> Result<Arc<str>> {
         return Ok("break;".into());
     }
