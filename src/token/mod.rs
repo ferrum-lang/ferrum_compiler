@@ -92,6 +92,12 @@ pub enum TokenType {
     OpenParen,  // (
     CloseParen, // )
 
+    OpenSquirlyBrace,  // {
+    CloseSquirlyBrace, // }
+
+    OpenSquareBracket,  // [
+    CloseSquareBracket, // ]
+
     Equal, // =
 
     Amp, // &
@@ -119,6 +125,7 @@ pub enum TokenType {
     Pure,
     Risk,
     Safe,
+    Struct,
     Return,
     Use,
     While,

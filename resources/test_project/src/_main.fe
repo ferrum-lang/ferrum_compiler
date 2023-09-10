@@ -1,23 +1,13 @@
 use ::fe::print
 
 pub fn main()
-    mut round1 = false
-    mut round2 = false
-    mut round3 = false
+    // const adam = Person {
+    //     name: "Adam",
+    // }
 
-    print("Starting to loop...")
-
-    while not round3
-        print("LOOPING")
-
-        if not round1
-            round1 = true
-        else if not round2
-            round2 = true
-        else if not round3
-            round3 = true
-        ;        
-    ;
-
-    print("Done looping :)")
+    // print(adam)
 ;
+
+struct Person {
+    name: String,
+}

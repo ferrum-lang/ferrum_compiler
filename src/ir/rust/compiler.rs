@@ -135,6 +135,17 @@ impl RustSyntaxCompiler {
         return Ok(block_ir);
     }
 
+    fn translate_struct_field(&self, field: &mut StructDeclField<FeType>) -> ir::RustIRStructField {
+        return ir::RustIRStructField {
+            field_mod: field.field_mod.as_ref().map(|field| match field {
+                StructFieldMod::Pub(_) => ir::RustIRStructFieldMod::Pub,
+            }),
+            name: field.name.lexeme.clone(),
+            static_type_ref: self.translate_static_type(&mut field.static_type_ref),
+            trailing_comma: field.comma_token.is_some(),
+        };
+    }
+
     fn translate_static_type(&self, typ: &mut StaticType<FeType>) -> ir::RustIRStaticType {
         let ref_type = typ.ref_type.as_ref().map(|ref_type| match ref_type {
             RefType::Shared { .. } => ir::RustIRRefType::Shared,
@@ -260,6 +271,33 @@ impl DeclVisitor<FeType, Result> for RustSyntaxCompiler {
         self.out.files[file_idx]
             .decls
             .push(ir::RustIRDecl::Fn(fn_ir));
+
+        return Ok(());
+    }
+
+    fn visit_struct_decl(&mut self, decl: &mut StructDecl<FeType>) -> Result {
+        let struct_ir = ir::RustIRStructDecl {
+            macros: vec![],
+            decl_mod: decl
+                .decl_mod
+                .as_ref()
+                .map(|decl_mod| self.translate_decl_mod(decl_mod)),
+
+            name: decl.name.lexeme.clone(),
+
+            generics: None,
+
+            fields: decl
+                .fields
+                .iter_mut()
+                .map(|field| self.translate_struct_field(field))
+                .collect(),
+        };
+
+        let file_idx = self.out.files.len() - 1;
+        self.out.files[file_idx]
+            .decls
+            .push(ir::RustIRDecl::Struct(struct_ir));
 
         return Ok(());
     }

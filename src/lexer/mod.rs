@@ -36,7 +36,7 @@ lazy_static::lazy_static! {
         // keywords.insert("safe".to_string(), TokenType::Safe);
         // keywords.insert("self".to_string(), TokenType::SelfVal);
         // keywords.insert("Self".to_string(), TokenType::SelfType);
-        // keywords.insert("struct".to_string(), TokenType::Struct);
+        keywords.insert("struct".to_string(), TokenType::Struct);
         // keywords.insert("trait".to_string(), TokenType::Trait);
         keywords.insert("true".to_string(), TokenType::True);
         // keywords.insert("type".to_string(), TokenType::Type);
@@ -166,6 +166,12 @@ impl FeSourceScanner {
 
             '(' => Some(TokenType::OpenParen),
             ')' => Some(TokenType::CloseParen),
+
+            '{' => Some(TokenType::OpenSquirlyBrace),
+            '}' => Some(TokenType::CloseSquirlyBrace),
+
+            '[' => Some(TokenType::OpenSquareBracket),
+            ']' => Some(TokenType::CloseSquareBracket),
 
             '\n' => Some(TokenType::Newline),
 

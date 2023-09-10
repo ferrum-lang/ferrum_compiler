@@ -3,6 +3,7 @@ use std::sync::Arc;
 #[derive(Debug, Clone, PartialEq)]
 pub enum FeType {
     Callable(Callable),
+    Struct(FeStruct),
     String(Option<StringDetails>),
     Bool(Option<bool>),
     Ref(FeRefOf),
@@ -12,6 +13,7 @@ pub enum FeType {
 #[derive(Debug, Clone, PartialEq)]
 pub struct Callable {
     pub special: Option<SpecialCallable>,
+    pub name: Arc<str>,
     pub params: Vec<(Arc<str>, FeType)>,
     pub return_type: Option<Box<FeType>>,
 }
@@ -20,6 +22,16 @@ pub struct Callable {
 pub enum SpecialCallable {
     Print,
 }
+
+#[derive(Debug, Clone, PartialEq)]
+pub struct FeStruct {
+    pub special: Option<SpecialStruct>,
+    pub name: Arc<str>,
+    pub fields: Vec<(Arc<str>, FeType)>,
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub enum SpecialStruct {}
 
 #[derive(Debug, Clone, PartialEq)]
 pub enum StringDetails {

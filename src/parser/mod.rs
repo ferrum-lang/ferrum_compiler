@@ -237,15 +237,21 @@ impl FeTokenSyntaxParser {
 
             if let Some(fn_token) = fn_token {
                 return Ok(Arc::new(Mutex::new(Decl::Fn(
-                    self.function(decl_mod, fn_mod, fn_token)?,
+                    self.fn_decl(decl_mod, fn_mod, fn_token)?,
                 ))));
             }
+        }
+
+        if let Some(token) = self.match_any(&[TokenType::Struct], WithNewlines::Many) {
+            return Ok(Arc::new(Mutex::new(Decl::Struct(
+                self.struct_decl(decl_mod, token)?,
+            ))));
         }
 
         todo!()
     }
 
-    fn function(
+    fn fn_decl(
         &mut self,
         decl_mod: Option<DeclMod>,
         fn_mod: Option<FnMod>,
@@ -340,6 +346,71 @@ impl FeTokenSyntaxParser {
             close_paren_token,
             return_type,
             body,
+        });
+    }
+
+    fn struct_decl(
+        &mut self,
+        decl_mod: Option<DeclMod>,
+        struct_token: Arc<Token>,
+    ) -> Result<StructDecl> {
+        // TODO: generics
+
+        let name = self.consume(&TokenType::Ident, "Expected struct name")?;
+
+        let open_squirly_brace_token = self.consume(
+            &TokenType::OpenSquirlyBrace,
+            "Expected '{' after struct name",
+        )?;
+
+        let pre_comma_token = self.match_any(&[TokenType::Comma], WithNewlines::Many);
+
+        let mut fields = vec![];
+        let close_squirly_brace_token = loop {
+            if let Some(token) = self.match_any(&[TokenType::CloseSquirlyBrace], WithNewlines::Many)
+            {
+                break token;
+            }
+
+            self.allow_many_newlines();
+
+            let field_mod = self
+                .match_any(&[TokenType::Pub], WithNewlines::Many)
+                .map(StructFieldMod::Pub);
+
+            let name = self.consume(&TokenType::Ident, "Expected field name")?;
+
+            self.allow_one_newline();
+            let colon_token = self.consume(&TokenType::Colon, "Expected ':'")?;
+
+            let static_type_ref = self.static_type_ref()?;
+
+            let comma_token = self.match_any(&[TokenType::Comma], WithNewlines::Many);
+            let is_done = comma_token.is_none();
+
+            fields.push(StructDeclField {
+                field_mod,
+                name,
+                colon_token,
+                static_type_ref,
+                comma_token,
+            });
+
+            if is_done {
+                break self.consume(&TokenType::CloseSquirlyBrace, "Expected comma or '}'")?;
+            }
+        };
+
+        return Ok(StructDecl {
+            id: NodeId::gen(),
+            decl_mod,
+            struct_token,
+            name,
+            generics: None,
+            open_squirly_brace_token,
+            pre_comma_token,
+            fields,
+            close_squirly_brace_token,
         });
     }
 

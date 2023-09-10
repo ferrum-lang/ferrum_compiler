@@ -6,12 +6,14 @@ use crate::utils::{fe_from, fe_try_from, from, invert, try_from};
 #[derive(Debug, Clone, PartialEq)]
 pub enum Decl<T: ResolvedType = ()> {
     Fn(FnDecl<T>),
+    Struct(StructDecl<T>),
 }
 
 impl<T: ResolvedType> Node<Decl> for Decl<T> {
     fn node_id(&self) -> &NodeId<Decl> {
         match self {
             Self::Fn(decl) => return decl.node_id(),
+            Self::Struct(decl) => return decl.node_id(),
         }
     }
 }
@@ -20,6 +22,7 @@ impl<T: ResolvedType> From<Decl<()>> for Decl<Option<T>> {
     fn from(value: Decl<()>) -> Self {
         match value {
             Decl::Fn(decl) => return Self::Fn(from(decl)),
+            Decl::Struct(decl) => return Self::Struct(from(decl)),
         }
     }
 }
@@ -28,6 +31,7 @@ impl<T: ResolvedType> Resolvable for Decl<Option<T>> {
     fn is_resolved(&self) -> bool {
         match self {
             Self::Fn(decl) => return decl.is_resolved(),
+            Self::Struct(decl) => return decl.is_resolved(),
         }
     }
 }
@@ -38,6 +42,7 @@ impl<T: ResolvedType> TryFrom<Decl<Option<T>>> for Decl<T> {
     fn try_from(value: Decl<Option<T>>) -> Result<Self, Self::Error> {
         match value {
             Decl::Fn(decl) => return Ok(Self::Fn(try_from(decl)?)),
+            Decl::Struct(decl) => return Ok(Self::Struct(try_from(decl)?)),
         }
     }
 }
@@ -413,9 +418,190 @@ impl<T: ResolvedType, S: PartialEq> TryFrom<CodeBlock<Option<T>, S>> for CodeBlo
     }
 }
 
+#[derive(Debug, Clone, PartialEq)]
+pub struct StructDecl<T: ResolvedType = ()> {
+    pub id: NodeId<Decl>,
+    pub decl_mod: Option<DeclMod>,
+    pub struct_token: Arc<Token>,
+    pub name: Arc<Token>,
+    pub generics: Option<StructDeclGenerics<T>>,
+    pub open_squirly_brace_token: Arc<Token>,
+    pub pre_comma_token: Option<Arc<Token>>,
+    pub fields: Vec<StructDeclField<T>>,
+    pub close_squirly_brace_token: Arc<Token>,
+}
+
+impl<T: ResolvedType> Node<Decl> for StructDecl<T> {
+    fn node_id(&self) -> &NodeId<Decl> {
+        return &self.id;
+    }
+}
+
+impl<T: ResolvedType> From<StructDecl<()>> for StructDecl<Option<T>> {
+    fn from(value: StructDecl<()>) -> Self {
+        return Self {
+            id: value.id,
+            decl_mod: value.decl_mod,
+            struct_token: value.struct_token,
+            name: value.name,
+            generics: value.generics.map(from),
+            open_squirly_brace_token: value.open_squirly_brace_token,
+            pre_comma_token: value.pre_comma_token,
+            fields: value.fields.into_iter().map(from).collect(),
+            close_squirly_brace_token: value.close_squirly_brace_token,
+        };
+    }
+}
+
+impl<T: ResolvedType> Resolvable for StructDecl<Option<T>> {
+    fn is_signature_resolved(&self) -> bool {
+        if let Some(generics) = &self.generics {
+            if !generics.is_resolved() {
+                dbg!("false");
+                return false;
+            }
+        }
+
+        for field in &self.fields {
+            if let Some(StructFieldMod::Pub(_)) = field.field_mod {
+                if !field.is_resolved() {
+                    dbg!("false");
+                    return false;
+                }
+            }
+        }
+
+        return true;
+    }
+
+    fn is_resolved(&self) -> bool {
+        if let Some(generics) = &self.generics {
+            if !generics.is_resolved() {
+                dbg!("false");
+                return false;
+            }
+        }
+
+        for field in &self.fields {
+            if !field.is_resolved() {
+                dbg!("false");
+                return false;
+            }
+        }
+
+        return true;
+    }
+}
+
+impl<T: ResolvedType> TryFrom<StructDecl<Option<T>>> for StructDecl<T> {
+    type Error = FinalizeResolveTypeError;
+
+    fn try_from(value: StructDecl<Option<T>>) -> Result<Self, Self::Error> {
+        return Ok(Self {
+            id: value.id,
+            decl_mod: value.decl_mod,
+            struct_token: value.struct_token,
+            name: value.name,
+            generics: invert(value.generics.map(try_from))?,
+            open_squirly_brace_token: value.open_squirly_brace_token,
+            pre_comma_token: value.pre_comma_token,
+            fields: value
+                .fields
+                .into_iter()
+                .map(try_from)
+                .collect::<Result<Vec<StructDeclField<T>>, Self::Error>>()?,
+            close_squirly_brace_token: value.close_squirly_brace_token,
+        });
+    }
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub struct StructDeclGenerics<T: ResolvedType = ()> {
+    pub resolved_type: T,
+}
+
+impl<T: ResolvedType> From<StructDeclGenerics<()>> for StructDeclGenerics<Option<T>> {
+    fn from(_: StructDeclGenerics<()>) -> Self {
+        return Self {
+            resolved_type: None,
+        };
+    }
+}
+
+impl<T: ResolvedType> Resolvable for StructDeclGenerics<Option<T>> {
+    fn is_resolved(&self) -> bool {
+        return self.resolved_type.is_some();
+    }
+}
+
+impl<T: ResolvedType> TryFrom<StructDeclGenerics<Option<T>>> for StructDeclGenerics<T> {
+    type Error = FinalizeResolveTypeError;
+
+    fn try_from(value: StructDeclGenerics<Option<T>>) -> Result<Self, Self::Error> {
+        return Ok(Self {
+            resolved_type: value.resolved_type.ok_or(FinalizeResolveTypeError {
+                file: file!(),
+                line: line!(),
+            })?,
+        });
+    }
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub struct StructDeclField<T: ResolvedType = ()> {
+    pub field_mod: Option<StructFieldMod>,
+    pub name: Arc<Token>,
+    pub colon_token: Arc<Token>,
+    pub static_type_ref: StaticType<T>,
+    pub comma_token: Option<Arc<Token>>,
+}
+
+impl<T: ResolvedType> From<StructDeclField<()>> for StructDeclField<Option<T>> {
+    fn from(value: StructDeclField<()>) -> Self {
+        return Self {
+            field_mod: value.field_mod,
+            name: value.name,
+            colon_token: value.colon_token,
+            static_type_ref: from(value.static_type_ref),
+            comma_token: value.comma_token,
+        };
+    }
+}
+
+impl<T: ResolvedType> Resolvable for StructDeclField<Option<T>> {
+    fn is_resolved(&self) -> bool {
+        if !self.static_type_ref.is_resolved() {
+            dbg!("false");
+            return false;
+        }
+
+        return true;
+    }
+}
+
+impl<T: ResolvedType> TryFrom<StructDeclField<Option<T>>> for StructDeclField<T> {
+    type Error = FinalizeResolveTypeError;
+
+    fn try_from(value: StructDeclField<Option<T>>) -> Result<Self, Self::Error> {
+        return Ok(Self {
+            field_mod: value.field_mod,
+            colon_token: value.colon_token,
+            name: value.name,
+            static_type_ref: try_from(value.static_type_ref)?,
+            comma_token: value.comma_token,
+        });
+    }
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub enum StructFieldMod {
+    Pub(Arc<Token>),
+}
+
 // Visitor pattern
 pub trait DeclVisitor<T: ResolvedType, R = ()> {
     fn visit_function_decl(&mut self, decl: &mut FnDecl<T>) -> R;
+    fn visit_struct_decl(&mut self, decl: &mut StructDecl<T>) -> R;
 }
 
 pub trait DeclAccept<T: ResolvedType, R, V: DeclVisitor<T, R>> {
@@ -426,6 +612,7 @@ impl<T: ResolvedType, R, V: DeclVisitor<T, R>> DeclAccept<T, R, V> for Decl<T> {
     fn accept(&mut self, visitor: &mut V) -> R {
         return match self {
             Self::Fn(decl) => decl.accept(visitor),
+            Self::Struct(decl) => decl.accept(visitor),
         };
     }
 }
@@ -433,5 +620,11 @@ impl<T: ResolvedType, R, V: DeclVisitor<T, R>> DeclAccept<T, R, V> for Decl<T> {
 impl<T: ResolvedType, R, V: DeclVisitor<T, R>> DeclAccept<T, R, V> for FnDecl<T> {
     fn accept(&mut self, visitor: &mut V) -> R {
         return visitor.visit_function_decl(self);
+    }
+}
+
+impl<T: ResolvedType, R, V: DeclVisitor<T, R>> DeclAccept<T, R, V> for StructDecl<T> {
+    fn accept(&mut self, visitor: &mut V) -> R {
+        return visitor.visit_struct_decl(self);
     }
 }

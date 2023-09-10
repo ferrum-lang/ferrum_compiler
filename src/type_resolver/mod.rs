@@ -196,6 +196,10 @@ impl FeTypeResolver {
 
                 return res;
             }
+
+            Decl::Struct(decl) => {
+                todo!()
+            }
         }
     }
 
@@ -322,6 +326,7 @@ impl UseVisitor<Option<FeType>, Result<bool>> for FeTypeResolver {
 
                             typ: FeType::Callable(Callable {
                                 special: Some(SpecialCallable::Print),
+                                name: "print".into(),
                                 params: vec![("text".into(), FeType::String(None))],
                                 return_type: None,
                             }),
@@ -329,6 +334,7 @@ impl UseVisitor<Option<FeType>, Result<bool>> for FeTypeResolver {
                     );
                     next.path.details = Either::B(Some(FeType::Callable(Callable {
                         special: Some(SpecialCallable::Print),
+                        name: "print".into(),
                         params: vec![("text".into(), FeType::String(None))],
                         return_type: None,
                     })));
@@ -524,8 +530,48 @@ impl DeclVisitor<Option<FeType>, Result<bool>> for FeTypeResolver {
                     is_pub: matches!(decl.decl_mod, Some(DeclMod::Pub(_))),
                     typ: FeType::Callable(Callable {
                         special: None,
+                        name: decl.name.lexeme.clone(),
                         params,
                         return_type: fn_return_type,
+                    }),
+                },
+            );
+        }
+
+        return Ok(changed);
+    }
+
+    fn visit_struct_decl(&mut self, decl: &mut StructDecl<Option<FeType>>) -> Result<bool> {
+        if decl.is_resolved() {
+            return Ok(false);
+        }
+
+        let mut changed = false;
+
+        // TODO: Generics
+
+        let mut fields = vec![];
+        let mut all_done = true;
+        for field in &mut decl.fields {
+            changed |= field.static_type_ref.accept(self)?;
+
+            if let Some(resolved) = &field.static_type_ref.resolved_type {
+                fields.push((field.name.lexeme.clone(), resolved.clone()));
+            } else {
+                all_done = false;
+            }
+        }
+
+        if all_done {
+            changed = true;
+            self.scope.lock().unwrap().insert(
+                decl.name.lexeme.clone(),
+                ScopedType {
+                    is_pub: matches!(decl.decl_mod, Some(DeclMod::Pub(_))),
+                    typ: FeType::Struct(FeStruct {
+                        special: None,
+                        name: decl.name.lexeme.clone(),
+                        fields,
                     }),
                 },
             );
