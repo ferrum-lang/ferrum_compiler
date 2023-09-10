@@ -589,4 +589,46 @@ impl ir::RustIRExprVisitor<Result<Arc<str>>> for RustCodeGen {
 
         return Ok(out.into());
     }
+
+    fn visit_construct_expr(&mut self, expr: &mut ir::RustIRConstructExpr) -> Result<Arc<str>> {
+        let mut out = String::new();
+
+        match &mut expr.target {
+            ir::RustIRConstructTarget::Ident(ident) => out.push_str(&ident),
+
+            ir::RustIRConstructTarget::StaticPath(path) => {
+                let code = self.translate_static_path(path);
+                out.push_str(&code);
+            }
+        }
+
+        out.push_str(" {");
+
+        self.indent += 1;
+        out.push_str(&self.new_line());
+
+        let code = expr
+            .args
+            .iter_mut()
+            .map(|arg| {
+                let mut out = String::new();
+
+                out.push_str(&arg.name);
+                out.push_str(": ");
+                out.push_str(&arg.value.accept(self)?);
+                out.push(',');
+
+                return Ok(out.into());
+            })
+            .collect::<Result<Vec<Arc<str>>>>()?
+            .join(&self.new_line());
+        out.push_str(&code);
+
+        self.indent -= 1;
+        out.push_str(&self.new_line());
+
+        out.push('}');
+
+        return Ok(out.into());
+    }
 }

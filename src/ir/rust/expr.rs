@@ -12,6 +12,7 @@ pub enum RustIRExpr {
     Unary(RustIRUnaryExpr),
     Assign(RustIRAssignExpr),
     If(RustIRIfExpr),
+    Construct(RustIRConstructExpr),
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -88,6 +89,25 @@ pub struct RustIRElse {
     pub then: Vec<RustIRStmt>,
 }
 
+#[derive(Debug, Clone, PartialEq)]
+pub struct RustIRConstructExpr {
+    pub target: RustIRConstructTarget,
+    pub args: Vec<RustIRConstructArg>,
+    pub spread: Option<Box<RustIRExpr>>,
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub enum RustIRConstructTarget {
+    Ident(Arc<str>),
+    StaticPath(RustIRStaticPath),
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub struct RustIRConstructArg {
+    pub name: Arc<str>,
+    pub value: RustIRExpr,
+}
+
 // Visitor pattern
 pub trait RustIRExprVisitor<R = ()> {
     fn visit_bool_literal_expr(&mut self, expr: &mut RustIRBoolLiteralExpr) -> R;
@@ -100,6 +120,7 @@ pub trait RustIRExprVisitor<R = ()> {
     fn visit_unary_expr(&mut self, expr: &mut RustIRUnaryExpr) -> R;
     fn visit_assign_expr(&mut self, expr: &mut RustIRAssignExpr) -> R;
     fn visit_if_expr(&mut self, expr: &mut RustIRIfExpr) -> R;
+    fn visit_construct_expr(&mut self, expr: &mut RustIRConstructExpr) -> R;
 }
 
 pub trait RustIRExprAccept<R, V: RustIRExprVisitor<R>> {
@@ -119,6 +140,7 @@ impl<R, V: RustIRExprVisitor<R>> RustIRExprAccept<R, V> for RustIRExpr {
             Self::Unary(expr) => expr.accept(visitor),
             Self::Assign(expr) => expr.accept(visitor),
             Self::If(expr) => expr.accept(visitor),
+            Self::Construct(expr) => expr.accept(visitor),
         };
     }
 }
@@ -180,5 +202,11 @@ impl<R, V: RustIRExprVisitor<R>> RustIRExprAccept<R, V> for RustIRAssignExpr {
 impl<R, V: RustIRExprVisitor<R>> RustIRExprAccept<R, V> for RustIRIfExpr {
     fn accept(&mut self, visitor: &mut V) -> R {
         return visitor.visit_if_expr(self);
+    }
+}
+
+impl<R, V: RustIRExprVisitor<R>> RustIRExprAccept<R, V> for RustIRConstructExpr {
+    fn accept(&mut self, visitor: &mut V) -> R {
+        return visitor.visit_construct_expr(self);
     }
 }

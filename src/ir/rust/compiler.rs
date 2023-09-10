@@ -614,4 +614,44 @@ impl ExprVisitor<FeType, Result<ir::RustIRExpr>> for RustSyntaxCompiler {
             }
         }
     }
+
+    fn visit_static_ref_expr(
+        &mut self,
+        expr: &mut StaticRefExpr<FeType>,
+    ) -> Result<ir::RustIRExpr> {
+        todo!()
+    }
+
+    fn visit_construct_expr(&mut self, expr: &mut ConstructExpr<FeType>) -> Result<ir::RustIRExpr> {
+        let target = match &mut expr.target {
+            ConstructTarget::Ident(ident) => {
+                ir::RustIRConstructTarget::Ident(ident.ident.lexeme.clone())
+            }
+
+            ConstructTarget::StaticPath(path) => {
+                ir::RustIRConstructTarget::StaticPath(self.translate_static_path(path))
+            }
+        };
+
+        let mut args = vec![];
+        for arg in &mut expr.args {
+            match arg {
+                ConstructArg::Field(field) => {
+                    args.push(ir::RustIRConstructArg {
+                        name: field.name.lexeme.clone(),
+                        value: field.value.0.lock().unwrap().accept(self)?,
+                    });
+                }
+            }
+        }
+
+        // TODO
+        let spread = None;
+
+        return Ok(ir::RustIRExpr::Construct(RustIRConstructExpr {
+            target,
+            args,
+            spread,
+        }));
+    }
 }

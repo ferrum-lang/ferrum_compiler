@@ -1073,7 +1073,7 @@ impl FeTokenSyntaxParser {
     }
 
     fn call(&mut self) -> Result<Arc<Mutex<Expr>>> {
-        let mut expr = self.primary()?;
+        let mut expr = self.ident()?;
 
         loop {
             if let Some(open_paren_token) =
@@ -1151,6 +1151,82 @@ impl FeTokenSyntaxParser {
         }))));
     }
 
+    fn ident(&mut self) -> Result<Arc<Mutex<Expr>>> {
+        let ident_expr = if self.check(&TokenType::DoubleColon)
+            || (self.check(&TokenType::Ident) && self.check_offset(1, &TokenType::DoubleColon))
+        {
+            Some(ConstructTarget::StaticPath(self.static_path()?))
+        } else if let Some(ident) = self.match_any(&[TokenType::Ident], WithNewlines::None) {
+            Some(ConstructTarget::Ident(IdentExpr {
+                id: NodeId::gen(),
+                ident,
+                resolved_type: (),
+            }))
+        } else {
+            None
+        };
+
+        if let Some(ident_expr) = ident_expr {
+            if let Some(open_squirly_brace) =
+                self.match_any(&[TokenType::OpenSquirlyBrace], WithNewlines::One)
+            {
+                let mut args = vec![];
+                let close_squirly_brace = loop {
+                    if let Some(token) =
+                        self.match_any(&[TokenType::CloseSquirlyBrace], WithNewlines::One)
+                    {
+                        break token;
+                    }
+
+                    self.allow_many_newlines();
+
+                    let name = self.consume(&TokenType::Ident, "Expected field name")?;
+                    let colon_token = self.consume(&TokenType::Colon, "Expected ':'")?;
+
+                    self.allow_many_newlines();
+                    let value = NestedExpr(self.expression()?);
+
+                    self.allow_many_newlines();
+                    let comma_token = self.match_any(&[TokenType::Comma], WithNewlines::One);
+                    let is_done = comma_token.is_none();
+
+                    args.push(ConstructArg::Field(ConstructField {
+                        name,
+                        colon_token,
+                        value,
+                        comma_token,
+                    }));
+
+                    if is_done {
+                        break self.consume(&TokenType::CloseSquirlyBrace, "Expected '}'")?;
+                    }
+                };
+
+                return Ok(Arc::new(Mutex::new(Expr::Construct(ConstructExpr {
+                    id: NodeId::gen(),
+                    target: ident_expr,
+                    open_squirly_brace,
+                    args,
+                    close_squirly_brace,
+                    resolved_type: (),
+                }))));
+            }
+
+            let ident_expr = match ident_expr {
+                ConstructTarget::Ident(ident) => Expr::Ident(ident),
+                ConstructTarget::StaticPath(static_path) => Expr::StaticRef(StaticRefExpr {
+                    id: NodeId::gen(),
+                    static_path,
+                    resolved_type: (),
+                }),
+            };
+
+            return Ok(Arc::new(Mutex::new(ident_expr)));
+        }
+
+        return self.primary();
+    }
+
     fn primary(&mut self) -> Result<Arc<Mutex<Expr>>> {
         match self.advance().as_ref().map(|t| (t.clone(), &t.token_type)) {
             Some((t, TokenType::PlainString)) => {
@@ -1205,14 +1281,6 @@ impl FeTokenSyntaxParser {
                 return Ok(Arc::new(Mutex::new(Expr::BoolLiteral(BoolLiteralExpr {
                     id: NodeId::gen(),
                     literal: t,
-                    resolved_type: (),
-                }))));
-            }
-
-            Some((t, TokenType::Ident)) => {
-                return Ok(Arc::new(Mutex::new(Expr::Ident(IdentExpr {
-                    id: NodeId::gen(),
-                    ident: t,
                     resolved_type: (),
                 }))));
             }

@@ -4,6 +4,7 @@ use std::sync::Arc;
 pub enum FeType {
     Callable(Callable),
     Struct(FeStruct),
+    Instance(FeInstance),
     String(Option<StringDetails>),
     Bool(Option<bool>),
     Ref(FeRefOf),
@@ -27,11 +28,28 @@ pub enum SpecialCallable {
 pub struct FeStruct {
     pub special: Option<SpecialStruct>,
     pub name: Arc<str>,
-    pub fields: Vec<(Arc<str>, FeType)>,
+    pub fields: Vec<FeStructField>,
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub struct FeStructField {
+    pub is_pub: bool,
+    pub name: Arc<str>,
+    pub typ: FeType,
 }
 
 #[derive(Debug, Clone, PartialEq)]
 pub enum SpecialStruct {}
+
+#[derive(Debug, Clone, PartialEq)]
+pub struct FeInstance {
+    pub special: Option<SpecialInstance>,
+    pub name: Arc<str>,
+    pub fields: Vec<FeStructField>,
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub enum SpecialInstance {}
 
 #[derive(Debug, Clone, PartialEq)]
 pub enum StringDetails {

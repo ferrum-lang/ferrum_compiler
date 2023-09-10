@@ -12,6 +12,8 @@ pub enum Expr<T: ResolvedType = ()> {
     Ident(IdentExpr<T>),
     Call(CallExpr<T>),
     Unary(UnaryExpr<T>),
+    StaticRef(StaticRefExpr<T>),
+    Construct(ConstructExpr<T>),
 }
 
 impl<T: ResolvedType> Expr<T> {
@@ -23,6 +25,8 @@ impl<T: ResolvedType> Expr<T> {
             Self::Ident(v) => return Some(&v.resolved_type),
             Self::Call(v) => return v.resolved_type.as_ref(),
             Self::Unary(v) => return Some(&v.resolved_type),
+            Self::StaticRef(v) => return Some(&v.resolved_type),
+            Self::Construct(v) => return Some(&v.resolved_type),
         }
     }
 }
@@ -36,6 +40,8 @@ impl<T: ResolvedType> Node<Expr> for Expr<T> {
             Self::Ident(expr) => return expr.node_id(),
             Self::Call(expr) => return expr.node_id(),
             Self::Unary(expr) => return expr.node_id(),
+            Self::StaticRef(expr) => return expr.node_id(),
+            Self::Construct(expr) => return expr.node_id(),
         }
     }
 }
@@ -49,6 +55,8 @@ impl<T: ResolvedType> From<Expr<()>> for Expr<Option<T>> {
             Expr::Ident(expr) => return Self::Ident(from(expr)),
             Expr::Call(expr) => return Self::Call(from(expr)),
             Expr::Unary(expr) => return Self::Unary(from(expr)),
+            Expr::StaticRef(expr) => return Self::StaticRef(from(expr)),
+            Expr::Construct(expr) => return Self::Construct(from(expr)),
         }
     }
 }
@@ -62,6 +70,8 @@ impl<T: ResolvedType> Resolvable for Expr<Option<T>> {
             Expr::Ident(expr) => return expr.is_resolved(),
             Expr::Call(expr) => return expr.is_resolved(),
             Expr::Unary(expr) => return expr.is_resolved(),
+            Expr::StaticRef(expr) => return expr.is_resolved(),
+            Expr::Construct(expr) => return expr.is_resolved(),
         }
     }
 }
@@ -77,6 +87,8 @@ impl<T: ResolvedType> TryFrom<Expr<Option<T>>> for Expr<T> {
             Expr::Ident(expr) => return Ok(Self::Ident(try_from(expr)?)),
             Expr::Call(expr) => return Ok(Self::Call(try_from(expr)?)),
             Expr::Unary(expr) => return Ok(Self::Unary(try_from(expr)?)),
+            Expr::StaticRef(expr) => return Ok(Self::StaticRef(try_from(expr)?)),
+            Expr::Construct(expr) => return Ok(Self::Construct(try_from(expr)?)),
         }
     }
 }
@@ -513,7 +525,7 @@ impl<T: ResolvedType> Resolvable for UnaryExpr<Option<T>> {
             return false;
         }
 
-        return true;
+        return self.resolved_type.is_some();
     }
 }
 
@@ -539,6 +551,232 @@ pub enum UnaryOp {
     Not(Arc<Token>),
 }
 
+#[derive(Debug, Clone, PartialEq)]
+pub struct StaticRefExpr<T: ResolvedType = ()> {
+    pub id: NodeId<Expr>,
+    pub static_path: StaticPath<T>,
+    pub resolved_type: T,
+}
+
+impl<T: ResolvedType> Node<Expr> for StaticRefExpr<T> {
+    fn node_id(&self) -> &NodeId<Expr> {
+        return &self.id;
+    }
+}
+
+impl<T: ResolvedType> From<StaticRefExpr<()>> for StaticRefExpr<Option<T>> {
+    fn from(value: StaticRefExpr<()>) -> Self {
+        return Self {
+            id: value.id,
+            static_path: from(value.static_path),
+            resolved_type: None,
+        };
+    }
+}
+
+impl<T: ResolvedType> Resolvable for StaticRefExpr<Option<T>> {
+    fn is_resolved(&self) -> bool {
+        if !self.static_path.is_resolved() {
+            return false;
+        }
+
+        return self.resolved_type.is_some();
+    }
+}
+
+impl<T: ResolvedType> TryFrom<StaticRefExpr<Option<T>>> for StaticRefExpr<T> {
+    type Error = FinalizeResolveTypeError;
+
+    fn try_from(value: StaticRefExpr<Option<T>>) -> Result<Self, Self::Error> {
+        return Ok(Self {
+            id: value.id,
+            static_path: try_from(value.static_path)?,
+            resolved_type: value.resolved_type.ok_or(FinalizeResolveTypeError {
+                file: file!(),
+                line: line!(),
+            })?,
+        });
+    }
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub enum ConstructTarget<T: ResolvedType = ()> {
+    Ident(IdentExpr<T>),
+    StaticPath(StaticPath<T>),
+}
+
+impl<T: ResolvedType> From<ConstructTarget<()>> for ConstructTarget<Option<T>> {
+    fn from(value: ConstructTarget<()>) -> Self {
+        match value {
+            ConstructTarget::Ident(target) => return Self::Ident(from(target)),
+            ConstructTarget::StaticPath(target) => return Self::StaticPath(from(target)),
+        }
+    }
+}
+
+impl<T: ResolvedType> Resolvable for ConstructTarget<Option<T>> {
+    fn is_resolved(&self) -> bool {
+        match self {
+            ConstructTarget::Ident(target) => return target.is_resolved(),
+            ConstructTarget::StaticPath(target) => return target.is_resolved(),
+        }
+    }
+}
+
+impl<T: ResolvedType> TryFrom<ConstructTarget<Option<T>>> for ConstructTarget<T> {
+    type Error = FinalizeResolveTypeError;
+
+    fn try_from(value: ConstructTarget<Option<T>>) -> Result<Self, Self::Error> {
+        match value {
+            ConstructTarget::Ident(target) => return Ok(Self::Ident(try_from(target)?)),
+            ConstructTarget::StaticPath(target) => return Ok(Self::StaticPath(try_from(target)?)),
+        }
+    }
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub struct ConstructExpr<T: ResolvedType = ()> {
+    pub id: NodeId<Expr>,
+    pub target: ConstructTarget<T>,
+    pub open_squirly_brace: Arc<Token>,
+    pub args: Vec<ConstructArg<T>>,
+    pub close_squirly_brace: Arc<Token>,
+    pub resolved_type: T,
+}
+
+impl<T: ResolvedType> Node<Expr> for ConstructExpr<T> {
+    fn node_id(&self) -> &NodeId<Expr> {
+        return &self.id;
+    }
+}
+
+impl<T: ResolvedType> From<ConstructExpr<()>> for ConstructExpr<Option<T>> {
+    fn from(value: ConstructExpr<()>) -> Self {
+        return Self {
+            id: value.id,
+            target: from(value.target),
+            open_squirly_brace: value.open_squirly_brace,
+            args: value.args.into_iter().map(from).collect(),
+            close_squirly_brace: value.close_squirly_brace,
+            resolved_type: None,
+        };
+    }
+}
+
+impl<T: ResolvedType> Resolvable for ConstructExpr<Option<T>> {
+    fn is_resolved(&self) -> bool {
+        if !self.target.is_resolved() {
+            dbg!("false");
+            return false;
+        }
+
+        for arg in &self.args {
+            if !arg.is_resolved() {
+                dbg!("false");
+                return false;
+            }
+        }
+
+        return self.resolved_type.is_some();
+    }
+}
+
+impl<T: ResolvedType> TryFrom<ConstructExpr<Option<T>>> for ConstructExpr<T> {
+    type Error = FinalizeResolveTypeError;
+
+    fn try_from(value: ConstructExpr<Option<T>>) -> Result<Self, Self::Error> {
+        return Ok(Self {
+            id: value.id,
+            target: try_from(value.target)?,
+            open_squirly_brace: value.open_squirly_brace,
+            args: value
+                .args
+                .into_iter()
+                .map(try_from)
+                .collect::<Result<Vec<ConstructArg<T>>, Self::Error>>()?,
+            close_squirly_brace: value.close_squirly_brace,
+            resolved_type: value.resolved_type.ok_or(FinalizeResolveTypeError {
+                file: file!(),
+                line: line!(),
+            })?,
+        });
+    }
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub enum ConstructArg<T: ResolvedType = ()> {
+    Field(ConstructField<T>),
+}
+
+impl<T: ResolvedType> From<ConstructArg<()>> for ConstructArg<Option<T>> {
+    fn from(value: ConstructArg<()>) -> Self {
+        match value {
+            ConstructArg::Field(arg) => return Self::Field(from(arg)),
+        }
+    }
+}
+
+impl<T: ResolvedType> Resolvable for ConstructArg<Option<T>> {
+    fn is_resolved(&self) -> bool {
+        match self {
+            ConstructArg::Field(arg) => return arg.is_resolved(),
+        }
+    }
+}
+
+impl<T: ResolvedType> TryFrom<ConstructArg<Option<T>>> for ConstructArg<T> {
+    type Error = FinalizeResolveTypeError;
+
+    fn try_from(value: ConstructArg<Option<T>>) -> Result<Self, Self::Error> {
+        match value {
+            ConstructArg::Field(arg) => return Ok(Self::Field(try_from(arg)?)),
+        }
+    }
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub struct ConstructField<T: ResolvedType = ()> {
+    pub name: Arc<Token>,
+    pub colon_token: Arc<Token>,
+    pub value: NestedExpr<T>,
+    pub comma_token: Option<Arc<Token>>,
+}
+
+impl<T: ResolvedType> From<ConstructField<()>> for ConstructField<Option<T>> {
+    fn from(value: ConstructField<()>) -> Self {
+        return Self {
+            name: value.name,
+            colon_token: value.colon_token,
+            value: from(value.value),
+            comma_token: value.comma_token,
+        };
+    }
+}
+
+impl<T: ResolvedType> Resolvable for ConstructField<Option<T>> {
+    fn is_resolved(&self) -> bool {
+        if !self.value.0.lock().unwrap().is_resolved() {
+            dbg!("false");
+            return false;
+        }
+
+        return true;
+    }
+}
+
+impl<T: ResolvedType> TryFrom<ConstructField<Option<T>>> for ConstructField<T> {
+    type Error = FinalizeResolveTypeError;
+
+    fn try_from(value: ConstructField<Option<T>>) -> Result<Self, Self::Error> {
+        return Ok(Self {
+            name: value.name,
+            colon_token: value.colon_token,
+            value: try_from(value.value)?,
+            comma_token: value.comma_token,
+        });
+    }
+}
+
 // Visitor pattern
 pub trait ExprVisitor<T: ResolvedType, R = ()> {
     fn visit_bool_literal_expr(&mut self, expr: &mut BoolLiteralExpr<T>) -> R;
@@ -547,6 +785,8 @@ pub trait ExprVisitor<T: ResolvedType, R = ()> {
     fn visit_ident_expr(&mut self, expr: &mut IdentExpr<T>) -> R;
     fn visit_call_expr(&mut self, expr: &mut CallExpr<T>) -> R;
     fn visit_unary_expr(&mut self, expr: &mut UnaryExpr<T>) -> R;
+    fn visit_static_ref_expr(&mut self, expr: &mut StaticRefExpr<T>) -> R;
+    fn visit_construct_expr(&mut self, expr: &mut ConstructExpr<T>) -> R;
 }
 
 pub trait ExprAccept<T: ResolvedType, R, V: ExprVisitor<T, R>> {
@@ -562,6 +802,8 @@ impl<T: ResolvedType, R, V: ExprVisitor<T, R>> ExprAccept<T, R, V> for Expr<T> {
             Self::Ident(expr) => expr.accept(visitor),
             Self::Call(expr) => expr.accept(visitor),
             Self::Unary(expr) => expr.accept(visitor),
+            Self::StaticRef(expr) => expr.accept(visitor),
+            Self::Construct(expr) => expr.accept(visitor),
         };
     }
 }
@@ -599,5 +841,17 @@ impl<T: ResolvedType, R, V: ExprVisitor<T, R>> ExprAccept<T, R, V> for CallExpr<
 impl<T: ResolvedType, R, V: ExprVisitor<T, R>> ExprAccept<T, R, V> for UnaryExpr<T> {
     fn accept(&mut self, visitor: &mut V) -> R {
         return visitor.visit_unary_expr(self);
+    }
+}
+
+impl<T: ResolvedType, R, V: ExprVisitor<T, R>> ExprAccept<T, R, V> for StaticRefExpr<T> {
+    fn accept(&mut self, visitor: &mut V) -> R {
+        return visitor.visit_static_ref_expr(self);
+    }
+}
+
+impl<T: ResolvedType, R, V: ExprVisitor<T, R>> ExprAccept<T, R, V> for ConstructExpr<T> {
+    fn accept(&mut self, visitor: &mut V) -> R {
+        return visitor.visit_construct_expr(self);
     }
 }

@@ -197,8 +197,9 @@ impl FeTypeResolver {
                 return res;
             }
 
-            Decl::Struct(decl) => {
-                todo!()
+            Decl::Struct(_) => {
+                // TODO: Check struct field defaults? Otherwise not much to do
+                return Ok(false);
             }
         }
     }
@@ -556,7 +557,11 @@ impl DeclVisitor<Option<FeType>, Result<bool>> for FeTypeResolver {
             changed |= field.static_type_ref.accept(self)?;
 
             if let Some(resolved) = &field.static_type_ref.resolved_type {
-                fields.push((field.name.lexeme.clone(), resolved.clone()));
+                fields.push(FeStructField {
+                    is_pub: matches!(field.field_mod, Some(StructFieldMod::Pub(_))),
+                    name: field.name.lexeme.clone(),
+                    typ: resolved.clone(),
+                });
             } else {
                 all_done = false;
             }
@@ -1006,6 +1011,113 @@ impl ExprVisitor<Option<FeType>, Result<bool>> for FeTypeResolver {
                     };
                 }
             }
+        }
+
+        return Ok(changed);
+    }
+
+    fn visit_static_ref_expr(&mut self, expr: &mut StaticRefExpr<Option<FeType>>) -> Result<bool> {
+        if expr.is_resolved() {
+            return Ok(false);
+        }
+
+        let mut changed = false;
+
+        todo!();
+
+        return Ok(changed);
+    }
+
+    fn visit_construct_expr(&mut self, expr: &mut ConstructExpr<Option<FeType>>) -> Result<bool> {
+        if expr.is_resolved() {
+            return Ok(false);
+        }
+
+        let mut changed = false;
+        let mut target = None;
+
+        match &mut expr.target {
+            ConstructTarget::Ident(ident) => {
+                changed |= ident.accept(self)?;
+
+                if let Some(resolved) = &ident.resolved_type {
+                    target = Some(resolved.clone());
+                }
+            }
+            ConstructTarget::StaticPath(path) => {
+                changed |= path.accept(self)?;
+
+                if let Some(resolved) = &path.resolved_type {
+                    target = Some(resolved.clone());
+                }
+            }
+        }
+
+        if let Some(target) = target {
+            let FeType::Struct(target) = target else {
+                todo!("Can't construct type {target:#?}");
+            };
+
+            let fields_map = target
+                .fields
+                .iter()
+                .cloned()
+                .map(|f| (f.name.clone(), f))
+                .collect::<HashMap<Arc<str>, FeStructField>>();
+
+            let mut seen = HashSet::new();
+
+            for arg in &mut expr.args {
+                match arg {
+                    ConstructArg::Field(field) => {
+                        changed |= field.value.0.lock().unwrap().accept(self)?;
+
+                        let Some(struct_field) = fields_map.get(&field.name.lexeme) else {
+                            todo!("No field found with name {:?} for struct {:?}", field.name.lexeme, target.name);
+                        };
+
+                        if seen.contains(&field.name.lexeme) {
+                            todo!("Duplicate arg! {field:#?}");
+                        }
+
+                        seen.insert(field.name.lexeme.clone());
+
+                        if let Some(resolved) = field
+                            .value
+                            .0
+                            .lock()
+                            .unwrap()
+                            .resolved_type()
+                            .cloned()
+                            .flatten()
+                        {
+                            if !Self::can_implicit_cast(&resolved, &struct_field.typ) {
+                                todo!("Invalid type! {resolved:#?}");
+                            }
+                        }
+                    }
+                }
+            }
+
+            let leftover_fields = fields_map.into_iter().filter_map(|(name, field)| {
+                if seen.contains(&name) {
+                    return None;
+                }
+
+                return Some(field);
+            });
+
+            for field in leftover_fields {
+                // TODO: Check for default or optional
+
+                todo!("Field not instantiated! {field:#?}");
+            }
+
+            expr.resolved_type = Some(FeType::Instance(FeInstance {
+                special: None,
+                name: target.name,
+                fields: target.fields,
+            }));
         }
 
         return Ok(changed);
