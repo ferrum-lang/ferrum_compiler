@@ -654,4 +654,13 @@ impl ExprVisitor<FeType, Result<ir::RustIRExpr>> for RustSyntaxCompiler {
             spread,
         }));
     }
+
+    fn visit_get_expr(&mut self, expr: &mut GetExpr<FeType>) -> Result<ir::RustIRExpr> {
+        let target = Box::new(expr.target.0.lock().unwrap().accept(self)?);
+
+        return Ok(ir::RustIRExpr::Get(ir::RustIRGetExpr {
+            target,
+            name: expr.name.lexeme.clone(),
+        }));
+    }
 }

@@ -1116,8 +1116,63 @@ impl ExprVisitor<Option<FeType>, Result<bool>> for FeTypeResolver {
             expr.resolved_type = Some(FeType::Instance(FeInstance {
                 special: None,
                 name: target.name,
-                fields: target.fields,
+                fields: target
+                    .fields
+                    .into_iter()
+                    .map(|f| (f.name.clone(), f))
+                    .collect(),
             }));
+        }
+
+        return Ok(changed);
+    }
+
+    fn visit_get_expr(&mut self, expr: &mut GetExpr<Option<FeType>>) -> Result<bool> {
+        if expr.is_resolved() {
+            return Ok(false);
+        }
+
+        let mut changed = false;
+
+        changed |= expr.target.0.lock().unwrap().accept(self)?;
+
+        if let Some(resolved) = expr
+            .target
+            .0
+            .lock()
+            .unwrap()
+            .resolved_type()
+            .cloned()
+            .flatten()
+        {
+            // TODO: I don't love this, what if theres a shared ref of a mut ref or something weird?
+            let Some(instance) = resolved.instance() else {
+                todo!("How can you get a property of a non-instance? Maybe the type system needs reworking... {resolved:#?}");
+            };
+
+            // TODO: methods?
+
+            let Some(field) = instance.fields.get(&expr.name.lexeme).cloned() else {
+                todo!("Couldn't find property {:#?} on instance {:#?}", expr.name, instance);
+            };
+
+            let resolved = match resolved {
+                FeType::Instance(_) => field.typ,
+                FeType::Ref(FeRefOf { ref_type, .. }) => FeType::Ref(FeRefOf {
+                    ref_type,
+                    of: Box::new(field.typ),
+                }),
+                FeType::Owned(FeOwnedOf { owned_mut, .. }) => FeType::Owned(FeOwnedOf {
+                    owned_mut,
+                    of: Box::new(field.typ),
+                }),
+
+                _ => todo!(),
+            };
+
+            expr.resolved_type = Some(resolved);
+
+            changed = true;
         }
 
         return Ok(changed);

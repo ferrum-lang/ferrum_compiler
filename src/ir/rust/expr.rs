@@ -13,6 +13,7 @@ pub enum RustIRExpr {
     Assign(RustIRAssignExpr),
     If(RustIRIfExpr),
     Construct(RustIRConstructExpr),
+    Get(RustIRGetExpr),
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -108,6 +109,12 @@ pub struct RustIRConstructArg {
     pub value: RustIRExpr,
 }
 
+#[derive(Debug, Clone, PartialEq)]
+pub struct RustIRGetExpr {
+    pub target: Box<RustIRExpr>,
+    pub name: Arc<str>,
+}
+
 // Visitor pattern
 pub trait RustIRExprVisitor<R = ()> {
     fn visit_bool_literal_expr(&mut self, expr: &mut RustIRBoolLiteralExpr) -> R;
@@ -121,6 +128,7 @@ pub trait RustIRExprVisitor<R = ()> {
     fn visit_assign_expr(&mut self, expr: &mut RustIRAssignExpr) -> R;
     fn visit_if_expr(&mut self, expr: &mut RustIRIfExpr) -> R;
     fn visit_construct_expr(&mut self, expr: &mut RustIRConstructExpr) -> R;
+    fn visit_get_expr(&mut self, expr: &mut RustIRGetExpr) -> R;
 }
 
 pub trait RustIRExprAccept<R, V: RustIRExprVisitor<R>> {
@@ -141,6 +149,7 @@ impl<R, V: RustIRExprVisitor<R>> RustIRExprAccept<R, V> for RustIRExpr {
             Self::Assign(expr) => expr.accept(visitor),
             Self::If(expr) => expr.accept(visitor),
             Self::Construct(expr) => expr.accept(visitor),
+            Self::Get(expr) => expr.accept(visitor),
         };
     }
 }
@@ -208,5 +217,11 @@ impl<R, V: RustIRExprVisitor<R>> RustIRExprAccept<R, V> for RustIRIfExpr {
 impl<R, V: RustIRExprVisitor<R>> RustIRExprAccept<R, V> for RustIRConstructExpr {
     fn accept(&mut self, visitor: &mut V) -> R {
         return visitor.visit_construct_expr(self);
+    }
+}
+
+impl<R, V: RustIRExprVisitor<R>> RustIRExprAccept<R, V> for RustIRGetExpr {
+    fn accept(&mut self, visitor: &mut V) -> R {
+        return visitor.visit_get_expr(self);
     }
 }

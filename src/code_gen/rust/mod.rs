@@ -631,4 +631,14 @@ impl ir::RustIRExprVisitor<Result<Arc<str>>> for RustCodeGen {
 
         return Ok(out.into());
     }
+
+    fn visit_get_expr(&mut self, expr: &mut ir::RustIRGetExpr) -> Result<Arc<str>> {
+        let mut out = String::new();
+
+        out.push_str(&expr.target.accept(self)?);
+        out.push('.');
+        out.push_str(&expr.name);
+
+        return Ok(out.into());
+    }
 }

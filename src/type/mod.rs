@@ -1,4 +1,4 @@
-use std::sync::Arc;
+use std::{collections::HashMap, sync::Arc};
 
 #[derive(Debug, Clone, PartialEq)]
 pub enum FeType {
@@ -9,6 +9,17 @@ pub enum FeType {
     Bool(Option<bool>),
     Ref(FeRefOf),
     Owned(FeOwnedOf),
+}
+
+impl FeType {
+    pub fn instance(&self) -> Option<&FeInstance> {
+        match self {
+            Self::Instance(instance) => return Some(instance),
+            Self::Owned(owned) => return owned.of.instance(),
+            Self::Ref(r) => return r.of.instance(),
+            _ => return None,
+        }
+    }
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -45,7 +56,7 @@ pub enum SpecialStruct {}
 pub struct FeInstance {
     pub special: Option<SpecialInstance>,
     pub name: Arc<str>,
-    pub fields: Vec<FeStructField>,
+    pub fields: HashMap<Arc<str>, FeStructField>,
 }
 
 #[derive(Debug, Clone, PartialEq)]

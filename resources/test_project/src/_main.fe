@@ -1,11 +1,15 @@
-use ::fe::print
+use ./utils::hello
 
 pub fn main()
-    const adam = Person {
+    mut p = Person {
         name: "Adam",
     }
 
-    // print(adam.name)
+    hello(&p.name)
+
+    p.name = "Snowy"
+
+    hello(&p.name)
 ;
 
 struct Person {

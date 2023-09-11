@@ -1,5 +1,5 @@
-// use ::fe::print
+use ::fe::print
 
-// pub fn hello(name: &String)
-//     print("Hello {name}!")
-// ;
+pub fn hello(name: &String)
+    print("Hello {name}!")
+;

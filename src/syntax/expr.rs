@@ -14,6 +14,7 @@ pub enum Expr<T: ResolvedType = ()> {
     Unary(UnaryExpr<T>),
     StaticRef(StaticRefExpr<T>),
     Construct(ConstructExpr<T>),
+    Get(GetExpr<T>),
 }
 
 impl<T: ResolvedType> Expr<T> {
@@ -27,6 +28,7 @@ impl<T: ResolvedType> Expr<T> {
             Self::Unary(v) => return Some(&v.resolved_type),
             Self::StaticRef(v) => return Some(&v.resolved_type),
             Self::Construct(v) => return Some(&v.resolved_type),
+            Self::Get(v) => return Some(&v.resolved_type),
         }
     }
 }
@@ -42,6 +44,7 @@ impl<T: ResolvedType> Node<Expr> for Expr<T> {
             Self::Unary(expr) => return expr.node_id(),
             Self::StaticRef(expr) => return expr.node_id(),
             Self::Construct(expr) => return expr.node_id(),
+            Self::Get(expr) => return expr.node_id(),
         }
     }
 }
@@ -57,6 +60,7 @@ impl<T: ResolvedType> From<Expr<()>> for Expr<Option<T>> {
             Expr::Unary(expr) => return Self::Unary(from(expr)),
             Expr::StaticRef(expr) => return Self::StaticRef(from(expr)),
             Expr::Construct(expr) => return Self::Construct(from(expr)),
+            Expr::Get(expr) => return Self::Get(from(expr)),
         }
     }
 }
@@ -72,6 +76,7 @@ impl<T: ResolvedType> Resolvable for Expr<Option<T>> {
             Expr::Unary(expr) => return expr.is_resolved(),
             Expr::StaticRef(expr) => return expr.is_resolved(),
             Expr::Construct(expr) => return expr.is_resolved(),
+            Expr::Get(expr) => return expr.is_resolved(),
         }
     }
 }
@@ -89,6 +94,7 @@ impl<T: ResolvedType> TryFrom<Expr<Option<T>>> for Expr<T> {
             Expr::Unary(expr) => return Ok(Self::Unary(try_from(expr)?)),
             Expr::StaticRef(expr) => return Ok(Self::StaticRef(try_from(expr)?)),
             Expr::Construct(expr) => return Ok(Self::Construct(try_from(expr)?)),
+            Expr::Get(expr) => return Ok(Self::Get(try_from(expr)?)),
         }
     }
 }
@@ -777,6 +783,61 @@ impl<T: ResolvedType> TryFrom<ConstructField<Option<T>>> for ConstructField<T> {
     }
 }
 
+#[derive(Debug, Clone, PartialEq)]
+pub struct GetExpr<T: ResolvedType = ()> {
+    pub id: NodeId<Expr>,
+    pub target: NestedExpr<T>,
+    pub dot_token: Arc<Token>,
+    pub name: Arc<Token>,
+    pub resolved_type: T,
+}
+
+impl<T: ResolvedType> Node<Expr> for GetExpr<T> {
+    fn node_id(&self) -> &NodeId<Expr> {
+        return &self.id;
+    }
+}
+
+impl<T: ResolvedType> From<GetExpr<()>> for GetExpr<Option<T>> {
+    fn from(value: GetExpr<()>) -> Self {
+        return Self {
+            id: value.id,
+            target: from(value.target),
+            dot_token: value.dot_token,
+            name: value.name,
+            resolved_type: None,
+        };
+    }
+}
+
+impl<T: ResolvedType> Resolvable for GetExpr<Option<T>> {
+    fn is_resolved(&self) -> bool {
+        if !self.target.is_resolved() {
+            dbg!("false");
+            return false;
+        }
+
+        return self.resolved_type.is_some();
+    }
+}
+
+impl<T: ResolvedType> TryFrom<GetExpr<Option<T>>> for GetExpr<T> {
+    type Error = FinalizeResolveTypeError;
+
+    fn try_from(value: GetExpr<Option<T>>) -> Result<Self, Self::Error> {
+        return Ok(Self {
+            id: value.id,
+            target: try_from(value.target)?,
+            dot_token: value.dot_token,
+            name: value.name,
+            resolved_type: value.resolved_type.ok_or(FinalizeResolveTypeError {
+                file: file!(),
+                line: line!(),
+            })?,
+        });
+    }
+}
+
 // Visitor pattern
 pub trait ExprVisitor<T: ResolvedType, R = ()> {
     fn visit_bool_literal_expr(&mut self, expr: &mut BoolLiteralExpr<T>) -> R;
@@ -787,6 +848,7 @@ pub trait ExprVisitor<T: ResolvedType, R = ()> {
     fn visit_unary_expr(&mut self, expr: &mut UnaryExpr<T>) -> R;
     fn visit_static_ref_expr(&mut self, expr: &mut StaticRefExpr<T>) -> R;
     fn visit_construct_expr(&mut self, expr: &mut ConstructExpr<T>) -> R;
+    fn visit_get_expr(&mut self, expr: &mut GetExpr<T>) -> R;
 }
 
 pub trait ExprAccept<T: ResolvedType, R, V: ExprVisitor<T, R>> {
@@ -804,6 +866,7 @@ impl<T: ResolvedType, R, V: ExprVisitor<T, R>> ExprAccept<T, R, V> for Expr<T> {
             Self::Unary(expr) => expr.accept(visitor),
             Self::StaticRef(expr) => expr.accept(visitor),
             Self::Construct(expr) => expr.accept(visitor),
+            Self::Get(expr) => expr.accept(visitor),
         };
     }
 }
@@ -853,5 +916,11 @@ impl<T: ResolvedType, R, V: ExprVisitor<T, R>> ExprAccept<T, R, V> for StaticRef
 impl<T: ResolvedType, R, V: ExprVisitor<T, R>> ExprAccept<T, R, V> for ConstructExpr<T> {
     fn accept(&mut self, visitor: &mut V) -> R {
         return visitor.visit_construct_expr(self);
+    }
+}
+
+impl<T: ResolvedType, R, V: ExprVisitor<T, R>> ExprAccept<T, R, V> for GetExpr<T> {
+    fn accept(&mut self, visitor: &mut V) -> R {
+        return visitor.visit_get_expr(self);
     }
 }

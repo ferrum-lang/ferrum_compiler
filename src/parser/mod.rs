@@ -1080,15 +1080,16 @@ impl FeTokenSyntaxParser {
                 self.match_any(&[TokenType::OpenParen], WithNewlines::None)
             {
                 expr = self.finish_call(expr, open_paren_token)?;
-            // } else if let Some(dot_token) = self.match_any(&[TokenType::Dot], WithNewlines::One) {
-            //     let name = self.consume(&TokenType::Identifier, "Expect property name '.'")?;
+            } else if let Some(dot_token) = self.match_any(&[TokenType::Dot], WithNewlines::One) {
+                let name = self.consume(&TokenType::Ident, "Expect property name '.'")?;
 
-            //     expr = Expr::Get(GetExpr {
-            //         id: NodeId::gen(),
-            //         object: Box::new(expr),
-            //         dot_token,
-            //         name,
-            //     });
+                expr = Arc::new(Mutex::new(Expr::Get(GetExpr {
+                    id: NodeId::gen(),
+                    target: NestedExpr(expr),
+                    dot_token,
+                    name,
+                    resolved_type: (),
+                })));
             } else {
                 break;
             }
