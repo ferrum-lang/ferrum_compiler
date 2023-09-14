@@ -3,14 +3,15 @@ use ./utils::hello
 pub fn main()
     mut p = Person {
         name: "Snowy",
+        age: 26,
     }
-    hello(&p.name)
+    hello(&"{p.age} year-old named {p.name}")
 
-    const age = 26
-
-    hello(&"{age} year-old named {p.name}")
+    p.age = 27
+    hello(&"{p.age} year-old named {p.name}")
 ;
 
 struct Person {
     name: String,
+    age: Int,
 }

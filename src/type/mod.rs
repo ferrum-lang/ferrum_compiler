@@ -7,7 +7,7 @@ pub enum FeType {
     Instance(FeInstance),
     String(Option<StringDetails>),
     Bool(Option<bool>),
-    Number(NumberDetails),
+    Number(Option<NumberDetails>),
     Ref(FeRefOf),
     Owned(FeOwnedOf),
 }
@@ -72,8 +72,8 @@ pub enum StringDetails {
 #[derive(Debug, Clone, PartialEq)]
 pub enum NumberDetails {
     // TODO: number sizes, pos/neg, bounds, bignums, etc
-    Integer(i64),
-    Decimal(f64),
+    Integer(Option<i64>),
+    Decimal(Option<f64>),
 }
 
 #[derive(Debug, Clone, PartialEq)]

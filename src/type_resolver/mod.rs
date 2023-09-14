@@ -306,6 +306,43 @@ impl FeTypeResolver {
             (FeType::Bool(_), FeType::Bool(_)) => return true,
             (FeType::Bool(_), FeType::String(_)) => return false,
 
+            (FeType::Number(from_details), FeType::Number(to_details)) => {
+                match (from_details, to_details) {
+                    (_, None) => return true,
+
+                    (
+                        Some(NumberDetails::Decimal(from_val)),
+                        Some(NumberDetails::Decimal(to_val)),
+                    ) => match (from_val, to_val) {
+                        (Some(from_val), Some(to_val)) => return *from_val == *to_val,
+                        (None, Some(_)) => false,
+                        _ => true,
+                    },
+
+                    (Some(NumberDetails::Decimal(_)), _) => return false,
+
+                    (
+                        Some(NumberDetails::Integer(from_val)),
+                        Some(NumberDetails::Integer(to_val)),
+                    ) => match (from_val, to_val) {
+                        (Some(from_val), Some(to_val)) => return *from_val == *to_val,
+                        (None, Some(_)) => false,
+                        _ => true,
+                    },
+                    (
+                        Some(NumberDetails::Integer(from_val)),
+                        Some(NumberDetails::Decimal(to_val)),
+                    ) => match (from_val, to_val) {
+                        (Some(from_val), Some(to_val)) => return *from_val as f64 == *to_val,
+                        (None, Some(_)) => false,
+                        _ => true,
+                    },
+
+                    (None, Some(NumberDetails::Integer(_))) => return false,
+                    (None, Some(NumberDetails::Decimal(_))) => return true,
+                }
+            }
+
             _ => todo!("Can you cast?\nThis: {from:#?}\nTo: {to:#?}"),
         }
     }
@@ -469,6 +506,12 @@ impl StaticVisitor<Option<FeType>, Result<bool>> for FeTypeResolver {
             match static_path.name.lexeme.as_ref() {
                 "String" => {
                     static_path.resolved_type = Some(FeType::String(None));
+                    changed = true;
+                }
+
+                "Int" => {
+                    static_path.resolved_type =
+                        Some(FeType::Number(Some(NumberDetails::Integer(None))));
                     changed = true;
                 }
 
@@ -855,10 +898,10 @@ impl ExprVisitor<Option<FeType>, Result<bool>> for FeTypeResolver {
             return Ok(false);
         }
 
-        expr.resolved_type = Some(FeType::Number(match expr.details {
-            NumberLiteralDetails::Integer(val) => NumberDetails::Integer(val as i64),
-            NumberLiteralDetails::Decimal(val) => NumberDetails::Decimal(val),
-        }));
+        expr.resolved_type = Some(FeType::Number(Some(match expr.details {
+            NumberLiteralDetails::Integer(val) => NumberDetails::Integer(Some(val as i64)),
+            NumberLiteralDetails::Decimal(val) => NumberDetails::Decimal(Some(val)),
+        })));
 
         return Ok(true);
     }
