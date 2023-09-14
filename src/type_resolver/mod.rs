@@ -847,6 +847,22 @@ impl ExprVisitor<Option<FeType>, Result<bool>> for FeTypeResolver {
         return Ok(true);
     }
 
+    fn visit_number_literal_expr(
+        &mut self,
+        expr: &mut NumberLiteralExpr<Option<FeType>>,
+    ) -> Result<bool> {
+        if expr.is_resolved() {
+            return Ok(false);
+        }
+
+        expr.resolved_type = Some(FeType::Number(match expr.details {
+            NumberLiteralDetails::Integer(val) => NumberDetails::Integer(val as i64),
+            NumberLiteralDetails::Decimal(val) => NumberDetails::Decimal(val),
+        }));
+
+        return Ok(true);
+    }
+
     fn visit_plain_string_literal_expr(
         &mut self,
         expr: &mut PlainStringLiteralExpr<Option<FeType>>,

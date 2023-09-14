@@ -455,6 +455,15 @@ impl ExprVisitor<FeType, Result<ir::RustIRExpr>> for RustSyntaxCompiler {
         }));
     }
 
+    fn visit_number_literal_expr(
+        &mut self,
+        expr: &mut NumberLiteralExpr<FeType>,
+    ) -> Result<ir::RustIRExpr> {
+        return Ok(ir::RustIRExpr::NumberLiteral(ir::RustIRNumberLiteralExpr {
+            literal: expr.literal.lexeme.clone(),
+        }));
+    }
+
     fn visit_plain_string_literal_expr(
         &mut self,
         expr: &mut PlainStringLiteralExpr<FeType>,

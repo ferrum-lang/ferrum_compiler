@@ -213,7 +213,7 @@ impl FeSourceScanner {
                 None
             }
 
-            c if self.is_digit(c) => todo!(),
+            c if self.is_digit(c) => Some(self.number()),
             c if self.is_alpha(c) => Some(self.identifier()),
 
             c => todo!("TODO: Support [{c}]\n{}", &self.source[self.cursor..]),
@@ -235,11 +235,15 @@ impl FeSourceScanner {
     }
 
     fn current(&self) -> Option<char> {
-        return self.source.char_at(self.cursor);
+        return self.peek_offset(0);
     }
 
     fn peek_next(&self) -> Option<char> {
-        return self.source.char_at(self.cursor + 1);
+        return self.peek_offset(1);
+    }
+
+    fn peek_offset(&self, offset: usize) -> Option<char> {
+        return self.source.char_at(self.cursor + offset);
     }
 
     fn string(&mut self, is_continuing_fmt_str: bool) -> TokenType {
@@ -288,6 +292,38 @@ impl FeSourceScanner {
             //
             // _ => todo!(),
         }
+    }
+
+    fn number(&mut self) -> TokenType {
+        while let Some(c) = self.peek_next() {
+            if !self.is_digit(c) {
+                break;
+            }
+
+            self.advance_col();
+        }
+
+        // Look for a fractional part
+        if self.peek_next() == Some('.') {
+            if let Some(next) = self.peek_offset(2) {
+                if self.is_digit(next) {
+                    // Consume the "."
+                    self.advance_col();
+
+                    while let Some(peek) = self.peek_next() {
+                        if !self.is_digit(peek) {
+                            break;
+                        }
+
+                        self.advance_col();
+                    }
+
+                    return TokenType::DecimalNumber;
+                }
+            }
+        }
+
+        return TokenType::IntegerNumber;
     }
 
     fn identifier(&mut self) -> TokenType {

@@ -7,6 +7,7 @@ use crate::utils::{fe_from, fe_try_from, from, invert, try_from};
 #[derive(Debug, Clone, PartialEq)]
 pub enum Expr<T: ResolvedType = ()> {
     BoolLiteral(BoolLiteralExpr<T>),
+    NumberLiteral(NumberLiteralExpr<T>),
     PlainStringLiteral(PlainStringLiteralExpr<T>),
     FmtStringLiteral(FmtStringLiteralExpr<T>),
     Ident(IdentExpr<T>),
@@ -21,6 +22,7 @@ impl<T: ResolvedType> Expr<T> {
     pub fn resolved_type(&self) -> Option<&T> {
         match self {
             Self::BoolLiteral(v) => return Some(&v.resolved_type),
+            Self::NumberLiteral(v) => return Some(&v.resolved_type),
             Self::PlainStringLiteral(v) => return Some(&v.resolved_type),
             Self::FmtStringLiteral(v) => return Some(&v.resolved_type),
             Self::Ident(v) => return Some(&v.resolved_type),
@@ -37,6 +39,7 @@ impl<T: ResolvedType> Node<Expr> for Expr<T> {
     fn node_id(&self) -> &NodeId<Expr> {
         match self {
             Self::BoolLiteral(expr) => return expr.node_id(),
+            Self::NumberLiteral(expr) => return expr.node_id(),
             Self::PlainStringLiteral(expr) => return expr.node_id(),
             Self::FmtStringLiteral(expr) => return expr.node_id(),
             Self::Ident(expr) => return expr.node_id(),
@@ -53,6 +56,7 @@ impl<T: ResolvedType> From<Expr<()>> for Expr<Option<T>> {
     fn from(value: Expr<()>) -> Self {
         match value {
             Expr::BoolLiteral(expr) => return Self::BoolLiteral(from(expr)),
+            Expr::NumberLiteral(expr) => return Self::NumberLiteral(from(expr)),
             Expr::PlainStringLiteral(expr) => return Self::PlainStringLiteral(from(expr)),
             Expr::FmtStringLiteral(expr) => return Self::FmtStringLiteral(from(expr)),
             Expr::Ident(expr) => return Self::Ident(from(expr)),
@@ -69,6 +73,7 @@ impl<T: ResolvedType> Resolvable for Expr<Option<T>> {
     fn is_resolved(&self) -> bool {
         match self {
             Expr::BoolLiteral(expr) => return expr.is_resolved(),
+            Expr::NumberLiteral(expr) => return expr.is_resolved(),
             Expr::PlainStringLiteral(expr) => return expr.is_resolved(),
             Expr::FmtStringLiteral(expr) => return expr.is_resolved(),
             Expr::Ident(expr) => return expr.is_resolved(),
@@ -87,6 +92,7 @@ impl<T: ResolvedType> TryFrom<Expr<Option<T>>> for Expr<T> {
     fn try_from(value: Expr<Option<T>>) -> Result<Self, Self::Error> {
         match value {
             Expr::BoolLiteral(expr) => return Ok(Self::BoolLiteral(try_from(expr)?)),
+            Expr::NumberLiteral(expr) => return Ok(Self::NumberLiteral(try_from(expr)?)),
             Expr::PlainStringLiteral(expr) => return Ok(Self::PlainStringLiteral(try_from(expr)?)),
             Expr::FmtStringLiteral(expr) => return Ok(Self::FmtStringLiteral(try_from(expr)?)),
             Expr::Ident(expr) => return Ok(Self::Ident(try_from(expr)?)),
@@ -176,6 +182,60 @@ impl<T: ResolvedType> TryFrom<BoolLiteralExpr<Option<T>>> for BoolLiteralExpr<T>
             })?,
         });
     }
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub struct NumberLiteralExpr<T: ResolvedType = ()> {
+    pub id: NodeId<Expr>,
+    pub literal: Arc<Token>,
+    pub details: NumberLiteralDetails,
+    pub resolved_type: T,
+}
+
+impl<T: ResolvedType> Node<Expr> for NumberLiteralExpr<T> {
+    fn node_id(&self) -> &NodeId<Expr> {
+        return &self.id;
+    }
+}
+
+impl<T: ResolvedType> From<NumberLiteralExpr<()>> for NumberLiteralExpr<Option<T>> {
+    fn from(value: NumberLiteralExpr<()>) -> Self {
+        return Self {
+            id: value.id,
+            literal: value.literal,
+            details: value.details,
+            resolved_type: None,
+        };
+    }
+}
+
+impl<T: ResolvedType> Resolvable for NumberLiteralExpr<Option<T>> {
+    fn is_resolved(&self) -> bool {
+        return self.resolved_type.is_some();
+    }
+}
+
+impl<T: ResolvedType> TryFrom<NumberLiteralExpr<Option<T>>> for NumberLiteralExpr<T> {
+    type Error = FinalizeResolveTypeError;
+
+    fn try_from(value: NumberLiteralExpr<Option<T>>) -> Result<Self, Self::Error> {
+        return Ok(Self {
+            id: value.id,
+            literal: value.literal,
+            details: value.details,
+            resolved_type: value.resolved_type.ok_or(FinalizeResolveTypeError {
+                file: file!(),
+                line: line!(),
+            })?,
+        });
+    }
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub enum NumberLiteralDetails {
+    // TODO: bignums
+    Integer(u64),
+    Decimal(f64),
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -841,6 +901,7 @@ impl<T: ResolvedType> TryFrom<GetExpr<Option<T>>> for GetExpr<T> {
 // Visitor pattern
 pub trait ExprVisitor<T: ResolvedType, R = ()> {
     fn visit_bool_literal_expr(&mut self, expr: &mut BoolLiteralExpr<T>) -> R;
+    fn visit_number_literal_expr(&mut self, expr: &mut NumberLiteralExpr<T>) -> R;
     fn visit_plain_string_literal_expr(&mut self, expr: &mut PlainStringLiteralExpr<T>) -> R;
     fn visit_fmt_string_literal_expr(&mut self, expr: &mut FmtStringLiteralExpr<T>) -> R;
     fn visit_ident_expr(&mut self, expr: &mut IdentExpr<T>) -> R;
@@ -859,6 +920,7 @@ impl<T: ResolvedType, R, V: ExprVisitor<T, R>> ExprAccept<T, R, V> for Expr<T> {
     fn accept(&mut self, visitor: &mut V) -> R {
         return match self {
             Self::BoolLiteral(expr) => expr.accept(visitor),
+            Self::NumberLiteral(expr) => expr.accept(visitor),
             Self::PlainStringLiteral(expr) => expr.accept(visitor),
             Self::FmtStringLiteral(expr) => expr.accept(visitor),
             Self::Ident(expr) => expr.accept(visitor),
@@ -874,6 +936,12 @@ impl<T: ResolvedType, R, V: ExprVisitor<T, R>> ExprAccept<T, R, V> for Expr<T> {
 impl<T: ResolvedType, R, V: ExprVisitor<T, R>> ExprAccept<T, R, V> for BoolLiteralExpr<T> {
     fn accept(&mut self, visitor: &mut V) -> R {
         return visitor.visit_bool_literal_expr(self);
+    }
+}
+
+impl<T: ResolvedType, R, V: ExprVisitor<T, R>> ExprAccept<T, R, V> for NumberLiteralExpr<T> {
+    fn accept(&mut self, visitor: &mut V) -> R {
+        return visitor.visit_number_literal_expr(self);
     }
 }
 

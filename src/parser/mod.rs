@@ -1278,6 +1278,27 @@ impl FeTokenSyntaxParser {
                 ))));
             }
 
+            Some((t, TokenType::IntegerNumber)) => {
+                return Ok(Arc::new(Mutex::new(Expr::NumberLiteral(
+                    NumberLiteralExpr {
+                        id: NodeId::gen(),
+                        details: NumberLiteralDetails::Integer(t.lexeme.parse()?),
+                        literal: t,
+                        resolved_type: (),
+                    },
+                ))));
+            }
+            Some((t, TokenType::DecimalNumber)) => {
+                return Ok(Arc::new(Mutex::new(Expr::NumberLiteral(
+                    NumberLiteralExpr {
+                        id: NodeId::gen(),
+                        details: NumberLiteralDetails::Decimal(t.lexeme.parse()?),
+                        literal: t,
+                        resolved_type: (),
+                    },
+                ))));
+            }
+
             Some((t, TokenType::True | TokenType::False)) => {
                 return Ok(Arc::new(Mutex::new(Expr::BoolLiteral(BoolLiteralExpr {
                     id: NodeId::gen(),

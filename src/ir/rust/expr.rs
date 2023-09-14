@@ -3,6 +3,7 @@ use super::*;
 #[derive(Debug, Clone, PartialEq)]
 pub enum RustIRExpr {
     BoolLiteral(RustIRBoolLiteralExpr),
+    NumberLiteral(RustIRNumberLiteralExpr),
     StringLiteral(RustIRStringLiteralExpr),
     Ident(RustIRIdentExpr),
     Call(RustIRCallExpr),
@@ -19,6 +20,11 @@ pub enum RustIRExpr {
 #[derive(Debug, Clone, PartialEq)]
 pub struct RustIRBoolLiteralExpr {
     pub literal: bool,
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub struct RustIRNumberLiteralExpr {
+    pub literal: Arc<str>,
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -118,6 +124,7 @@ pub struct RustIRGetExpr {
 // Visitor pattern
 pub trait RustIRExprVisitor<R = ()> {
     fn visit_bool_literal_expr(&mut self, expr: &mut RustIRBoolLiteralExpr) -> R;
+    fn visit_number_literal_expr(&mut self, expr: &mut RustIRNumberLiteralExpr) -> R;
     fn visit_string_literal_expr(&mut self, expr: &mut RustIRStringLiteralExpr) -> R;
     fn visit_ident_expr(&mut self, expr: &mut RustIRIdentExpr) -> R;
     fn visit_call_expr(&mut self, expr: &mut RustIRCallExpr) -> R;
@@ -139,6 +146,7 @@ impl<R, V: RustIRExprVisitor<R>> RustIRExprAccept<R, V> for RustIRExpr {
     fn accept(&mut self, visitor: &mut V) -> R {
         return match self {
             Self::BoolLiteral(expr) => expr.accept(visitor),
+            Self::NumberLiteral(expr) => expr.accept(visitor),
             Self::StringLiteral(expr) => expr.accept(visitor),
             Self::Ident(expr) => expr.accept(visitor),
             Self::Call(expr) => expr.accept(visitor),
@@ -157,6 +165,12 @@ impl<R, V: RustIRExprVisitor<R>> RustIRExprAccept<R, V> for RustIRExpr {
 impl<R, V: RustIRExprVisitor<R>> RustIRExprAccept<R, V> for RustIRBoolLiteralExpr {
     fn accept(&mut self, visitor: &mut V) -> R {
         return visitor.visit_bool_literal_expr(self);
+    }
+}
+
+impl<R, V: RustIRExprVisitor<R>> RustIRExprAccept<R, V> for RustIRNumberLiteralExpr {
+    fn accept(&mut self, visitor: &mut V) -> R {
+        return visitor.visit_number_literal_expr(self);
     }
 }
 

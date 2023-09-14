@@ -418,6 +418,13 @@ impl ir::RustIRExprVisitor<Result<Arc<str>>> for RustCodeGen {
         return Ok(expr.literal.to_string().into());
     }
 
+    fn visit_number_literal_expr(
+        &mut self,
+        expr: &mut ir::RustIRNumberLiteralExpr,
+    ) -> Result<Arc<str>> {
+        return Ok(expr.literal.clone());
+    }
+
     fn visit_string_literal_expr(
         &mut self,
         expr: &mut ir::RustIRStringLiteralExpr,

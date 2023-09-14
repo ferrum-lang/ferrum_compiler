@@ -140,6 +140,10 @@ pub enum TokenType {
     MidFmtString,
     CloseFmtString,
 
+    IntegerNumber,
+    DecimalNumber,
+    // TODO: other numbers? scientific notation?
+
     // Other
     Ident,
 
