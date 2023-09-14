@@ -159,6 +159,16 @@ impl RustSyntaxCompiler {
     }
 
     fn translate_static_path(&self, path: &mut StaticPath<FeType>) -> ir::RustIRStaticPath {
+        if path.root.is_none()
+            && path.name.lexeme.as_ref() == "Int"
+            && matches!(path.resolved_type, FeType::Number(_))
+        {
+            return ir::RustIRStaticPath {
+                root: None,
+                name: "i64".into(),
+            };
+        }
+
         return ir::RustIRStaticPath {
             root: path
                 .root
