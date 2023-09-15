@@ -12,5 +12,5 @@ pub trait IRToCode {
 }
 
 pub trait CodeGen<IR: IRToCode> {
-    fn generate_code(entry: Arc<Mutex<IR>>) -> Result<IR::Code>;
+    fn generate_code(ir: Arc<Mutex<IR>>) -> Result<IR::Code>;
 }

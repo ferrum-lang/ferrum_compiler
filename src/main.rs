@@ -1,14 +1,18 @@
 use ferrum_compiler::code_gen::*;
+use ferrum_compiler::executor::*;
 use ferrum_compiler::ir::*;
 use ferrum_compiler::lexer::*;
 use ferrum_compiler::parser::*;
+use ferrum_compiler::project_gen::*;
 use ferrum_compiler::source::*;
 use ferrum_compiler::syntax::*;
 use ferrum_compiler::type_resolver::*;
 
 use std::collections::HashMap;
 use std::env;
+use std::path;
 use std::path::PathBuf;
+use std::process;
 use std::sync::{Arc, Mutex};
 
 fn main() -> ferrum_compiler::result::Result {
@@ -27,14 +31,30 @@ fn main() -> ferrum_compiler::result::Result {
     let rust_ir = Arc::new(Mutex::new(RustSyntaxCompiler::compile_package(typed_pkg)?));
     // dbg!(&rust_ir);
 
-    let rust_code = RustCodeGen::generate_code(rust_ir)?;
+    let rust_code = Arc::new(Mutex::new(RustCodeGen::generate_code(rust_ir)?));
     // dbg!(&rust_code);
 
-    println!("\n");
+    // println!("\n");
 
-    for file in &rust_code.files {
-        println!("// {:?}\n{}", file.path, file.content);
-    }
+    // for file in &rust_code.files {
+    //     println!("// {:?}\n{}", file.path, file.content);
+    // }
+
+    let dst = path::PathBuf::from("./.ferrum/compiled_rust");
+
+    let rust_project = RustProjectGen::generate_project_files(rust_code, &dst)?;
+    // dbg!(&rust_project);
+    let _ = rust_project;
+
+    // // //
+
+    process::Command::new("clear").status()?;
+
+    let out = RustExecutor::cargo_run(&dst)?;
+
+    // println!("{}", String::from_utf8(out.stderr)?);
+
+    println!("{}", String::from_utf8(out.stdout)?);
 
     return Ok(());
 }

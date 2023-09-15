@@ -31,8 +31,8 @@ impl IRToCode for ir::RustIR {
 }
 
 impl CodeGen<ir::RustIR> for RustCodeGen {
-    fn generate_code(entry: Arc<Mutex<ir::RustIR>>) -> Result<RustCode> {
-        return Self::new(entry).generate();
+    fn generate_code(rust_ir: Arc<Mutex<ir::RustIR>>) -> Result<RustCode> {
+        return Self::new(rust_ir).generate();
     }
 }
 
