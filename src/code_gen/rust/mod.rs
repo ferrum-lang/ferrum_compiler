@@ -507,7 +507,7 @@ impl ir::RustIRExprVisitor<Result<Arc<str>>> for RustCodeGen {
     fn visit_unary_expr(&mut self, expr: &mut ir::RustIRUnaryExpr) -> Result<Arc<str>> {
         let mut out = String::new();
 
-        match expr.op {
+        match &expr.op {
             ir::RustIRUnaryOp::Ref(RustIRRefType::Shared) => {
                 out.push('&');
             }
@@ -520,6 +520,22 @@ impl ir::RustIRExprVisitor<Result<Arc<str>>> for RustCodeGen {
         }
 
         out.push_str(&expr.value.accept(self)?);
+
+        return Ok(out.into());
+    }
+
+    fn visit_binary_expr(&mut self, expr: &mut ir::RustIRBinaryExpr) -> Result<Arc<str>> {
+        let mut out = String::new();
+
+        out.push_str(&expr.lhs.accept(self)?);
+        out.push(' ');
+
+        match &expr.op {
+            ir::RustIRBinaryOp::Add => out.push('+'),
+        }
+
+        out.push(' ');
+        out.push_str(&expr.rhs.accept(self)?);
 
         return Ok(out.into());
     }

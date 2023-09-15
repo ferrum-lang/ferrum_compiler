@@ -612,7 +612,7 @@ impl ExprVisitor<FeType, Result<ir::RustIRExpr>> for RustSyntaxCompiler {
     }
 
     fn visit_unary_expr(&mut self, expr: &mut UnaryExpr<FeType>) -> Result<ir::RustIRExpr> {
-        match expr.op {
+        match &expr.op {
             UnaryOp::Ref(RefType::Shared { .. }) => {
                 return Ok(ir::RustIRExpr::Unary(ir::RustIRUnaryExpr {
                     op: ir::RustIRUnaryOp::Ref(ir::RustIRRefType::Shared),
@@ -629,6 +629,18 @@ impl ExprVisitor<FeType, Result<ir::RustIRExpr>> for RustSyntaxCompiler {
                 return Ok(ir::RustIRExpr::Unary(ir::RustIRUnaryExpr {
                     op: ir::RustIRUnaryOp::Not,
                     value: Box::new(expr.value.0.lock().unwrap().accept(self)?),
+                }));
+            }
+        }
+    }
+
+    fn visit_binary_expr(&mut self, expr: &mut BinaryExpr<FeType>) -> Result<ir::RustIRExpr> {
+        match &expr.op {
+            BinaryOp::Add(_) => {
+                return Ok(ir::RustIRExpr::Binary(ir::RustIRBinaryExpr {
+                    lhs: Box::new(expr.lhs.0.lock().unwrap().accept(self)?),
+                    op: ir::RustIRBinaryOp::Add,
+                    rhs: Box::new(expr.rhs.0.lock().unwrap().accept(self)?),
                 }));
             }
         }

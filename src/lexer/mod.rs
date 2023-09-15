@@ -156,6 +156,14 @@ impl FeSourceScanner {
         let Some(c) = self.current() else { return };
 
         let token_type = match c {
+            '/' if self.peek_next() == Some('/') => {
+                while self.peek_next() != Some('\n') {
+                    self.advance_col();
+                }
+
+                None
+            }
+
             '"' => Some(self.string(false)),
             '}' if self.format_string_nest > 0 => Some(self.string(true)),
 
@@ -177,6 +185,15 @@ impl FeSourceScanner {
 
             '=' => Some(TokenType::Equal),
             '&' => Some(TokenType::Amp),
+
+            '+' => {
+                if self.peek_next() == Some('=') {
+                    self.advance_col();
+                    Some(TokenType::PlusEqual)
+                } else {
+                    Some(TokenType::Plus)
+                }
+            }
 
             ':' => {
                 if self.peek_next() == Some(':') {
@@ -203,14 +220,6 @@ impl FeSourceScanner {
                 } else {
                     Some(TokenType::Tilde)
                 }
-            }
-
-            '/' if self.peek_next() == Some('/') => {
-                while self.peek_next() != Some('\n') {
-                    self.advance_col();
-                }
-
-                None
             }
 
             c if self.is_digit(c) => Some(self.number()),

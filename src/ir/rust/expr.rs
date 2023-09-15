@@ -11,6 +11,7 @@ pub enum RustIRExpr {
     Block(RustIRBlockExpr),
     StaticRef(RustIRStaticRefExpr),
     Unary(RustIRUnaryExpr),
+    Binary(RustIRBinaryExpr),
     Assign(RustIRAssignExpr),
     If(RustIRIfExpr),
     Construct(RustIRConstructExpr),
@@ -69,6 +70,18 @@ pub struct RustIRUnaryExpr {
 pub enum RustIRUnaryOp {
     Ref(RustIRRefType),
     Not,
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub struct RustIRBinaryExpr {
+    pub lhs: Box<RustIRExpr>,
+    pub op: RustIRBinaryOp,
+    pub rhs: Box<RustIRExpr>,
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub enum RustIRBinaryOp {
+    Add,
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -132,6 +145,7 @@ pub trait RustIRExprVisitor<R = ()> {
     fn visit_block_expr(&mut self, expr: &mut RustIRBlockExpr) -> R;
     fn visit_static_ref_expr(&mut self, expr: &mut RustIRStaticRefExpr) -> R;
     fn visit_unary_expr(&mut self, expr: &mut RustIRUnaryExpr) -> R;
+    fn visit_binary_expr(&mut self, expr: &mut RustIRBinaryExpr) -> R;
     fn visit_assign_expr(&mut self, expr: &mut RustIRAssignExpr) -> R;
     fn visit_if_expr(&mut self, expr: &mut RustIRIfExpr) -> R;
     fn visit_construct_expr(&mut self, expr: &mut RustIRConstructExpr) -> R;
@@ -154,6 +168,7 @@ impl<R, V: RustIRExprVisitor<R>> RustIRExprAccept<R, V> for RustIRExpr {
             Self::Block(expr) => expr.accept(visitor),
             Self::StaticRef(expr) => expr.accept(visitor),
             Self::Unary(expr) => expr.accept(visitor),
+            Self::Binary(expr) => expr.accept(visitor),
             Self::Assign(expr) => expr.accept(visitor),
             Self::If(expr) => expr.accept(visitor),
             Self::Construct(expr) => expr.accept(visitor),
@@ -213,6 +228,12 @@ impl<R, V: RustIRExprVisitor<R>> RustIRExprAccept<R, V> for RustIRStaticRefExpr 
 impl<R, V: RustIRExprVisitor<R>> RustIRExprAccept<R, V> for RustIRUnaryExpr {
     fn accept(&mut self, visitor: &mut V) -> R {
         return visitor.visit_unary_expr(self);
+    }
+}
+
+impl<R, V: RustIRExprVisitor<R>> RustIRExprAccept<R, V> for RustIRBinaryExpr {
+    fn accept(&mut self, visitor: &mut V) -> R {
+        return visitor.visit_binary_expr(self);
     }
 }
 

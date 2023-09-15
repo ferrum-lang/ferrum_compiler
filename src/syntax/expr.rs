@@ -13,6 +13,7 @@ pub enum Expr<T: ResolvedType = ()> {
     Ident(IdentExpr<T>),
     Call(CallExpr<T>),
     Unary(UnaryExpr<T>),
+    Binary(BinaryExpr<T>),
     StaticRef(StaticRefExpr<T>),
     Construct(ConstructExpr<T>),
     Get(GetExpr<T>),
@@ -28,6 +29,7 @@ impl<T: ResolvedType> Expr<T> {
             Self::Ident(v) => return Some(&v.resolved_type),
             Self::Call(v) => return v.resolved_type.as_ref(),
             Self::Unary(v) => return Some(&v.resolved_type),
+            Self::Binary(v) => return Some(&v.resolved_type),
             Self::StaticRef(v) => return Some(&v.resolved_type),
             Self::Construct(v) => return Some(&v.resolved_type),
             Self::Get(v) => return Some(&v.resolved_type),
@@ -45,6 +47,7 @@ impl<T: ResolvedType> Node<Expr> for Expr<T> {
             Self::Ident(expr) => return expr.node_id(),
             Self::Call(expr) => return expr.node_id(),
             Self::Unary(expr) => return expr.node_id(),
+            Self::Binary(expr) => return expr.node_id(),
             Self::StaticRef(expr) => return expr.node_id(),
             Self::Construct(expr) => return expr.node_id(),
             Self::Get(expr) => return expr.node_id(),
@@ -62,6 +65,7 @@ impl<T: ResolvedType> From<Expr<()>> for Expr<Option<T>> {
             Expr::Ident(expr) => return Self::Ident(from(expr)),
             Expr::Call(expr) => return Self::Call(from(expr)),
             Expr::Unary(expr) => return Self::Unary(from(expr)),
+            Expr::Binary(expr) => return Self::Binary(from(expr)),
             Expr::StaticRef(expr) => return Self::StaticRef(from(expr)),
             Expr::Construct(expr) => return Self::Construct(from(expr)),
             Expr::Get(expr) => return Self::Get(from(expr)),
@@ -79,6 +83,7 @@ impl<T: ResolvedType> Resolvable for Expr<Option<T>> {
             Expr::Ident(expr) => return expr.is_resolved(),
             Expr::Call(expr) => return expr.is_resolved(),
             Expr::Unary(expr) => return expr.is_resolved(),
+            Expr::Binary(expr) => return expr.is_resolved(),
             Expr::StaticRef(expr) => return expr.is_resolved(),
             Expr::Construct(expr) => return expr.is_resolved(),
             Expr::Get(expr) => return expr.is_resolved(),
@@ -98,6 +103,7 @@ impl<T: ResolvedType> TryFrom<Expr<Option<T>>> for Expr<T> {
             Expr::Ident(expr) => return Ok(Self::Ident(try_from(expr)?)),
             Expr::Call(expr) => return Ok(Self::Call(try_from(expr)?)),
             Expr::Unary(expr) => return Ok(Self::Unary(try_from(expr)?)),
+            Expr::Binary(expr) => return Ok(Self::Binary(try_from(expr)?)),
             Expr::StaticRef(expr) => return Ok(Self::StaticRef(try_from(expr)?)),
             Expr::Construct(expr) => return Ok(Self::Construct(try_from(expr)?)),
             Expr::Get(expr) => return Ok(Self::Get(try_from(expr)?)),
@@ -618,6 +624,69 @@ pub enum UnaryOp {
 }
 
 #[derive(Debug, Clone, PartialEq)]
+pub struct BinaryExpr<T: ResolvedType = ()> {
+    pub id: NodeId<Expr>,
+    pub lhs: NestedExpr<T>,
+    pub op: BinaryOp,
+    pub rhs: NestedExpr<T>,
+    pub resolved_type: T,
+}
+
+impl<T: ResolvedType> Node<Expr> for BinaryExpr<T> {
+    fn node_id(&self) -> &NodeId<Expr> {
+        return &self.id;
+    }
+}
+
+impl<T: ResolvedType> From<BinaryExpr<()>> for BinaryExpr<Option<T>> {
+    fn from(value: BinaryExpr<()>) -> Self {
+        return Self {
+            id: value.id,
+            lhs: from(value.lhs),
+            op: value.op,
+            rhs: from(value.rhs),
+            resolved_type: None,
+        };
+    }
+}
+
+impl<T: ResolvedType> Resolvable for BinaryExpr<Option<T>> {
+    fn is_resolved(&self) -> bool {
+        if !self.lhs.is_resolved() {
+            return false;
+        }
+
+        if !self.rhs.is_resolved() {
+            return false;
+        }
+
+        return self.resolved_type.is_some();
+    }
+}
+
+impl<T: ResolvedType> TryFrom<BinaryExpr<Option<T>>> for BinaryExpr<T> {
+    type Error = FinalizeResolveTypeError;
+
+    fn try_from(value: BinaryExpr<Option<T>>) -> Result<Self, Self::Error> {
+        return Ok(Self {
+            id: value.id,
+            lhs: try_from(value.lhs)?,
+            op: value.op,
+            rhs: try_from(value.rhs)?,
+            resolved_type: value.resolved_type.ok_or(FinalizeResolveTypeError {
+                file: file!(),
+                line: line!(),
+            })?,
+        });
+    }
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub enum BinaryOp {
+    Add(Arc<Token>),
+}
+
+#[derive(Debug, Clone, PartialEq)]
 pub struct StaticRefExpr<T: ResolvedType = ()> {
     pub id: NodeId<Expr>,
     pub static_path: StaticPath<T>,
@@ -907,6 +976,7 @@ pub trait ExprVisitor<T: ResolvedType, R = ()> {
     fn visit_ident_expr(&mut self, expr: &mut IdentExpr<T>) -> R;
     fn visit_call_expr(&mut self, expr: &mut CallExpr<T>) -> R;
     fn visit_unary_expr(&mut self, expr: &mut UnaryExpr<T>) -> R;
+    fn visit_binary_expr(&mut self, expr: &mut BinaryExpr<T>) -> R;
     fn visit_static_ref_expr(&mut self, expr: &mut StaticRefExpr<T>) -> R;
     fn visit_construct_expr(&mut self, expr: &mut ConstructExpr<T>) -> R;
     fn visit_get_expr(&mut self, expr: &mut GetExpr<T>) -> R;
@@ -926,6 +996,7 @@ impl<T: ResolvedType, R, V: ExprVisitor<T, R>> ExprAccept<T, R, V> for Expr<T> {
             Self::Ident(expr) => expr.accept(visitor),
             Self::Call(expr) => expr.accept(visitor),
             Self::Unary(expr) => expr.accept(visitor),
+            Self::Binary(expr) => expr.accept(visitor),
             Self::StaticRef(expr) => expr.accept(visitor),
             Self::Construct(expr) => expr.accept(visitor),
             Self::Get(expr) => expr.accept(visitor),
@@ -972,6 +1043,12 @@ impl<T: ResolvedType, R, V: ExprVisitor<T, R>> ExprAccept<T, R, V> for CallExpr<
 impl<T: ResolvedType, R, V: ExprVisitor<T, R>> ExprAccept<T, R, V> for UnaryExpr<T> {
     fn accept(&mut self, visitor: &mut V) -> R {
         return visitor.visit_unary_expr(self);
+    }
+}
+
+impl<T: ResolvedType, R, V: ExprVisitor<T, R>> ExprAccept<T, R, V> for BinaryExpr<T> {
+    fn accept(&mut self, visitor: &mut V) -> R {
+        return visitor.visit_binary_expr(self);
     }
 }
 

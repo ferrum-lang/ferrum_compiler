@@ -1,17 +1,10 @@
-use ./utils::hello
+use ::fe::print
 
 pub fn main()
-    mut p = Person {
-        name: "Snowy",
-        age: 26,
-    }
-    hello(&"{p.age} year-old named {p.name}")
+    mut n = 100
+    print("n = {n}")
 
-    p.age = 27
-    hello(&"{p.age} year-old named {p.name}")
+    n = n + 1
+    print("n = {n}")
 ;
 
-struct Person {
-    name: String,
-    age: Int,
-}

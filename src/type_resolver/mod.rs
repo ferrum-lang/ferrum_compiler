@@ -314,7 +314,8 @@ impl FeTypeResolver {
                         Some(NumberDetails::Decimal(from_val)),
                         Some(NumberDetails::Decimal(to_val)),
                     ) => match (from_val, to_val) {
-                        (Some(from_val), Some(to_val)) => return *from_val == *to_val,
+                        // TODO
+                        // (Some(from_val), Some(to_val)) => return *from_val == *to_val,
                         (None, Some(_)) => false,
                         _ => true,
                     },
@@ -325,7 +326,7 @@ impl FeTypeResolver {
                         Some(NumberDetails::Integer(from_val)),
                         Some(NumberDetails::Integer(to_val)),
                     ) => match (from_val, to_val) {
-                        (Some(from_val), Some(to_val)) => return *from_val == *to_val,
+                        // (Some(from_val), Some(to_val)) => return *from_val == *to_val,
                         (None, Some(_)) => false,
                         _ => true,
                     },
@@ -333,7 +334,7 @@ impl FeTypeResolver {
                         Some(NumberDetails::Integer(from_val)),
                         Some(NumberDetails::Decimal(to_val)),
                     ) => match (from_val, to_val) {
-                        (Some(from_val), Some(to_val)) => return *from_val as f64 == *to_val,
+                        // (Some(from_val), Some(to_val)) => return *from_val as f64 == *to_val,
                         (None, Some(_)) => false,
                         _ => true,
                     },
@@ -693,14 +694,14 @@ impl StmtVisitor<Option<FeType>, Result<bool>> for FeTypeResolver {
             if let Some(resolved_type) = &types.0 {
                 match resolved_type {
                     FeType::Ref(ref_of) => {
-                        if ref_of.ref_type == FeRefType::Const {
+                        if ref_of.ref_type != FeRefType::Mut {
                             // TODO: handle assigning late to non-assigned const ref
                             todo!("Reference is not mutable: {:#?}", target);
                         }
                     }
 
                     FeType::Owned(owned_of) => {
-                        if owned_of.owned_mut == FeOwnedMut::Const {
+                        if owned_of.owned_mut != FeOwnedMut::Mut {
                             // TODO: handle assigning late to non-assigned const
                             todo!("Owned type is not mutable: {:#?}", target);
                         }
@@ -719,11 +720,11 @@ impl StmtVisitor<Option<FeType>, Result<bool>> for FeTypeResolver {
         }
 
         if let (Some(target_type), Some(value_type)) = types {
-            if !Self::can_implicit_cast(&value_type, &target_type) {
+            if !Self::can_implicit_cast(&value_type, target_type.actual_type()) {
                 todo!(
                     "Can't assign types!\nFrom: {:#?}\nTo: {:#?}",
                     value_type,
-                    target_type
+                    target_type.actual_type()
                 );
             }
         }
@@ -1044,7 +1045,7 @@ impl ExprVisitor<Option<FeType>, Result<bool>> for FeTypeResolver {
         {
             changed = true;
 
-            match expr.op {
+            match &expr.op {
                 UnaryOp::Ref(RefType::Shared { .. }) => {
                     expr.resolved_type = Some(FeType::Ref(FeRefOf {
                         ref_type: FeRefType::Const,
@@ -1068,6 +1069,112 @@ impl ExprVisitor<Option<FeType>, Result<bool>> for FeTypeResolver {
                     } else {
                         Some(FeType::Bool(None))
                     };
+                }
+            }
+        }
+
+        return Ok(changed);
+    }
+
+    fn visit_binary_expr(&mut self, expr: &mut BinaryExpr<Option<FeType>>) -> Result<bool> {
+        if expr.is_resolved() {
+            return Ok(false);
+        }
+
+        let mut changed = false;
+
+        changed = changed | expr.lhs.0.lock().unwrap().accept(self)?;
+        changed = changed | expr.rhs.0.lock().unwrap().accept(self)?;
+
+        if let (Some(resolved_lhs), Some(resolved_rhs)) = (
+            expr.lhs
+                .0
+                .lock()
+                .unwrap()
+                .resolved_type()
+                .cloned()
+                .flatten(),
+            expr.rhs
+                .0
+                .lock()
+                .unwrap()
+                .resolved_type()
+                .cloned()
+                .flatten(),
+        ) {
+            changed = true;
+
+            match &expr.op {
+                BinaryOp::Add(_) => {
+                    let resolved_lhs = resolved_lhs.actual_type();
+                    let resolved_rhs = resolved_rhs.actual_type();
+
+                    match (resolved_lhs, resolved_rhs) {
+                        (FeType::Number(lhs), FeType::Number(rhs)) => match (lhs, rhs) {
+                            // known values at compile time
+                            (
+                                Some(NumberDetails::Integer(Some(lhs))),
+                                Some(NumberDetails::Integer(Some(rhs))),
+                            ) => {
+                                expr.resolved_type = Some(FeType::Number(Some(
+                                    NumberDetails::Integer(Some(*lhs + *rhs)),
+                                )));
+                            }
+                            (
+                                Some(NumberDetails::Decimal(Some(lhs))),
+                                Some(NumberDetails::Integer(Some(rhs))),
+                            ) => {
+                                expr.resolved_type = Some(FeType::Number(Some(
+                                    NumberDetails::Decimal(Some(*lhs + *rhs as f64)),
+                                )));
+                            }
+                            (
+                                Some(NumberDetails::Integer(Some(lhs))),
+                                Some(NumberDetails::Decimal(Some(rhs))),
+                            ) => {
+                                expr.resolved_type = Some(FeType::Number(Some(
+                                    NumberDetails::Decimal(Some(*lhs as f64 + *rhs)),
+                                )));
+                            }
+                            (
+                                Some(NumberDetails::Decimal(Some(lhs))),
+                                Some(NumberDetails::Decimal(Some(rhs))),
+                            ) => {
+                                expr.resolved_type = Some(FeType::Number(Some(
+                                    NumberDetails::Decimal(Some(*lhs + *rhs)),
+                                )));
+                            }
+
+                            // unknown values, known types
+                            (
+                                Some(NumberDetails::Integer(_)),
+                                Some(NumberDetails::Integer(None)),
+                            )
+                            | (
+                                Some(NumberDetails::Integer(None)),
+                                Some(NumberDetails::Integer(_)),
+                            ) => {
+                                expr.resolved_type =
+                                    Some(FeType::Number(Some(NumberDetails::Integer(None))));
+                            }
+                            (Some(NumberDetails::Decimal(_)), _) => {
+                                expr.resolved_type = Some(FeType::Number(Some(
+                                    // TODO: we know this is greater-than lhs val
+                                    NumberDetails::Decimal(None),
+                                )));
+                            }
+                            (_, Some(NumberDetails::Decimal(_))) => {
+                                expr.resolved_type =
+                                    Some(FeType::Number(Some(NumberDetails::Decimal(None))))
+                            }
+
+                            // other
+                            (_, None) | (None, _) => {
+                                expr.resolved_type = Some(FeType::Number(None));
+                            }
+                        },
+                        _ => todo!("unsure how to add {resolved_lhs:#?} to {resolved_rhs:#?}"),
+                    }
                 }
             }
         }

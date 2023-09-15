@@ -21,6 +21,15 @@ impl FeType {
             _ => return None,
         }
     }
+
+    pub fn actual_type(&self) -> &FeType {
+        match &self {
+            Self::Ref(t) => return &t.of,
+            Self::Owned(t) => return &t.of,
+
+            _ => return self,
+        }
+    }
 }
 
 #[derive(Debug, Clone, PartialEq)]

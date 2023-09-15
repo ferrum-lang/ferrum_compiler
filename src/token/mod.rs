@@ -98,6 +98,9 @@ pub enum TokenType {
     OpenSquareBracket,  // [
     CloseSquareBracket, // ]
 
+    Plus,      // +
+    PlusEqual, // +=
+
     Equal, // =
 
     Amp, // &

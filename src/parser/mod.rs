@@ -927,13 +927,12 @@ impl FeTokenSyntaxParser {
     fn term(&mut self) -> Result<Arc<Mutex<Expr>>> {
         let mut expr = self.factor()?;
 
-        /*
         while let Some(op_token) =
-            self.match_any(&[TokenType::Minus, TokenType::Plus], WithNewlines::One)
+            self.match_any(&[/*TokenType::Minus,*/ TokenType::Plus], WithNewlines::One)
         {
             let op = match op_token.token_type {
-                TokenType::Minus => (BinaryOp::Minus, op_token),
-                TokenType::Plus => (BinaryOp::Plus, op_token),
+                // TokenType::Minus => (BinaryOp::Minus, op_token),
+                TokenType::Plus => BinaryOp::Add(op_token),
 
                 _ => {
                     return Err(self
@@ -947,14 +946,14 @@ impl FeTokenSyntaxParser {
 
             let right = self.factor()?;
 
-            expr = Expr::Binary(BinaryExpr {
+            expr = Arc::new(Mutex::new(Expr::Binary(BinaryExpr {
                 id: NodeId::gen(),
-                left: Box::new(expr),
+                lhs: NestedExpr(expr),
                 op,
-                right: Box::new(right),
-            });
+                rhs: NestedExpr(right),
+                resolved_type: (),
+            })));
         }
-        */
 
         return Ok(expr);
     }
