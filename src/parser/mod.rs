@@ -746,13 +746,12 @@ impl FeTokenSyntaxParser {
     fn expr_or_assign_statement(&mut self) -> Result<Arc<Mutex<Stmt>>> {
         let expr = self.expression()?;
 
-        if let Some(op_token) = self.match_any(
-            &[TokenType::Equal /*, TokenType::PlusEqual*/],
-            WithNewlines::One,
-        ) {
+        if let Some(op_token) =
+            self.match_any(&[TokenType::Equal, TokenType::PlusEqual], WithNewlines::One)
+        {
             let op = match op_token.token_type {
                 TokenType::Equal => AssignOp::Eq(op_token),
-                // TokenType::PlusEqual => AssignOp::PlusEq(op_token),
+                TokenType::PlusEqual => AssignOp::PlusEq(op_token),
                 _ => {
                     return Err(self
                         .error(
@@ -857,7 +856,7 @@ impl FeTokenSyntaxParser {
 
     fn comparison(&mut self) -> Result<Arc<Mutex<Expr>>> {
         let mut expr = self.range()?;
-        /*
+
         while let Some(op_token) = self.match_any(
             &[
                 TokenType::Greater,
@@ -868,29 +867,31 @@ impl FeTokenSyntaxParser {
             WithNewlines::One,
         ) {
             let op = match op_token.token_type {
-                TokenType::Greater => (BinaryOp::Greater, op_token),
-                TokenType::GreaterEqual => (BinaryOp::GreaterEqual, op_token),
-                TokenType::Less => (BinaryOp::Less, op_token),
-                TokenType::LessEqual => (BinaryOp::LessEqual, op_token),
+                TokenType::Greater => BinaryOp::Greater(op_token),
+                TokenType::GreaterEqual => BinaryOp::GreaterEq(op_token),
+                TokenType::Less => BinaryOp::Less(op_token),
+                TokenType::LessEqual => BinaryOp::LessEq(op_token),
 
                 _ => {
-                    return Err(self.error(
-                        format!("[{}:{}] Expected '>', '>=', '<', or '<='", file!(), line!()),
-                        op_token,
-                    ).into());
+                    return Err(self
+                        .error(
+                            format!("[{}:{}] Expected '>', '>=', '<', or '<='", file!(), line!()),
+                            op_token,
+                        )
+                        .into());
                 }
             };
 
             let right = self.range()?;
 
-            expr = Expr::Binary(BinaryExpr {
+            expr = Arc::new(Mutex::new(Expr::Binary(BinaryExpr {
                 id: NodeId::gen(),
-                left: Box::new(expr),
+                lhs: NestedExpr(expr),
                 op,
-                right: Box::new(right),
-            });
+                rhs: NestedExpr(right),
+                resolved_type: (),
+            })));
         }
-        */
 
         return Ok(expr);
     }

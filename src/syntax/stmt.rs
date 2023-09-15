@@ -385,6 +385,7 @@ impl<T: ResolvedType> TryFrom<AssignStmt<Option<T>>> for AssignStmt<T> {
 #[derive(Debug, Clone, PartialEq)]
 pub enum AssignOp {
     Eq(Arc<Token>),
+    PlusEq(Arc<Token>),
 }
 
 #[derive(Debug, Clone, PartialEq)]

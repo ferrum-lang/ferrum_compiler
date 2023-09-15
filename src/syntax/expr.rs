@@ -684,6 +684,10 @@ impl<T: ResolvedType> TryFrom<BinaryExpr<Option<T>>> for BinaryExpr<T> {
 #[derive(Debug, Clone, PartialEq)]
 pub enum BinaryOp {
     Add(Arc<Token>),
+    Less(Arc<Token>),
+    LessEq(Arc<Token>),
+    Greater(Arc<Token>),
+    GreaterEq(Arc<Token>),
 }
 
 #[derive(Debug, Clone, PartialEq)]

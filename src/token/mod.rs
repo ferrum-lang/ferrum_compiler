@@ -105,6 +105,12 @@ pub enum TokenType {
 
     Amp, // &
 
+    Less,      // <
+    LessEqual, // <=
+
+    Greater,      // >
+    GreaterEqual, // >=
+
     Colon,       // :
     DoubleColon, // ::
 

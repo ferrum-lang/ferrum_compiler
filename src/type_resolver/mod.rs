@@ -1105,6 +1105,23 @@ impl ExprVisitor<Option<FeType>, Result<bool>> for FeTypeResolver {
             changed = true;
 
             match &expr.op {
+                BinaryOp::Less(_)
+                | BinaryOp::LessEq(_)
+                | BinaryOp::Greater(_)
+                | BinaryOp::GreaterEq(_) => {
+                    let resolved_lhs = resolved_lhs.actual_type();
+                    let resolved_rhs = resolved_rhs.actual_type();
+
+                    if matches!(
+                        (resolved_lhs, resolved_rhs),
+                        (FeType::Number(_), FeType::Number(_))
+                    ) {
+                        expr.resolved_type = Some(FeType::Bool(None));
+                    } else {
+                        todo!();
+                    }
+                }
+
                 BinaryOp::Add(_) => {
                     let resolved_lhs = resolved_lhs.actual_type();
                     let resolved_rhs = resolved_rhs.actual_type();

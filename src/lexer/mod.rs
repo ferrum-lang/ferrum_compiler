@@ -186,6 +186,24 @@ impl FeSourceScanner {
             '=' => Some(TokenType::Equal),
             '&' => Some(TokenType::Amp),
 
+            '<' => {
+                if self.peek_next() == Some('=') {
+                    self.advance_col();
+                    Some(TokenType::LessEqual)
+                } else {
+                    Some(TokenType::Less)
+                }
+            }
+
+            '>' => {
+                if self.peek_next() == Some('=') {
+                    self.advance_col();
+                    Some(TokenType::GreaterEqual)
+                } else {
+                    Some(TokenType::Greater)
+                }
+            }
+
             '+' => {
                 if self.peek_next() == Some('=') {
                     self.advance_col();

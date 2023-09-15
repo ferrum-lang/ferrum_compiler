@@ -532,6 +532,10 @@ impl ir::RustIRExprVisitor<Result<Arc<str>>> for RustCodeGen {
 
         match &expr.op {
             ir::RustIRBinaryOp::Add => out.push('+'),
+            ir::RustIRBinaryOp::Less => out.push('<'),
+            ir::RustIRBinaryOp::LessEq => out.push_str("<="),
+            ir::RustIRBinaryOp::Greater => out.push('>'),
+            ir::RustIRBinaryOp::GreaterEq => out.push_str(">="),
         }
 
         out.push(' ');
@@ -544,7 +548,14 @@ impl ir::RustIRExprVisitor<Result<Arc<str>>> for RustCodeGen {
         let mut out = String::new();
 
         out.push_str(&expr.lhs.accept(self)?);
-        out.push_str(" = ");
+        out.push(' ');
+
+        match &expr.op {
+            ir::RustIRAssignOp::Eq => out.push('='),
+            ir::RustIRAssignOp::PlusEq => out.push_str("+="),
+        }
+
+        out.push(' ');
         out.push_str(&expr.rhs.accept(self)?);
 
         return Ok(out.into());

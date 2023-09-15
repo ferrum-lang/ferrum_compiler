@@ -356,9 +356,15 @@ impl StmtVisitor<FeType, Result<Vec<ir::RustIRStmt>>> for RustSyntaxCompiler {
         let lhs = stmt.target.0.lock().unwrap().accept(self)?;
         let rhs = stmt.value.0.lock().unwrap().accept(self)?;
 
+        let op = match &stmt.op {
+            AssignOp::Eq(_) => ir::RustIRAssignOp::Eq,
+            AssignOp::PlusEq(_) => ir::RustIRAssignOp::PlusEq,
+        };
+
         return Ok(vec![ir::RustIRStmt::Expr(ir::RustIRExprStmt {
             expr: ir::RustIRExpr::Assign(ir::RustIRAssignExpr {
                 lhs: Box::new(lhs),
+                op,
                 rhs: Box::new(rhs),
             }),
         })]);
@@ -635,12 +641,44 @@ impl ExprVisitor<FeType, Result<ir::RustIRExpr>> for RustSyntaxCompiler {
     }
 
     fn visit_binary_expr(&mut self, expr: &mut BinaryExpr<FeType>) -> Result<ir::RustIRExpr> {
+        let lhs = Box::new(expr.lhs.0.lock().unwrap().accept(self)?);
+        let rhs = Box::new(expr.rhs.0.lock().unwrap().accept(self)?);
+
         match &expr.op {
             BinaryOp::Add(_) => {
                 return Ok(ir::RustIRExpr::Binary(ir::RustIRBinaryExpr {
-                    lhs: Box::new(expr.lhs.0.lock().unwrap().accept(self)?),
+                    lhs,
                     op: ir::RustIRBinaryOp::Add,
-                    rhs: Box::new(expr.rhs.0.lock().unwrap().accept(self)?),
+                    rhs,
+                }));
+            }
+
+            BinaryOp::Less(_) => {
+                return Ok(ir::RustIRExpr::Binary(ir::RustIRBinaryExpr {
+                    lhs,
+                    op: ir::RustIRBinaryOp::Less,
+                    rhs,
+                }));
+            }
+            BinaryOp::LessEq(_) => {
+                return Ok(ir::RustIRExpr::Binary(ir::RustIRBinaryExpr {
+                    lhs,
+                    op: ir::RustIRBinaryOp::LessEq,
+                    rhs,
+                }));
+            }
+            BinaryOp::Greater(_) => {
+                return Ok(ir::RustIRExpr::Binary(ir::RustIRBinaryExpr {
+                    lhs,
+                    op: ir::RustIRBinaryOp::Greater,
+                    rhs,
+                }));
+            }
+            BinaryOp::GreaterEq(_) => {
+                return Ok(ir::RustIRExpr::Binary(ir::RustIRBinaryExpr {
+                    lhs,
+                    op: ir::RustIRBinaryOp::GreaterEq,
+                    rhs,
                 }));
             }
         }
