@@ -37,6 +37,7 @@ lazy_static::lazy_static! {
         // keywords.insert("self".to_string(), TokenType::SelfVal);
         // keywords.insert("Self".to_string(), TokenType::SelfType);
         keywords.insert("struct".to_string(), TokenType::Struct);
+        keywords.insert("then".to_string(), TokenType::Then);
         // keywords.insert("trait".to_string(), TokenType::Trait);
         keywords.insert("true".to_string(), TokenType::True);
         // keywords.insert("type".to_string(), TokenType::Type);

@@ -76,14 +76,14 @@ impl From<source::SourcePackageName> for TokenPackageName {
     }
 }
 
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct Token {
     pub token_type: TokenType,
     pub lexeme: Arc<str>,
     pub span: Span,
 }
 
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub enum TokenType {
     // Symbols
     Comma,     // ,
@@ -104,6 +104,8 @@ pub enum TokenType {
     Equal, // =
 
     Amp, // &
+
+    Question, // ?
 
     Less,      // <
     LessEqual, // <=
@@ -132,10 +134,11 @@ pub enum TokenType {
     Not,
     Pub,
     Pure,
+    Return,
     Risk,
     Safe,
     Struct,
-    Return,
+    Then,
     Use,
     While,
 
@@ -159,7 +162,7 @@ pub enum TokenType {
     Newline,
 }
 
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct Span {
     pub start: Position,
     pub end: Position,
@@ -174,7 +177,7 @@ impl Span {
     }
 }
 
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct Position {
     pub index: usize,
     pub line: usize,

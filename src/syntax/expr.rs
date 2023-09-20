@@ -17,6 +17,9 @@ pub enum Expr<T: ResolvedType = ()> {
     StaticRef(StaticRefExpr<T>),
     Construct(ConstructExpr<T>),
     Get(GetExpr<T>),
+    If(IfExpr<T>),
+    Loop(LoopExpr<T>),
+    While(WhileExpr<T>),
 }
 
 impl<T: ResolvedType> Expr<T> {
@@ -33,6 +36,9 @@ impl<T: ResolvedType> Expr<T> {
             Self::StaticRef(v) => return Some(&v.resolved_type),
             Self::Construct(v) => return Some(&v.resolved_type),
             Self::Get(v) => return Some(&v.resolved_type),
+            Self::If(v) => return v.resolved_type.as_ref(),
+            Self::Loop(v) => return v.resolved_type.as_ref(),
+            Self::While(v) => return v.resolved_type.as_ref(),
         }
     }
 }
@@ -51,6 +57,9 @@ impl<T: ResolvedType> Node<Expr> for Expr<T> {
             Self::StaticRef(expr) => return expr.node_id(),
             Self::Construct(expr) => return expr.node_id(),
             Self::Get(expr) => return expr.node_id(),
+            Self::If(expr) => return expr.node_id(),
+            Self::Loop(expr) => return expr.node_id(),
+            Self::While(expr) => return expr.node_id(),
         }
     }
 }
@@ -69,6 +78,9 @@ impl<T: ResolvedType> From<Expr<()>> for Expr<Option<T>> {
             Expr::StaticRef(expr) => return Self::StaticRef(from(expr)),
             Expr::Construct(expr) => return Self::Construct(from(expr)),
             Expr::Get(expr) => return Self::Get(from(expr)),
+            Expr::If(expr) => return Self::If(from(expr)),
+            Expr::Loop(expr) => return Self::Loop(from(expr)),
+            Expr::While(expr) => return Self::While(from(expr)),
         }
     }
 }
@@ -87,6 +99,9 @@ impl<T: ResolvedType> Resolvable for Expr<Option<T>> {
             Expr::StaticRef(expr) => return expr.is_resolved(),
             Expr::Construct(expr) => return expr.is_resolved(),
             Expr::Get(expr) => return expr.is_resolved(),
+            Expr::If(expr) => return expr.is_resolved(),
+            Expr::Loop(expr) => return expr.is_resolved(),
+            Expr::While(expr) => return expr.is_resolved(),
         }
     }
 }
@@ -107,6 +122,9 @@ impl<T: ResolvedType> TryFrom<Expr<Option<T>>> for Expr<T> {
             Expr::StaticRef(expr) => return Ok(Self::StaticRef(try_from(expr)?)),
             Expr::Construct(expr) => return Ok(Self::Construct(try_from(expr)?)),
             Expr::Get(expr) => return Ok(Self::Get(try_from(expr)?)),
+            Expr::If(expr) => return Ok(Self::If(try_from(expr)?)),
+            Expr::Loop(expr) => return Ok(Self::Loop(try_from(expr)?)),
+            Expr::While(expr) => return Ok(Self::While(try_from(expr)?)),
         }
     }
 }
@@ -971,6 +989,716 @@ impl<T: ResolvedType> TryFrom<GetExpr<Option<T>>> for GetExpr<T> {
     }
 }
 
+#[derive(Debug, Clone, PartialEq)]
+pub struct IfExpr<T: ResolvedType = ()> {
+    pub id: NodeId<Expr>,
+    pub if_token: Arc<Token>,
+    pub condition: NestedExpr<T>,
+    pub then: IfThen<T>,
+    pub resolved_terminal: Option<Option<TerminationType<T>>>,
+    pub resolved_type: Option<T>,
+}
+
+impl<T: ResolvedType> Node<Expr> for IfExpr<T> {
+    fn node_id(&self) -> &NodeId<Expr> {
+        return &self.id;
+    }
+}
+
+impl<T: ResolvedType> IsTerminal<T> for IfExpr<T> {
+    fn is_terminal(&mut self) -> Option<TerminationType<T>> {
+        if let Some(resolved) = &self.resolved_terminal {
+            return resolved.clone();
+        }
+
+        match &mut self.then {
+            IfThen::Ternary(then) => todo!(),
+
+            IfThen::Classic(then) => {
+                let mut contains = Vec::new();
+
+                let mut then_term = None;
+                for stmt in &then.then_block.stmts {
+                    if let Some(term) = stmt.lock().unwrap().is_terminal() {
+                        match term.clone() {
+                            TerminationType::Contains(terms) => contains.extend(terms),
+                            TerminationType::Base(other) => {
+                                then_term = Some(other);
+                                break;
+                            }
+                        }
+                    }
+                }
+
+                for elseif in &then.else_ifs {
+                    let mut elseif_term = None;
+
+                    for stmt in &elseif.then_block.stmts {
+                        if let Some(term) = stmt.lock().unwrap().is_terminal() {
+                            match term.clone() {
+                                TerminationType::Contains(terms) => contains.extend(terms),
+                                TerminationType::Base(other) => {
+                                    elseif_term = Some(other);
+                                    break;
+                                }
+                            }
+                        }
+                    }
+
+                    match (&then_term, &elseif_term) {
+                        (None, None) => {}
+
+                        (None, Some(term)) => {
+                            contains.push(term.clone());
+                        }
+
+                        (Some(term), None) => {
+                            contains.push(term.clone());
+                            then_term = None;
+                        }
+
+                        (Some(BaseTerminationType::Then(res)), Some(_any))
+                        | (Some(_any), Some(BaseTerminationType::Then(res))) => {
+                            then_term = Some(BaseTerminationType::Then(res.clone()));
+                        }
+
+                        (Some(BaseTerminationType::Break(res)), Some(_any))
+                        | (Some(_any), Some(BaseTerminationType::Break(res))) => {
+                            then_term = Some(BaseTerminationType::Break(res.clone()));
+                        }
+
+                        (Some(BaseTerminationType::Return), Some(_any))
+                        | (Some(_any), Some(BaseTerminationType::Return)) => {
+                            then_term = Some(BaseTerminationType::Return);
+                        }
+
+                        (
+                            Some(BaseTerminationType::InfiniteLoop),
+                            Some(BaseTerminationType::InfiniteLoop),
+                        ) => {}
+                    }
+                }
+
+                if let Some(else_) = &then.else_ {
+                    let mut else_term = None;
+
+                    for stmt in &else_.then_block.stmts {
+                        if let Some(term) = stmt.lock().unwrap().is_terminal() {
+                            match term.clone() {
+                                TerminationType::Contains(terms) => contains.extend(terms),
+                                TerminationType::Base(other) => {
+                                    else_term = Some(other);
+                                    break;
+                                }
+                            }
+                        }
+                    }
+
+                    match (&then_term, &else_term) {
+                        (None, None) => {}
+
+                        (None, Some(term)) => {
+                            contains.push(term.clone());
+                        }
+
+                        (Some(term), None) => {
+                            contains.push(term.clone());
+                            then_term = None;
+                        }
+
+                        (Some(BaseTerminationType::Then(res)), Some(_any))
+                        | (Some(_any), Some(BaseTerminationType::Then(res))) => {
+                            then_term = Some(BaseTerminationType::Then(res.clone()));
+                        }
+
+                        (Some(BaseTerminationType::Break(res)), Some(_any))
+                        | (Some(_any), Some(BaseTerminationType::Break(res))) => {
+                            then_term = Some(BaseTerminationType::Break(res.clone()));
+                        }
+
+                        (Some(BaseTerminationType::Return), Some(_any))
+                        | (Some(_any), Some(BaseTerminationType::Return)) => {
+                            then_term = Some(BaseTerminationType::Return);
+                        }
+
+                        (
+                            Some(BaseTerminationType::InfiniteLoop),
+                            Some(BaseTerminationType::InfiniteLoop),
+                        ) => {}
+                    }
+                }
+
+                if contains.is_empty() {
+                    if then.else_ifs.is_empty() && then.else_.is_none() {
+                        if let Some(term) = &then_term {
+                            contains.push(term.clone());
+                            then_term = None;
+                            self.resolved_terminal =
+                                Some(Some(TerminationType::Contains(contains)));
+                        }
+                    } else {
+                        self.resolved_terminal = Some(then_term.map(TerminationType::Base));
+                    }
+                } else {
+                    self.resolved_terminal = Some(Some(TerminationType::Contains(contains)));
+                }
+            }
+        }
+
+        return self.resolved_terminal.as_ref().unwrap().clone();
+    }
+}
+
+impl<T: ResolvedType> From<IfExpr<()>> for IfExpr<Option<T>> {
+    fn from(value: IfExpr<()>) -> Self {
+        return Self {
+            id: value.id,
+            if_token: value.if_token,
+            condition: from(value.condition),
+            then: from(value.then),
+            resolved_terminal: value.resolved_terminal.map(|v| v.map(from)),
+            resolved_type: None,
+        };
+    }
+}
+
+impl<T: ResolvedType> Resolvable for IfExpr<Option<T>> {
+    fn is_resolved(&self) -> bool {
+        if !self.condition.is_resolved() {
+            dbg!("false");
+            return false;
+        }
+
+        if !self.then.is_resolved() {
+            dbg!("false");
+            return false;
+        }
+
+        return self.resolved_type.is_some();
+    }
+}
+
+impl<T: ResolvedType> TryFrom<IfExpr<Option<T>>> for IfExpr<T> {
+    type Error = FinalizeResolveTypeError;
+
+    fn try_from(value: IfExpr<Option<T>>) -> Result<Self, Self::Error> {
+        let resolved_terminal = if let Some(term) = value.resolved_terminal {
+            Some(if let Some(term) = term {
+                Some(try_from(term)?)
+            } else {
+                None
+            })
+        } else {
+            None
+        };
+
+        return Ok(Self {
+            id: value.id,
+            if_token: value.if_token,
+            condition: try_from(value.condition)?,
+            then: try_from(value.then)?,
+            resolved_terminal,
+            resolved_type: value.resolved_type.ok_or(FinalizeResolveTypeError {
+                file: file!(),
+                line: line!(),
+            })?,
+        });
+    }
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub enum IfThen<T: ResolvedType = ()> {
+    Ternary(IfThenTernary<T>),
+    Classic(IfThenClassic<T>),
+}
+
+impl<T: ResolvedType> From<IfThen<()>> for IfThen<Option<T>> {
+    fn from(value: IfThen<()>) -> Self {
+        match value {
+            IfThen::Ternary(value) => Self::Ternary(from(value)),
+            IfThen::Classic(value) => Self::Classic(from(value)),
+        }
+    }
+}
+
+impl<T: ResolvedType> Resolvable for IfThen<Option<T>> {
+    fn is_resolved(&self) -> bool {
+        match self {
+            IfThen::Ternary(value) => return value.is_resolved(),
+            IfThen::Classic(value) => return value.is_resolved(),
+        }
+    }
+}
+
+impl<T: ResolvedType> TryFrom<IfThen<Option<T>>> for IfThen<T> {
+    type Error = FinalizeResolveTypeError;
+
+    fn try_from(value: IfThen<Option<T>>) -> Result<Self, Self::Error> {
+        match value {
+            IfThen::Ternary(value) => return Ok(Self::Ternary(try_from(value)?)),
+            IfThen::Classic(value) => return Ok(Self::Classic(try_from(value)?)),
+        }
+    }
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub struct IfThenTernary<T: ResolvedType = ()> {
+    pub question_token: Arc<Token>,
+    pub then_expr: NestedExpr<T>,
+    pub else_: Option<TernaryElse<T>>,
+}
+
+impl<T: ResolvedType> From<IfThenTernary<()>> for IfThenTernary<Option<T>> {
+    fn from(value: IfThenTernary<()>) -> Self {
+        todo!()
+    }
+}
+
+impl<T: ResolvedType> Resolvable for IfThenTernary<Option<T>> {
+    fn is_resolved(&self) -> bool {
+        todo!()
+    }
+}
+
+impl<T: ResolvedType> TryFrom<IfThenTernary<Option<T>>> for IfThenTernary<T> {
+    type Error = FinalizeResolveTypeError;
+
+    fn try_from(value: IfThenTernary<Option<T>>) -> Result<Self, Self::Error> {
+        todo!()
+    }
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub struct TernaryElse<T: ResolvedType = ()> {
+    pub else_token: Arc<Token>,
+    pub else_expr: NestedExpr<T>,
+}
+
+impl<T: ResolvedType> From<TernaryElse<()>> for TernaryElse<Option<T>> {
+    fn from(value: TernaryElse<()>) -> Self {
+        todo!()
+    }
+}
+
+impl<T: ResolvedType> Resolvable for TernaryElse<Option<T>> {
+    fn is_resolved(&self) -> bool {
+        todo!()
+    }
+}
+
+impl<T: ResolvedType> TryFrom<TernaryElse<Option<T>>> for TernaryElse<T> {
+    type Error = FinalizeResolveTypeError;
+
+    fn try_from(value: TernaryElse<Option<T>>) -> Result<Self, Self::Error> {
+        todo!()
+    }
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub struct IfThenClassic<T: ResolvedType = ()> {
+    pub then_block: CodeBlock<T, ()>,
+    pub else_ifs: Vec<ElseIfBranch<T>>,
+    pub else_: Option<ElseBranch<T>>,
+    pub semicolon_token: Arc<Token>,
+}
+
+impl<T: ResolvedType> From<IfThenClassic<()>> for IfThenClassic<Option<T>> {
+    fn from(value: IfThenClassic<()>) -> Self {
+        return Self {
+            then_block: from(value.then_block),
+            else_ifs: value.else_ifs.into_iter().map(from).collect(),
+            else_: value.else_.map(from),
+            semicolon_token: value.semicolon_token,
+        };
+    }
+}
+
+impl<T: ResolvedType> Resolvable for IfThenClassic<Option<T>> {
+    fn is_resolved(&self) -> bool {
+        if !self.then_block.is_resolved() {
+            dbg!("false");
+            return false;
+        }
+
+        for else_if in &self.else_ifs {
+            if !else_if.is_resolved() {
+                dbg!("false");
+                return false;
+            }
+        }
+
+        if let Some(else_) = &self.else_ {
+            if !else_.is_resolved() {
+                dbg!("false");
+                return false;
+            }
+        }
+
+        return true;
+    }
+}
+
+impl<T: ResolvedType> TryFrom<IfThenClassic<Option<T>>> for IfThenClassic<T> {
+    type Error = FinalizeResolveTypeError;
+
+    fn try_from(value: IfThenClassic<Option<T>>) -> Result<Self, Self::Error> {
+        return Ok(Self {
+            then_block: try_from(value.then_block)?,
+            else_ifs: value
+                .else_ifs
+                .into_iter()
+                .map(try_from)
+                .collect::<Result<Vec<_>, Self::Error>>()?,
+            else_: invert(value.else_.map(try_from))?,
+            semicolon_token: value.semicolon_token,
+        });
+    }
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub struct ElseIfBranch<T: ResolvedType = ()> {
+    pub else_token: Arc<Token>,
+    pub if_token: Arc<Token>,
+    pub condition: NestedExpr<T>,
+    pub then_block: CodeBlock<T, ()>,
+}
+
+impl<T: ResolvedType> From<ElseIfBranch<()>> for ElseIfBranch<Option<T>> {
+    fn from(value: ElseIfBranch<()>) -> Self {
+        return Self {
+            else_token: value.else_token,
+            if_token: value.if_token,
+            condition: from(value.condition),
+            then_block: from(value.then_block),
+        };
+    }
+}
+
+impl<T: ResolvedType> Resolvable for ElseIfBranch<Option<T>> {
+    fn is_resolved(&self) -> bool {
+        if !self.condition.is_resolved() {
+            return false;
+        }
+
+        if !self.then_block.is_resolved() {
+            return false;
+        }
+
+        return true;
+    }
+}
+
+impl<T: ResolvedType> TryFrom<ElseIfBranch<Option<T>>> for ElseIfBranch<T> {
+    type Error = FinalizeResolveTypeError;
+
+    fn try_from(value: ElseIfBranch<Option<T>>) -> Result<Self, Self::Error> {
+        return Ok(Self {
+            else_token: value.else_token,
+            if_token: value.if_token,
+            condition: try_from(value.condition)?,
+            then_block: try_from(value.then_block)?,
+        });
+    }
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub struct ElseBranch<T: ResolvedType = ()> {
+    pub else_token: Arc<Token>,
+    pub then_block: CodeBlock<T, ()>,
+}
+
+impl<T: ResolvedType> From<ElseBranch<()>> for ElseBranch<Option<T>> {
+    fn from(value: ElseBranch<()>) -> Self {
+        return Self {
+            else_token: value.else_token,
+            then_block: from(value.then_block),
+        };
+    }
+}
+
+impl<T: ResolvedType> Resolvable for ElseBranch<Option<T>> {
+    fn is_resolved(&self) -> bool {
+        if !self.then_block.is_resolved() {
+            return false;
+        }
+
+        return true;
+    }
+}
+
+impl<T: ResolvedType> TryFrom<ElseBranch<Option<T>>> for ElseBranch<T> {
+    type Error = FinalizeResolveTypeError;
+
+    fn try_from(value: ElseBranch<Option<T>>) -> Result<Self, Self::Error> {
+        return Ok(Self {
+            else_token: value.else_token,
+            then_block: try_from(value.then_block)?,
+        });
+    }
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub struct LoopExpr<T: ResolvedType = ()> {
+    pub id: NodeId<Expr>,
+    pub loop_token: Arc<Token>,
+    pub block: CodeBlock<T>,
+    pub resolved_terminal: Option<Option<TerminationType<T>>>,
+    pub resolved_type: Option<T>,
+}
+
+impl<T: ResolvedType> Node<Expr> for LoopExpr<T> {
+    fn node_id(&self) -> &NodeId<Expr> {
+        return &self.id;
+    }
+}
+
+impl<T: ResolvedType> IsTerminal<T> for LoopExpr<T> {
+    fn is_terminal(&mut self) -> Option<TerminationType<T>> {
+        if let Some(term) = &self.resolved_terminal {
+            return term.clone();
+        }
+
+        let mut contains = Vec::new();
+        let mut term = None;
+        for stmt in &self.block.stmts {
+            match stmt.lock().unwrap().is_terminal() {
+                None => {}
+
+                Some(TerminationType::Base(other)) => {
+                    term = Some(other);
+                    break;
+                }
+
+                Some(TerminationType::Contains(terms)) => {
+                    contains.extend(terms);
+                }
+            }
+        }
+
+        if !contains.is_empty() {
+            if contains.len() == 1 && contains.contains(&BaseTerminationType::Return) {
+                self.resolved_terminal =
+                    Some(Some(TerminationType::Base(BaseTerminationType::Return)));
+            } else {
+                self.resolved_terminal = Some(Some(TerminationType::Contains(contains)));
+            }
+        } else {
+            match term {
+                Some(BaseTerminationType::Break(res)) => {
+                    contains.push(BaseTerminationType::Break(res));
+                    self.resolved_terminal = Some(Some(TerminationType::Contains(contains)));
+                }
+
+                Some(term) => {
+                    self.resolved_terminal = Some(Some(TerminationType::Base(term)));
+                }
+
+                None => {
+                    self.resolved_terminal = Some(Some(TerminationType::Base(
+                        BaseTerminationType::InfiniteLoop,
+                    )));
+                }
+            }
+        }
+
+        return self.resolved_terminal.as_ref().unwrap().clone();
+    }
+}
+
+impl<T: ResolvedType> From<LoopExpr<()>> for LoopExpr<Option<T>> {
+    fn from(value: LoopExpr<()>) -> Self {
+        let resolved_terminal = if let Some(term) = value.resolved_terminal {
+            Some(if let Some(term) = term {
+                Some(from(term))
+            } else {
+                None
+            })
+        } else {
+            None
+        };
+
+        return Self {
+            id: value.id,
+            loop_token: value.loop_token,
+            block: from(value.block),
+            resolved_terminal,
+            resolved_type: None,
+        };
+    }
+}
+
+impl<T: ResolvedType> Resolvable for LoopExpr<Option<T>> {
+    fn is_resolved(&self) -> bool {
+        if !self.block.is_resolved() {
+            dbg!("false");
+            return false;
+        }
+
+        return true;
+    }
+}
+
+impl<T: ResolvedType> TryFrom<LoopExpr<Option<T>>> for LoopExpr<T> {
+    type Error = FinalizeResolveTypeError;
+
+    fn try_from(value: LoopExpr<Option<T>>) -> Result<Self, Self::Error> {
+        let resolved_terminal = if let Some(term) = value.resolved_terminal {
+            Some(if let Some(term) = term {
+                Some(try_from(term)?)
+            } else {
+                None
+            })
+        } else {
+            None
+        };
+
+        return Ok(Self {
+            id: value.id,
+            loop_token: value.loop_token,
+            block: try_from(value.block)?,
+            resolved_terminal,
+            resolved_type: value.resolved_type.ok_or(FinalizeResolveTypeError {
+                file: file!(),
+                line: line!(),
+            })?,
+        });
+    }
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub struct WhileExpr<T: ResolvedType = ()> {
+    pub id: NodeId<Expr>,
+    pub while_token: Arc<Token>,
+    pub condition: NestedExpr<T>,
+    pub block: CodeBlock<T>,
+    pub resolved_terminal: Option<Option<TerminationType<T>>>,
+    pub resolved_type: Option<T>,
+}
+
+impl<T: ResolvedType> Node<Expr> for WhileExpr<T> {
+    fn node_id(&self) -> &NodeId<Expr> {
+        return &self.id;
+    }
+}
+
+impl<T: ResolvedType> IsTerminal<T> for WhileExpr<T> {
+    fn is_terminal(&mut self) -> Option<TerminationType<T>> {
+        if let Some(term) = &self.resolved_terminal {
+            return term.clone();
+        }
+
+        let mut contains = Vec::new();
+        let mut term = None;
+        for stmt in &self.block.stmts {
+            match stmt.lock().unwrap().is_terminal() {
+                None => {}
+
+                Some(TerminationType::Base(other)) => {
+                    term = Some(other);
+                    break;
+                }
+
+                Some(TerminationType::Contains(terms)) => {
+                    contains.extend(terms);
+                }
+            }
+        }
+
+        if !contains.is_empty() {
+            if contains.len() == 1 && contains.contains(&BaseTerminationType::Return) {
+                self.resolved_terminal =
+                    Some(Some(TerminationType::Base(BaseTerminationType::Return)));
+            } else {
+                self.resolved_terminal = Some(Some(TerminationType::Contains(contains)));
+            }
+        } else {
+            match term {
+                Some(BaseTerminationType::Break(res)) => {
+                    contains.push(BaseTerminationType::Break(res));
+                    self.resolved_terminal = Some(Some(TerminationType::Contains(contains)));
+                }
+
+                Some(term) => {
+                    self.resolved_terminal = Some(Some(TerminationType::Base(term)));
+                }
+
+                None => {
+                    self.resolved_terminal = Some(None);
+                }
+            }
+        }
+
+        return self.resolved_terminal.as_ref().unwrap().clone();
+    }
+}
+
+impl<T: ResolvedType> From<WhileExpr<()>> for WhileExpr<Option<T>> {
+    fn from(value: WhileExpr<()>) -> Self {
+        let resolved_terminal = if let Some(term) = value.resolved_terminal {
+            Some(if let Some(term) = term {
+                Some(from(term))
+            } else {
+                None
+            })
+        } else {
+            None
+        };
+
+        return Self {
+            id: value.id,
+            while_token: value.while_token,
+            condition: from(value.condition),
+            block: from(value.block),
+            resolved_terminal,
+            resolved_type: None,
+        };
+    }
+}
+
+impl<T: ResolvedType> Resolvable for WhileExpr<Option<T>> {
+    fn is_resolved(&self) -> bool {
+        if !self.condition.is_resolved() {
+            dbg!("false");
+            return false;
+        }
+
+        if !self.block.is_resolved() {
+            dbg!("false");
+            return false;
+        }
+
+        return self.resolved_type.is_some();
+    }
+}
+
+impl<T: ResolvedType> TryFrom<WhileExpr<Option<T>>> for WhileExpr<T> {
+    type Error = FinalizeResolveTypeError;
+
+    fn try_from(value: WhileExpr<Option<T>>) -> Result<Self, Self::Error> {
+        let resolved_terminal = if let Some(term) = value.resolved_terminal {
+            Some(if let Some(term) = term {
+                Some(try_from(term)?)
+            } else {
+                None
+            })
+        } else {
+            None
+        };
+
+        return Ok(Self {
+            id: value.id,
+            while_token: value.while_token,
+            condition: try_from(value.condition)?,
+            block: try_from(value.block)?,
+            resolved_terminal,
+            resolved_type: value.resolved_type.ok_or(FinalizeResolveTypeError {
+                file: file!(),
+                line: line!(),
+            })?,
+        });
+    }
+}
+
 // Visitor pattern
 pub trait ExprVisitor<T: ResolvedType, R = ()> {
     fn visit_bool_literal_expr(&mut self, expr: &mut BoolLiteralExpr<T>) -> R;
@@ -984,6 +1712,9 @@ pub trait ExprVisitor<T: ResolvedType, R = ()> {
     fn visit_static_ref_expr(&mut self, expr: &mut StaticRefExpr<T>) -> R;
     fn visit_construct_expr(&mut self, expr: &mut ConstructExpr<T>) -> R;
     fn visit_get_expr(&mut self, expr: &mut GetExpr<T>) -> R;
+    fn visit_if_expr(&mut self, expr: &mut IfExpr<T>) -> R;
+    fn visit_loop_expr(&mut self, expr: &mut LoopExpr<T>) -> R;
+    fn visit_while_expr(&mut self, expr: &mut WhileExpr<T>) -> R;
 }
 
 pub trait ExprAccept<T: ResolvedType, R, V: ExprVisitor<T, R>> {
@@ -1004,6 +1735,9 @@ impl<T: ResolvedType, R, V: ExprVisitor<T, R>> ExprAccept<T, R, V> for Expr<T> {
             Self::StaticRef(expr) => expr.accept(visitor),
             Self::Construct(expr) => expr.accept(visitor),
             Self::Get(expr) => expr.accept(visitor),
+            Self::If(expr) => expr.accept(visitor),
+            Self::Loop(expr) => expr.accept(visitor),
+            Self::While(expr) => expr.accept(visitor),
         };
     }
 }
@@ -1071,5 +1805,23 @@ impl<T: ResolvedType, R, V: ExprVisitor<T, R>> ExprAccept<T, R, V> for Construct
 impl<T: ResolvedType, R, V: ExprVisitor<T, R>> ExprAccept<T, R, V> for GetExpr<T> {
     fn accept(&mut self, visitor: &mut V) -> R {
         return visitor.visit_get_expr(self);
+    }
+}
+
+impl<T: ResolvedType, R, V: ExprVisitor<T, R>> ExprAccept<T, R, V> for IfExpr<T> {
+    fn accept(&mut self, visitor: &mut V) -> R {
+        return visitor.visit_if_expr(self);
+    }
+}
+
+impl<T: ResolvedType, R, V: ExprVisitor<T, R>> ExprAccept<T, R, V> for LoopExpr<T> {
+    fn accept(&mut self, visitor: &mut V) -> R {
+        return visitor.visit_loop_expr(self);
+    }
+}
+
+impl<T: ResolvedType, R, V: ExprVisitor<T, R>> ExprAccept<T, R, V> for WhileExpr<T> {
+    fn accept(&mut self, visitor: &mut V) -> R {
+        return visitor.visit_while_expr(self);
     }
 }

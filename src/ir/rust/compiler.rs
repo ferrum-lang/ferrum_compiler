@@ -381,58 +381,17 @@ impl StmtVisitor<FeType, Result<Vec<ir::RustIRStmt>>> for RustSyntaxCompiler {
     }
 
     fn visit_if_stmt(&mut self, stmt: &mut IfStmt<FeType>) -> Result<Vec<ir::RustIRStmt>> {
-        let if_condition = Box::new(stmt.condition.0.lock().unwrap().accept(self)?);
-
-        let mut if_then_block = vec![];
-        for stmt in &mut stmt.then_block.stmts {
-            let stmts = stmt.lock().unwrap().accept(self)?;
-            if_then_block.extend(stmts.into_iter());
-        }
-
-        let mut else_ifs = vec![];
-        for else_if in &mut stmt.else_ifs {
-            let condition = Box::new(else_if.condition.0.lock().unwrap().accept(self)?);
-
-            let mut then_block = vec![];
-            for stmt in &mut else_if.then_block.stmts {
-                let stmts = stmt.lock().unwrap().accept(self)?;
-                then_block.extend(stmts.into_iter());
-            }
-
-            else_ifs.push(RustIRElseIf {
-                condition,
-                then: then_block,
-            });
-        }
-
-        let else_ = if let Some(else_) = &mut stmt.else_ {
-            let mut then_block = vec![];
-            for stmt in &mut else_.then_block.stmts {
-                let stmts = stmt.lock().unwrap().accept(self)?;
-                then_block.extend(stmts.into_iter());
-            }
-
-            Some(ir::RustIRElse { then: then_block })
-        } else {
-            None
-        };
+        let expr = stmt.inner.accept(self)?;
 
         return Ok(vec![ir::RustIRStmt::ImplicitReturn(
-            ir::RustIRImplicitReturnStmt {
-                expr: ir::RustIRExpr::If(ir::RustIRIfExpr {
-                    condition: if_condition,
-                    then: if_then_block,
-                    else_ifs,
-                    else_,
-                }),
-            },
+            ir::RustIRImplicitReturnStmt { expr },
         )]);
     }
 
     fn visit_loop_stmt(&mut self, stmt: &mut LoopStmt<FeType>) -> Result<Vec<ir::RustIRStmt>> {
         let mut stmts = vec![];
 
-        for stmt in &mut stmt.block.stmts {
+        for stmt in &mut stmt.inner.block.stmts {
             let ir_stmts = stmt.lock().unwrap().accept(self)?;
             stmts.extend(ir_stmts);
         }
@@ -441,11 +400,11 @@ impl StmtVisitor<FeType, Result<Vec<ir::RustIRStmt>>> for RustSyntaxCompiler {
     }
 
     fn visit_while_stmt(&mut self, stmt: &mut WhileStmt<FeType>) -> Result<Vec<ir::RustIRStmt>> {
-        let condition = stmt.condition.0.lock().unwrap().accept(self)?;
+        let condition = stmt.inner.condition.0.lock().unwrap().accept(self)?;
 
         let mut stmts = vec![];
 
-        for stmt in &mut stmt.block.stmts {
+        for stmt in &mut stmt.inner.block.stmts {
             let ir_stmts = stmt.lock().unwrap().accept(self)?;
             stmts.extend(ir_stmts);
         }
@@ -456,8 +415,22 @@ impl StmtVisitor<FeType, Result<Vec<ir::RustIRStmt>>> for RustSyntaxCompiler {
         })]);
     }
 
-    fn visit_break_stmt(&mut self, _stmt: &mut BreakStmt<FeType>) -> Result<Vec<ir::RustIRStmt>> {
-        return Ok(vec![ir::RustIRStmt::Break(ir::RustIRBreakStmt {})]);
+    fn visit_break_stmt(&mut self, stmt: &mut BreakStmt<FeType>) -> Result<Vec<ir::RustIRStmt>> {
+        let expr = if let Some(value) = &mut stmt.value {
+            Some(value.0.lock().unwrap().accept(self)?)
+        } else {
+            None
+        };
+
+        return Ok(vec![ir::RustIRStmt::Break(ir::RustIRBreakStmt { expr })]);
+    }
+
+    fn visit_then_stmt(&mut self, stmt: &mut ThenStmt<FeType>) -> Result<Vec<ir::RustIRStmt>> {
+        let expr = stmt.value.0.lock().unwrap().accept(self)?;
+
+        return Ok(vec![ir::RustIRStmt::ImplicitReturn(
+            ir::RustIRImplicitReturnStmt { expr },
+        )]);
     }
 }
 
@@ -731,5 +704,63 @@ impl ExprVisitor<FeType, Result<ir::RustIRExpr>> for RustSyntaxCompiler {
             target,
             name: expr.name.lexeme.clone(),
         }));
+    }
+
+    fn visit_if_expr(&mut self, expr: &mut IfExpr<FeType>) -> Result<ir::RustIRExpr> {
+        let if_condition = Box::new(expr.condition.0.lock().unwrap().accept(self)?);
+
+        match &mut expr.then {
+            IfThen::Ternary(then) => todo!(),
+            IfThen::Classic(then) => {
+                let mut if_then_block = vec![];
+                for stmt in &mut then.then_block.stmts {
+                    let stmts = stmt.lock().unwrap().accept(self)?;
+                    if_then_block.extend(stmts.into_iter());
+                }
+
+                let mut else_ifs = vec![];
+                for else_if in &mut then.else_ifs {
+                    let condition = Box::new(else_if.condition.0.lock().unwrap().accept(self)?);
+
+                    let mut then_block = vec![];
+                    for stmt in &mut else_if.then_block.stmts {
+                        let stmts = stmt.lock().unwrap().accept(self)?;
+                        then_block.extend(stmts.into_iter());
+                    }
+
+                    else_ifs.push(RustIRElseIf {
+                        condition,
+                        then: then_block,
+                    });
+                }
+
+                let else_ = if let Some(else_) = &mut then.else_ {
+                    let mut then_block = vec![];
+                    for stmt in &mut else_.then_block.stmts {
+                        let stmts = stmt.lock().unwrap().accept(self)?;
+                        then_block.extend(stmts.into_iter());
+                    }
+
+                    Some(ir::RustIRElse { then: then_block })
+                } else {
+                    None
+                };
+
+                return Ok(ir::RustIRExpr::If(ir::RustIRIfExpr {
+                    condition: if_condition,
+                    then: if_then_block,
+                    else_ifs,
+                    else_,
+                }));
+            }
+        }
+    }
+
+    fn visit_loop_expr(&mut self, expr: &mut LoopExpr<FeType>) -> Result<ir::RustIRExpr> {
+        todo!()
+    }
+
+    fn visit_while_expr(&mut self, expr: &mut WhileExpr<FeType>) -> Result<ir::RustIRExpr> {
+        todo!()
     }
 }

@@ -1,22 +1,58 @@
 use ::fe::print
 
 pub fn main()
-    print(repeat("#", 10))
+    // print(repeat("#", 10))
 
-    print("# Hello! #")
+    // print("# Hello! #")
 
-    print(repeat("#", 10))
-;
+    // print(repeat("#", 10))
 
-fn repeat(item: String, n: Int): String
-    mut out = ""
-    mut i = 0
+    // const age = 26
+    // const drink = "water"
 
-    while i < n
-        out = "{out}{item}"
-        i += 1
+    // const drink = if true
+    //     then "beer"
+    //     else "juice"
+
+    const drink = if true
+        print("true")
+        then "beer"
+    else
+        print("false")
+        then "juice"
     ;
 
-    return out
+    // const drink = if true
+    //     then "beer"
+    // else
+    //     print("false")
+    //     then "juice"
+    // ;
+
+    // const drink = if true then "beer" else
+    //     print("false")
+    //     then "juice"
+    // ;
+
+    // const drink = if true
+    //     print("true")
+    //     then "beer"
+    // else 
+    //     then "juice"
+    // ;
+
+    print(drink)
 ;
+
+// fn repeat(item: String, n: Int): String
+//     mut out = ""
+//     mut i = 0
+
+//     while i < n
+//         out = "{out}{item}"
+//         i += 1
+//     ;
+
+//     return out
+// ;
 

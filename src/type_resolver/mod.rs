@@ -20,6 +20,7 @@ pub struct FeTypeResolver {
 
     current_return_type: Option<Option<FeType>>,
     breakable_count: usize,
+    thenable_count: usize,
 }
 
 impl FeTypeResolver {
@@ -41,18 +42,19 @@ impl FeTypeResolver {
 
             current_return_type: None,
             breakable_count: 0,
+            thenable_count: 0,
         };
 
         while !pkg.lock().unwrap().is_resolved() {
-            // println!("1");
+            println!("1");
             let changed = match &mut *pkg.lock().unwrap() {
                 FeSyntaxPackage::File(file) => this.resolve_file(file)?,
                 FeSyntaxPackage::Dir(dir) => this.resolve_dir(dir)?,
             };
-            // println!("2");
+            println!("2");
 
             if !changed {
-                todo!("Can't resolve! {pkg:#?}");
+                todo!("Can't resolve!");
             }
         }
 
@@ -80,6 +82,7 @@ impl FeTypeResolver {
 
             current_return_type: None,
             breakable_count: 0,
+            thenable_count: 0,
         };
 
         match &mut *pkg.lock().unwrap() {
@@ -240,9 +243,9 @@ impl FeTypeResolver {
     fn resolve_stmts(
         &mut self,
         stmts: &[Arc<Mutex<Stmt<Option<FeType>>>>],
-    ) -> Result<(bool, Option<TerminationType>)> {
+    ) -> Result<(bool, Option<TerminationType<Option<FeType>>>)> {
         let mut changed = false;
-        let mut contains = HashSet::new();
+        let mut contains = Vec::new();
 
         let mut termination = None;
         for stmt in stmts {
@@ -778,72 +781,15 @@ impl StmtVisitor<Option<FeType>, Result<bool>> for FeTypeResolver {
             return Ok(false);
         }
 
-        let mut changed = false;
-
-        {
-            let mut condition = stmt.condition.0.lock().unwrap();
-            if !condition.is_resolved() {
-                changed = changed | condition.accept(self)?;
-
-                let Some(resolved_type) = condition.resolved_type() else {
-                    todo!("Can't check if condition on no type!");
-                };
-
-                if let Some(resolved_type) = resolved_type {
-                    if !Self::can_implicit_cast(resolved_type, &FeType::Bool(None)) {
-                        todo!("Can't cast to bool!");
-                    }
-                }
-            }
-        }
-
-        changed |= self.resolve_stmts(&stmt.then_block.stmts)?.0;
-
-        for else_if in &mut stmt.else_ifs {
-            let mut condition = else_if.condition.0.lock().unwrap();
-            if !condition.is_resolved() {
-                changed = changed | condition.accept(self)?;
-
-                let Some(resolved_type) = condition.resolved_type() else {
-                    todo!("Can't check else-if condition on no type!");
-                };
-
-                if let Some(resolved_type) = resolved_type {
-                    if !Self::can_implicit_cast(resolved_type, &FeType::Bool(None)) {
-                        todo!("Can't cast to bool!");
-                    }
-                }
-            }
-
-            changed |= self.resolve_stmts(&else_if.then_block.stmts)?.0;
-        }
-
-        if let Some(else_) = &mut stmt.else_ {
-            changed |= self.resolve_stmts(&else_.then_block.stmts)?.0;
-        }
-
-        return Ok(changed);
+        return stmt.inner.accept(self);
     }
 
     fn visit_loop_stmt(&mut self, stmt: &mut LoopStmt<Option<FeType>>) -> Result<bool> {
-        // TODO: Think about how looping affects types
-
         if stmt.is_resolved() {
             return Ok(false);
         }
 
-        let mut changed = false;
-
-        self.breakable_count += 1;
-        let (changes, term) = self.resolve_stmts(&stmt.block.stmts)?;
-        changed |= changes;
-        self.breakable_count -= 1;
-
-        // if let Some(TerminationType::Base(BaseTerminationType::InfiniteLoop)) = term {
-        //     todo!("Infinite loop!");
-        // }
-
-        return Ok(changed);
+        return stmt.inner.accept(self);
     }
 
     fn visit_while_stmt(&mut self, stmt: &mut WhileStmt<Option<FeType>>) -> Result<bool> {
@@ -851,15 +797,7 @@ impl StmtVisitor<Option<FeType>, Result<bool>> for FeTypeResolver {
             return Ok(false);
         }
 
-        let mut changed = false;
-
-        changed |= stmt.condition.0.lock().unwrap().accept(self)?;
-
-        self.breakable_count += 1;
-        changed |= self.resolve_stmts(&stmt.block.stmts)?.0;
-        self.breakable_count -= 1;
-
-        return Ok(changed);
+        return stmt.inner.accept(self);
     }
 
     fn visit_break_stmt(&mut self, stmt: &mut BreakStmt<Option<FeType>>) -> Result<bool> {
@@ -867,7 +805,43 @@ impl StmtVisitor<Option<FeType>, Result<bool>> for FeTypeResolver {
             todo!("Can't break here! {stmt:#?}");
         }
 
-        return Ok(false);
+        if stmt.is_resolved() {
+            return Ok(false);
+        }
+
+        let mut changed = false;
+
+        if let Some(value) = &stmt.value {
+            changed |= value.0.lock().unwrap().accept(self)?;
+
+            if let Some(resolved_type) = value.0.lock().unwrap().resolved_type() {
+                stmt.resolved_type = Some(resolved_type.clone());
+            }
+        }
+
+        return Ok(changed);
+    }
+
+    fn visit_then_stmt(&mut self, stmt: &mut ThenStmt<Option<FeType>>) -> Result<bool> {
+        if self.thenable_count == 0 {
+            todo!("Can't then here! {stmt:#?}");
+        }
+
+        if stmt.is_resolved() {
+            return Ok(false);
+        }
+
+        let mut changed = false;
+
+        changed |= stmt.value.0.lock().unwrap().accept(self)?;
+
+        if let Some(resolved_type) = stmt.value.0.lock().unwrap().resolved_type() {
+            stmt.resolved_type = resolved_type.clone();
+        } else {
+            todo!();
+        }
+
+        return Ok(changed);
     }
 }
 
@@ -1000,6 +974,7 @@ impl ExprVisitor<Option<FeType>, Result<bool>> for FeTypeResolver {
                 let changed = expr.accept(self)?;
 
                 if !changed {
+                    // dbg!(&expr);
                     todo!("uh oh");
                 }
 
@@ -1356,6 +1331,208 @@ impl ExprVisitor<Option<FeType>, Result<bool>> for FeTypeResolver {
             expr.resolved_type = Some(resolved);
 
             changed = true;
+        }
+
+        return Ok(changed);
+    }
+
+    fn visit_if_expr(&mut self, expr: &mut IfExpr<Option<FeType>>) -> Result<bool> {
+        if expr.is_resolved() {
+            return Ok(false);
+        }
+
+        let mut changed = false;
+
+        {
+            let mut condition = expr.condition.0.lock().unwrap();
+            if !condition.is_resolved() {
+                changed |= condition.accept(self)?;
+
+                let Some(resolved_type) = condition.resolved_type() else {
+                    todo!("Can't check if condition on no type!");
+                };
+
+                if let Some(resolved_type) = resolved_type {
+                    if !Self::can_implicit_cast(resolved_type, &FeType::Bool(None)) {
+                        todo!("Can't cast to bool!");
+                    }
+                }
+            }
+        }
+
+        let mut types = vec![];
+
+        match &mut expr.then {
+            IfThen::Ternary(then) => todo!(),
+            IfThen::Classic(then) => {
+                self.thenable_count += 1;
+                let (local, term) = self.resolve_stmts(&then.then_block.stmts)?;
+                self.thenable_count -= 1;
+
+                changed |= local;
+                if let Some(t) = term.map(|term| term.resolved_type()) {
+                    types.extend(t.into_iter().map(Some));
+                } else {
+                    types.push(None);
+                }
+
+                for else_if in &mut then.else_ifs {
+                    let mut condition = else_if.condition.0.lock().unwrap();
+                    if !condition.is_resolved() {
+                        changed |= condition.accept(self)?;
+
+                        let Some(resolved_type) = condition.resolved_type() else {
+                            todo!("Can't check else-if condition on no type!");
+                        };
+
+                        if let Some(resolved_type) = resolved_type {
+                            if !Self::can_implicit_cast(resolved_type, &FeType::Bool(None)) {
+                                todo!("Can't cast to bool!");
+                            }
+                        }
+                    }
+
+                    self.thenable_count += 1;
+                    let (local, term) = self.resolve_stmts(&else_if.then_block.stmts)?;
+                    self.thenable_count -= 1;
+
+                    changed |= local;
+                    if let Some(t) = term.map(|term| term.resolved_type()) {
+                        types.extend(t.into_iter().map(Some));
+                    } else {
+                        types.push(None);
+                    }
+                }
+
+                if let Some(else_) = &mut then.else_ {
+                    self.thenable_count += 1;
+                    let (local, term) = self.resolve_stmts(&else_.then_block.stmts)?;
+                    self.thenable_count -= 1;
+
+                    changed |= local;
+                    if let Some(t) = term.map(|term| term.resolved_type()) {
+                        types.extend(t.into_iter().map(Some));
+                    } else {
+                        types.push(None);
+                    }
+                }
+            }
+        }
+
+        if types.len() > 0 {
+            // dbg!(&types);
+            // todo!();
+
+            let first = &types[0];
+
+            for idx in 1..types.len() {
+                if types[idx] != *first {
+                    todo!("Handle multi break types better");
+                }
+            }
+
+            expr.resolved_type = Some(first.clone());
+        }
+
+        // let _ = expr.is_resolved();
+        if let Some(terminal) = &expr.resolved_terminal {
+            changed = true;
+
+            expr.resolved_type = match terminal {
+                None => Some(None),
+
+                Some(TerminationType::Contains(contains)) => {
+                    // let mut resolved = None;
+
+                    // for term in contains {
+                    //     // TODO
+                    //     if let Some(res) = term.resolved_type() {
+
+                    //     }
+                    // }
+                    todo!("if resolution needs thought to implement, I'm too tired right now")
+                }
+                Some(TerminationType::Base(b)) => Some(b.resolved_type()),
+            }
+        }
+
+        return Ok(changed);
+    }
+
+    fn visit_loop_expr(&mut self, expr: &mut LoopExpr<Option<FeType>>) -> Result<bool> {
+        // TODO: Think about how looping affects types
+
+        if expr.is_resolved() {
+            return Ok(false);
+        }
+
+        let mut changed = false;
+
+        self.breakable_count += 1;
+        let (changes, _term) = self.resolve_stmts(&expr.block.stmts)?;
+        changed |= changes;
+        self.breakable_count -= 1;
+
+        // if let Some(TerminationType::Base(BaseTerminationType::InfiniteLoop)) = term {
+        //     todo!("Infinite loop!");
+        // }
+
+        if let Some(terminal) = &expr.resolved_terminal {
+            changed = true;
+
+            expr.resolved_type = match terminal {
+                None => Some(None),
+
+                Some(TerminationType::Contains(contains)) => {
+                    // let mut resolved = None;
+
+                    // for term in contains {
+                    //     // TODO
+                    //     if let Some(res) = term.resolved_type() {
+
+                    //     }
+                    // }
+                    todo!("if resolution needs thought to implement, I'm too tired right now")
+                }
+                Some(TerminationType::Base(b)) => Some(b.resolved_type()),
+            }
+        }
+
+        return Ok(changed);
+    }
+
+    fn visit_while_expr(&mut self, expr: &mut WhileExpr<Option<FeType>>) -> Result<bool> {
+        if expr.is_resolved() {
+            return Ok(false);
+        }
+
+        let mut changed = false;
+
+        changed |= expr.condition.0.lock().unwrap().accept(self)?;
+
+        self.breakable_count += 1;
+        changed |= self.resolve_stmts(&expr.block.stmts)?.0;
+        self.breakable_count -= 1;
+
+        if let Some(terminal) = &expr.resolved_terminal {
+            changed = true;
+
+            expr.resolved_type = match terminal {
+                None => Some(None),
+
+                Some(TerminationType::Contains(contains)) => {
+                    // let mut resolved = None;
+
+                    // for term in contains {
+                    //     // TODO
+                    //     if let Some(res) = term.resolved_type() {
+
+                    //     }
+                    // }
+                    todo!("if resolution needs thought to implement, I'm too tired right now")
+                }
+                Some(TerminationType::Base(b)) => Some(b.resolved_type()),
+            }
         }
 
         return Ok(changed);

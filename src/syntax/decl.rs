@@ -394,7 +394,7 @@ impl<T: ResolvedType, S: PartialEq> Resolvable for CodeBlock<Option<T>, S> {
     fn is_resolved(&self) -> bool {
         for stmt in &self.stmts {
             if !stmt.lock().unwrap().is_resolved() {
-                dbg!("false");
+                dbg!("false", &stmt);
                 return false;
             }
         }

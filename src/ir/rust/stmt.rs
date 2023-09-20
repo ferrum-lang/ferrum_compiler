@@ -56,7 +56,9 @@ pub struct RustIRWhileStmt {
 }
 
 #[derive(Debug, Clone, PartialEq)]
-pub struct RustIRBreakStmt {}
+pub struct RustIRBreakStmt {
+    pub expr: Option<RustIRExpr>,
+}
 
 // Visitor pattern
 pub trait RustIRStmtVisitor<R = ()> {

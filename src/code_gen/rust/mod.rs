@@ -406,7 +406,16 @@ impl ir::RustIRStmtVisitor<Result<Arc<str>>> for RustCodeGen {
     }
 
     fn visit_break_stmt(&mut self, stmt: &mut ir::RustIRBreakStmt) -> Result<Arc<str>> {
-        return Ok("break;".into());
+        let mut out = String::from("break");
+
+        if let Some(expr) = &mut stmt.expr {
+            out.push(' ');
+            out.push_str(&expr.accept(self)?);
+        }
+
+        out.push(';');
+
+        return Ok(out.into());
     }
 }
 

@@ -35,10 +35,10 @@ fn main() -> ferrum_compiler::result::Result {
     // dbg!(&rust_code);
 
     // println!("\n");
-
-    // for file in &rust_code.files {
+    // for file in &rust_code.lock().unwrap().files {
     //     println!("// {:?}\n{}", file.path, file.content);
     // }
+    // todo!();
 
     let dst = path::PathBuf::from("./.ferrum/compiled_rust");
 

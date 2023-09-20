@@ -498,7 +498,13 @@ impl FeTokenSyntaxParser {
                 block.push(self.statement()?);
 
                 if !self.is_at_end() {
-                    self.consume(&TokenType::Newline, "Expect newline after statement")?;
+                    self.consume(
+                        &TokenType::Newline,
+                        &format!(
+                            "Expect newline after statement. Found {:#?}",
+                            self.tokens[self.current_idx]
+                        ),
+                    )?;
                 }
             }
         };
@@ -561,25 +567,46 @@ impl FeTokenSyntaxParser {
             ))));
         }
 
+        if let Some(token) = self.match_any(&[TokenType::Then], WithNewlines::Many) {
+            return Ok(Arc::new(Mutex::new(Stmt::Then(
+                self.then_statement(token)?,
+            ))));
+        }
+
         let stmt = self.expr_or_assign_statement()?;
 
         return Ok(stmt);
     }
 
     fn loop_statement(&mut self, loop_token: Arc<Token>) -> Result<LoopStmt> {
+        return Ok(LoopStmt {
+            id: NodeId::gen(),
+            inner: self.loop_expr(loop_token)?,
+        });
+    }
+
+    fn loop_expr(&mut self, loop_token: Arc<Token>) -> Result<LoopExpr> {
         let _ = self.consume(&TokenType::Newline, "Expected newline after 'loop' keyword")?;
 
         let block = self.code_block()?;
 
-        return Ok(LoopStmt {
+        return Ok(LoopExpr {
             id: NodeId::gen(),
             loop_token,
             block,
             resolved_terminal: None,
+            resolved_type: None,
         });
     }
 
     fn while_statement(&mut self, while_token: Arc<Token>) -> Result<WhileStmt> {
+        return Ok(WhileStmt {
+            id: NodeId::gen(),
+            inner: self.while_expr(while_token)?,
+        });
+    }
+
+    fn while_expr(&mut self, while_token: Arc<Token>) -> Result<WhileExpr> {
         let condition = NestedExpr(self.expression()?);
 
         let _ = self.consume(
@@ -589,12 +616,13 @@ impl FeTokenSyntaxParser {
 
         let block = self.code_block()?;
 
-        return Ok(WhileStmt {
+        return Ok(WhileExpr {
             id: NodeId::gen(),
             while_token,
             condition,
             block,
             resolved_terminal: None,
+            resolved_type: None,
         });
     }
 
@@ -606,7 +634,7 @@ impl FeTokenSyntaxParser {
         let value = if let Some(token) = self.match_any(&[TokenType::Equal], WithNewlines::One) {
             Some(VarDeclValue {
                 eq_token: token,
-                value: NestedExpr(self.expression()?),
+                value: NestedExpr(self.break_expr()?),
             })
         } else {
             None
@@ -635,10 +663,21 @@ impl FeTokenSyntaxParser {
     }
 
     fn if_statement(&mut self, if_token: Arc<Token>) -> Result<IfStmt> {
+        return Ok(IfStmt {
+            id: NodeId::gen(),
+            inner: self.if_expr(if_token)?,
+        });
+    }
+
+    fn if_expr(&mut self, if_token: Arc<Token>) -> Result<IfExpr> {
         // TODO: Maybe if condition should be special to allow assigning or naming condition?
         let condition = NestedExpr(self.expression()?);
 
-        let _ = self.consume(&TokenType::Newline, "Expected newline after if condition")?;
+        if let Some(then_token) = self.match_any(&[TokenType::Question], WithNewlines::None) {
+            todo!("ternary if-then")
+        } else {
+            let _ = self.consume(&TokenType::Newline, "Expected newline after if condition")?;
+        }
 
         let (stmts, end_token) =
             self.code_block_with_any_end(&[TokenType::Semicolon, TokenType::Else])?;
@@ -649,15 +688,18 @@ impl FeTokenSyntaxParser {
         };
 
         if let TokenType::Semicolon = &end_token.token_type {
-            return Ok(IfStmt {
+            return Ok(IfExpr {
                 id: NodeId::gen(),
                 if_token,
                 condition,
-                then_block,
-                else_ifs: vec![],
-                else_: None,
-                semicolon_token: end_token,
+                then: IfThen::Classic(IfThenClassic {
+                    then_block,
+                    else_ifs: vec![],
+                    else_: None,
+                    semicolon_token: end_token,
+                }),
                 resolved_terminal: None,
+                resolved_type: None,
             });
         }
 
@@ -685,15 +727,18 @@ impl FeTokenSyntaxParser {
         }
 
         if let TokenType::Semicolon = &else_token.token_type {
-            return Ok(IfStmt {
+            return Ok(IfExpr {
                 id: NodeId::gen(),
                 if_token,
                 condition,
-                then_block,
-                else_ifs,
-                else_: None,
-                semicolon_token: else_token,
+                then: IfThen::Classic(IfThenClassic {
+                    then_block,
+                    else_ifs,
+                    else_: None,
+                    semicolon_token: else_token,
+                }),
                 resolved_terminal: None,
+                resolved_type: None,
             });
         }
 
@@ -709,15 +754,18 @@ impl FeTokenSyntaxParser {
             then_block: else_then_block,
         });
 
-        return Ok(IfStmt {
+        return Ok(IfExpr {
             id: NodeId::gen(),
             if_token,
             condition,
-            then_block,
-            else_ifs,
-            else_,
-            semicolon_token,
+            then: IfThen::Classic(IfThenClassic {
+                then_block,
+                else_ifs,
+                else_,
+                semicolon_token,
+            }),
             resolved_terminal: None,
+            resolved_type: None,
         });
     }
 
@@ -725,7 +773,7 @@ impl FeTokenSyntaxParser {
         let value = if self.check(&TokenType::Newline) {
             None
         } else {
-            Some(NestedExpr(self.expression()?))
+            Some(NestedExpr(self.break_expr()?))
         };
 
         return Ok(ReturnStmt {
@@ -736,10 +784,28 @@ impl FeTokenSyntaxParser {
     }
 
     fn break_statement(&mut self, break_token: Arc<Token>) -> Result<BreakStmt> {
+        let value = if self.check(&TokenType::Newline) {
+            None
+        } else {
+            Some(NestedExpr(self.expression()?))
+        };
+
         return Ok(BreakStmt {
             id: NodeId::gen(),
             break_token,
-            _resolved_type: marker::PhantomData {},
+            value,
+            resolved_type: None,
+        });
+    }
+
+    fn then_statement(&mut self, break_token: Arc<Token>) -> Result<ThenStmt> {
+        let value = NestedExpr(self.expression()?);
+
+        return Ok(ThenStmt {
+            id: NodeId::gen(),
+            then_token: break_token,
+            value,
+            resolved_type: (),
         });
     }
 
@@ -762,7 +828,7 @@ impl FeTokenSyntaxParser {
                 }
             };
 
-            let value = self.expression()?;
+            let value = self.break_expr()?;
 
             return Ok(Arc::new(Mutex::new(Stmt::Assign(AssignStmt {
                 id: NodeId::gen(),
@@ -776,6 +842,22 @@ impl FeTokenSyntaxParser {
                 expr,
             }))));
         }
+    }
+
+    fn break_expr(&mut self) -> Result<Arc<Mutex<Expr>>> {
+        if let Some(token) = self.match_any(&[TokenType::Loop], WithNewlines::Many) {
+            return Ok(Arc::new(Mutex::new(Expr::Loop(self.loop_expr(token)?))));
+        }
+
+        if let Some(token) = self.match_any(&[TokenType::While], WithNewlines::Many) {
+            return Ok(Arc::new(Mutex::new(Expr::While(self.while_expr(token)?))));
+        }
+
+        if let Some(token) = self.match_any(&[TokenType::If], WithNewlines::Many) {
+            return Ok(Arc::new(Mutex::new(Expr::If(self.if_expr(token)?))));
+        }
+
+        return self.expression();
     }
 
     fn expression(&mut self) -> Result<Arc<Mutex<Expr>>> {
