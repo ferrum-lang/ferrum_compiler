@@ -7,14 +7,18 @@ pub fn main()
 
     // print(repeat("#", 10))
 
-    // const age = 26
+    const age = 26
     // const drink = "water"
 
-    // const drink = if true
-    //     then "beer"
-    //     else "juice"
+    const drink = if age >= 19 then "beer" else "juice"
 
-    const drink = if true
+    const drink = if age >= 19
+        then "beer"
+    else
+        then "juice"
+    ;
+
+    const drink = if age >= 19
         print("true")
         then "beer"
     else

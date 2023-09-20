@@ -1058,8 +1058,8 @@ impl ExprVisitor<Option<FeType>, Result<bool>> for FeTypeResolver {
 
         let mut changed = false;
 
-        changed = changed | expr.lhs.0.lock().unwrap().accept(self)?;
-        changed = changed | expr.rhs.0.lock().unwrap().accept(self)?;
+        changed |= expr.lhs.0.lock().unwrap().accept(self)?;
+        changed |= expr.rhs.0.lock().unwrap().accept(self)?;
 
         if let (Some(resolved_lhs), Some(resolved_rhs)) = (
             expr.lhs
@@ -1169,6 +1169,10 @@ impl ExprVisitor<Option<FeType>, Result<bool>> for FeTypeResolver {
                     }
                 }
             }
+        }
+
+        if changed == false {
+            todo!("determine lhs or rhs error");
         }
 
         return Ok(changed);
@@ -1363,7 +1367,25 @@ impl ExprVisitor<Option<FeType>, Result<bool>> for FeTypeResolver {
         let mut types = vec![];
 
         match &mut expr.then {
-            IfThen::Ternary(then) => todo!(),
+            IfThen::Ternary(then) => {
+                changed |= then.then_expr.0.lock().unwrap().accept(self)?;
+                if let Some(typ) = then.then_expr.0.lock().unwrap().resolved_type().cloned() {
+                    types.push(typ);
+                } else {
+                    todo!();
+                }
+
+                if let Some(else_) = &then.else_ {
+                    changed |= else_.else_expr.0.lock().unwrap().accept(self)?;
+                    if let Some(typ) = else_.else_expr.0.lock().unwrap().resolved_type().cloned() {
+                        types.push(typ);
+                    } else {
+                        todo!();
+                    }
+                } else {
+                    types.push(None);
+                }
+            }
             IfThen::Classic(then) => {
                 self.thenable_count += 1;
                 let (local, term) = self.resolve_stmts(&then.then_block.stmts)?;
@@ -1415,6 +1437,8 @@ impl ExprVisitor<Option<FeType>, Result<bool>> for FeTypeResolver {
                     } else {
                         types.push(None);
                     }
+                } else {
+                    types.push(None);
                 }
             }
         }

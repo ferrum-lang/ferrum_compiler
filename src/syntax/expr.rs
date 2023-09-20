@@ -1170,7 +1170,7 @@ impl<T: ResolvedType> Resolvable for IfExpr<Option<T>> {
         }
 
         if !self.then.is_resolved() {
-            dbg!("false");
+            dbg!("false", &self);
             return false;
         }
 
@@ -1243,20 +1243,34 @@ impl<T: ResolvedType> TryFrom<IfThen<Option<T>>> for IfThen<T> {
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct IfThenTernary<T: ResolvedType = ()> {
-    pub question_token: Arc<Token>,
+    pub then_token: Arc<Token>,
     pub then_expr: NestedExpr<T>,
     pub else_: Option<TernaryElse<T>>,
 }
 
 impl<T: ResolvedType> From<IfThenTernary<()>> for IfThenTernary<Option<T>> {
     fn from(value: IfThenTernary<()>) -> Self {
-        todo!()
+        return Self {
+            then_token: value.then_token,
+            then_expr: from(value.then_expr),
+            else_: value.else_.map(from),
+        };
     }
 }
 
 impl<T: ResolvedType> Resolvable for IfThenTernary<Option<T>> {
     fn is_resolved(&self) -> bool {
-        todo!()
+        if !self.then_expr.is_resolved() {
+            return false;
+        }
+
+        if let Some(else_) = &self.else_ {
+            if !else_.is_resolved() {
+                return false;
+            }
+        }
+
+        return true;
     }
 }
 
@@ -1264,7 +1278,11 @@ impl<T: ResolvedType> TryFrom<IfThenTernary<Option<T>>> for IfThenTernary<T> {
     type Error = FinalizeResolveTypeError;
 
     fn try_from(value: IfThenTernary<Option<T>>) -> Result<Self, Self::Error> {
-        todo!()
+        return Ok(Self {
+            then_token: value.then_token,
+            then_expr: try_from(value.then_expr)?,
+            else_: invert(value.else_.map(try_from))?,
+        });
     }
 }
 
@@ -1276,13 +1294,20 @@ pub struct TernaryElse<T: ResolvedType = ()> {
 
 impl<T: ResolvedType> From<TernaryElse<()>> for TernaryElse<Option<T>> {
     fn from(value: TernaryElse<()>) -> Self {
-        todo!()
+        return Self {
+            else_token: value.else_token,
+            else_expr: from(value.else_expr),
+        };
     }
 }
 
 impl<T: ResolvedType> Resolvable for TernaryElse<Option<T>> {
     fn is_resolved(&self) -> bool {
-        todo!()
+        if !self.else_expr.is_resolved() {
+            return false;
+        }
+
+        return true;
     }
 }
 
@@ -1290,7 +1315,10 @@ impl<T: ResolvedType> TryFrom<TernaryElse<Option<T>>> for TernaryElse<T> {
     type Error = FinalizeResolveTypeError;
 
     fn try_from(value: TernaryElse<Option<T>>) -> Result<Self, Self::Error> {
-        todo!()
+        return Ok(Self {
+            else_token: value.else_token,
+            else_expr: try_from(value.else_expr)?,
+        });
     }
 }
 

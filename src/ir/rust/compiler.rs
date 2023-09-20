@@ -710,7 +710,32 @@ impl ExprVisitor<FeType, Result<ir::RustIRExpr>> for RustSyntaxCompiler {
         let if_condition = Box::new(expr.condition.0.lock().unwrap().accept(self)?);
 
         match &mut expr.then {
-            IfThen::Ternary(then) => todo!(),
+            IfThen::Ternary(t) => {
+                let then = vec![ir::RustIRStmt::ImplicitReturn(
+                    ir::RustIRImplicitReturnStmt {
+                        expr: t.then_expr.0.lock().unwrap().accept(self)?,
+                    },
+                )];
+
+                let else_ = if let Some(e) = &t.else_ {
+                    Some(ir::RustIRElse {
+                        then: vec![ir::RustIRStmt::ImplicitReturn(
+                            ir::RustIRImplicitReturnStmt {
+                                expr: e.else_expr.0.lock().unwrap().accept(self)?,
+                            },
+                        )],
+                    })
+                } else {
+                    None
+                };
+
+                return Ok(ir::RustIRExpr::If(ir::RustIRIfExpr {
+                    condition: if_condition,
+                    then,
+                    else_ifs: vec![],
+                    else_,
+                }));
+            }
             IfThen::Classic(then) => {
                 let mut if_then_block = vec![];
                 for stmt in &mut then.then_block.stmts {

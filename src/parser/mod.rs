@@ -673,8 +673,33 @@ impl FeTokenSyntaxParser {
         // TODO: Maybe if condition should be special to allow assigning or naming condition?
         let condition = NestedExpr(self.expression()?);
 
-        if let Some(then_token) = self.match_any(&[TokenType::Question], WithNewlines::None) {
-            todo!("ternary if-then")
+        if let Some(then_token) = self.match_any(&[TokenType::Then], WithNewlines::None) {
+            let then_expr = NestedExpr(self.expression()?);
+
+            let else_ =
+                if let Some(else_token) = self.match_any(&[TokenType::Else], WithNewlines::None) {
+                    let else_expr = NestedExpr(self.expression()?);
+
+                    Some(TernaryElse {
+                        else_token,
+                        else_expr,
+                    })
+                } else {
+                    None
+                };
+
+            return Ok(IfExpr {
+                id: NodeId::gen(),
+                if_token,
+                condition,
+                then: IfThen::Ternary(IfThenTernary {
+                    then_token,
+                    then_expr,
+                    else_,
+                }),
+                resolved_terminal: None,
+                resolved_type: Some(()),
+            });
         } else {
             let _ = self.consume(&TokenType::Newline, "Expected newline after if condition")?;
         }
