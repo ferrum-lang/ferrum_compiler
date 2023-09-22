@@ -974,7 +974,7 @@ impl ExprVisitor<Option<FeType>, Result<bool>> for FeTypeResolver {
                 let changed = expr.accept(self)?;
 
                 if !changed {
-                    // dbg!(&expr);
+                    dbg!(&expr, &self.scope);
                     todo!("uh oh");
                 }
 
@@ -1370,7 +1370,7 @@ impl ExprVisitor<Option<FeType>, Result<bool>> for FeTypeResolver {
             IfThen::Ternary(then) => {
                 changed |= then.then_expr.0.lock().unwrap().accept(self)?;
                 if let Some(typ) = then.then_expr.0.lock().unwrap().resolved_type().cloned() {
-                    types.push(typ);
+                    types.push(typ.map(|t| (None, t)));
                 } else {
                     todo!();
                 }
@@ -1378,7 +1378,7 @@ impl ExprVisitor<Option<FeType>, Result<bool>> for FeTypeResolver {
                 if let Some(else_) = &then.else_ {
                     changed |= else_.else_expr.0.lock().unwrap().accept(self)?;
                     if let Some(typ) = else_.else_expr.0.lock().unwrap().resolved_type().cloned() {
-                        types.push(typ);
+                        types.push(typ.map(|t| (None, t)));
                     } else {
                         todo!();
                     }
@@ -1392,8 +1392,8 @@ impl ExprVisitor<Option<FeType>, Result<bool>> for FeTypeResolver {
                 self.thenable_count -= 1;
 
                 changed |= local;
-                if let Some(t) = term.map(|term| term.resolved_type()) {
-                    types.extend(t.into_iter().map(Some));
+                if let Some(t) = term.as_ref().map(|term| term.resolved_type()) {
+                    types.extend(t.into_iter().map(|t| Some((term.clone(), t))));
                 } else {
                     types.push(None);
                 }
@@ -1419,8 +1419,8 @@ impl ExprVisitor<Option<FeType>, Result<bool>> for FeTypeResolver {
                     self.thenable_count -= 1;
 
                     changed |= local;
-                    if let Some(t) = term.map(|term| term.resolved_type()) {
-                        types.extend(t.into_iter().map(Some));
+                    if let Some(t) = term.as_ref().map(|term| term.resolved_type()) {
+                        types.extend(t.into_iter().map(|t| Some((term.clone(), t))));
                     } else {
                         types.push(None);
                     }
@@ -1432,8 +1432,8 @@ impl ExprVisitor<Option<FeType>, Result<bool>> for FeTypeResolver {
                     self.thenable_count -= 1;
 
                     changed |= local;
-                    if let Some(t) = term.map(|term| term.resolved_type()) {
-                        types.extend(t.into_iter().map(Some));
+                    if let Some(t) = term.as_ref().map(|term| term.resolved_type()) {
+                        types.extend(t.into_iter().map(|t| Some((term.clone(), t))));
                     } else {
                         types.push(None);
                     }
@@ -1444,6 +1444,18 @@ impl ExprVisitor<Option<FeType>, Result<bool>> for FeTypeResolver {
         }
 
         if types.len() > 0 {
+            if types.iter().filter_map(|x| x.clone()).all(|term| {
+                matches!(
+                    term,
+                    (
+                        Some(TerminationType::Base(BaseTerminationType::Break(_))),
+                        _
+                    )
+                )
+            }) {
+                types = types.into_iter().filter(|x| x.is_some()).collect();
+            }
+
             // dbg!(&types);
             // todo!();
 
@@ -1451,14 +1463,17 @@ impl ExprVisitor<Option<FeType>, Result<bool>> for FeTypeResolver {
 
             for idx in 1..types.len() {
                 if types[idx] != *first {
+                    dbg!(&expr);
+                    dbg!(&types);
                     todo!("Handle multi break types better");
                 }
             }
 
-            expr.resolved_type = Some(first.clone());
+            changed = true;
+            expr.resolved_type = Some(first.clone().map(|t| t.1));
         }
 
-        // let _ = expr.is_resolved();
+        let _ = expr.is_resolved();
         if let Some(terminal) = &expr.resolved_terminal {
             changed = true;
 
