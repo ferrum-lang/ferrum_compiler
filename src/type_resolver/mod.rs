@@ -51,7 +51,7 @@ impl FeTypeResolver {
                 FeSyntaxPackage::File(file) => this.resolve_file(file)?,
                 FeSyntaxPackage::Dir(dir) => this.resolve_dir(dir)?,
             };
-            println!("2");
+            dbg!("2");
 
             if !changed {
                 todo!("Can't resolve!");
@@ -93,6 +93,11 @@ impl FeTypeResolver {
 
     fn resolve_dir(&mut self, dir: &mut FeSyntaxDir<Option<FeType>>) -> Result<bool> {
         let mut changed = self.resolve_file(&mut dir.entry_file)?;
+        let mut is_changed = changed;
+
+        while changed {
+            changed = self.resolve_file(&mut dir.entry_file)?;
+        }
 
         for (name, pkg) in &dir.local_packages {
             let scope = {
@@ -113,16 +118,32 @@ impl FeTypeResolver {
                 lock.scope()
             };
 
-            changed = changed
-                || Self::internal_resolve_package(
+            changed = Self::internal_resolve_package(
+                self.root_pkg_exports.clone(),
+                self.current_pkg_exports.clone(),
+                scope.clone(),
+                pkg.clone(),
+            )?;
+            is_changed |= changed;
+
+            while changed {
+                changed = Self::internal_resolve_package(
                     self.root_pkg_exports.clone(),
                     self.current_pkg_exports.clone(),
-                    scope,
+                    scope.clone(),
                     pkg.clone(),
                 )?;
+            }
         }
 
-        return Ok(changed);
+        let mut changed = self.resolve_file(&mut dir.entry_file)?;
+        is_changed |= changed;
+
+        while changed {
+            changed = self.resolve_file(&mut dir.entry_file)?;
+        }
+
+        return Ok(is_changed);
     }
 
     fn resolve_file(&mut self, file: &mut FeSyntaxFile<Option<FeType>>) -> Result<bool> {
@@ -981,8 +1002,9 @@ impl ExprVisitor<Option<FeType>, Result<bool>> for FeTypeResolver {
                 let changed = expr.accept(self)?;
 
                 if !changed {
-                    dbg!(&expr, &self.scope);
-                    todo!("uh oh");
+                    // TODO: weird issues with breaking or continuing here
+                    // I think there's a niche bug that's widely spread in logic
+                    return Ok(false);
                 }
 
                 let Some(resolved_type) = expr.resolved_type() else {

@@ -1,11 +1,8 @@
+use ./utils::hello
+
 use ::fe::print
 
 pub fn main()
-    const is_funny = false
-
-    if is_funny
-        print("HAHAHA so funny!")
-    else
-        print("LAAAMMMEEE ....")
-    ;
+    print(hello("Snowy"))
 ;
+
