@@ -485,7 +485,7 @@ impl<T: ResolvedType> Resolvable for CallExpr<Option<T>> {
         }
 
         if !self.callee.is_resolved() {
-            dbg!("false", &self);
+            dbg!("false");
             return false;
         }
 

@@ -911,12 +911,8 @@ impl FeTokenSyntaxParser {
         {
             let then_expr = NestedExpr(self.expression()?);
 
-            if self.check(&TokenType::Else) {
-                todo!()
-            }
-
-            if self.check(&TokenType::Newline) && self.check_offset(1, &TokenType::Else) {
-                todo!()
+            if let Some(else_token) = self.match_any(&[TokenType::Else], WithNewlines::One) {
+                semicolon_token = Some(else_token);
             }
 
             IfExprThen::Ternary(IfExprThenTernary {

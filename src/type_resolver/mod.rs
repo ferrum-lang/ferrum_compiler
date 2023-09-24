@@ -792,21 +792,43 @@ impl StmtVisitor<Option<FeType>, Result<bool>> for FeTypeResolver {
 
         let mut changed = false;
 
-        changed |= stmt.condition.0.lock().unwrap().accept(self)?;
+        {
+            let mut condition = stmt.condition.0.lock().unwrap();
+
+            if !condition.is_resolved() {
+                changed |= condition.accept(self)?;
+
+                let Some(resolved_type) = condition.resolved_type() else {
+                    todo!("Can't check if condition on no type!");
+                };
+
+                if let Some(resolved_type) = resolved_type {
+                    if !Self::can_implicit_cast(resolved_type, &FeType::Bool(None)) {
+                        todo!("Can't cast to bool!");
+                    }
+                }
+            }
+        }
 
         // TODO: if stmt terminals? what to do here?
 
-        let (local_changed, terminal) = self.resolve_stmts(&stmt.then.stmts)?;
-        changed |= local_changed;
-
-        for else_if in &stmt.else_ifs {
-            let (local_changed, terminal) = self.resolve_stmts(&else_if.then.stmts)?;
+        if !stmt.then.is_resolved() {
+            let (local_changed, _terminal) = self.resolve_stmts(&stmt.then.stmts)?;
             changed |= local_changed;
         }
 
+        for else_if in &stmt.else_ifs {
+            if !else_if.is_resolved() {
+                let (local_changed, _terminal) = self.resolve_stmts(&else_if.then.stmts)?;
+                changed |= local_changed;
+            }
+        }
+
         if let Some(else_) = &stmt.else_ {
-            let (local_changed, terminal) = self.resolve_stmts(&else_.then.stmts)?;
-            changed |= local_changed;
+            if !else_.is_resolved() {
+                let (local_changed, _terminal) = self.resolve_stmts(&else_.then.stmts)?;
+                changed |= local_changed;
+            }
         }
 
         return Ok(changed);
@@ -971,10 +993,12 @@ impl ExprVisitor<Option<FeType>, Result<bool>> for FeTypeResolver {
             return Ok(false);
         }
 
+        let mut changed = false;
+
         let mut callee = expr.callee.0.lock().unwrap();
 
         if !callee.is_resolved() {
-            callee.accept(self)?;
+            changed |= callee.accept(self)?;
         }
 
         let Some(FeType::Callable(callee)) = self
@@ -999,16 +1023,15 @@ impl ExprVisitor<Option<FeType>, Result<bool>> for FeTypeResolver {
 
             if !arg.is_resolved() {
                 let mut expr = arg.value.0.lock().unwrap();
-                let changed = expr.accept(self)?;
+                let local_changed = expr.accept(self)?;
 
-                if !changed {
-                    // TODO: weird issues with breaking or continuing here
-                    // I think there's a niche bug that's widely spread in logic
-                    return Ok(false);
+                if !local_changed {
+                    continue;
                 }
+                changed = true;
 
                 let Some(resolved_type) = expr.resolved_type() else {
-                    todo!("no type!");
+                    continue;
                 };
 
                 arg.resolved_type = resolved_type.clone();
@@ -1026,7 +1049,7 @@ impl ExprVisitor<Option<FeType>, Result<bool>> for FeTypeResolver {
 
         expr.resolved_type = callee.return_type.as_deref().map(|rt| Some(rt.clone()));
 
-        return Ok(true);
+        return Ok(changed);
     }
 
     fn visit_unary_expr(&mut self, expr: &mut UnaryExpr<Option<FeType>>) -> Result<bool> {
@@ -1378,6 +1401,7 @@ impl ExprVisitor<Option<FeType>, Result<bool>> for FeTypeResolver {
 
         {
             let mut condition = expr.condition.0.lock().unwrap();
+
             if !condition.is_resolved() {
                 changed |= condition.accept(self)?;
 
@@ -1393,138 +1417,125 @@ impl ExprVisitor<Option<FeType>, Result<bool>> for FeTypeResolver {
             }
         }
 
-        // let mut types = vec![];
+        // TODO: if stmt terminals? what to do here?
 
-        // match &mut expr.then {
-        //     IfExprThen::Ternary(then) => {
-        //         changed |= then.then_expr.0.lock().unwrap().accept(self)?;
-        //         if let Some(typ) = then.then_expr.0.lock().unwrap().resolved_type().cloned() {
-        //             types.push(typ.map(|t| (None, t)));
-        //         } else {
-        //             todo!();
-        //         }
+        let mut typ = None;
 
-        //         if let Some(else_) = &then.else_ {
-        //             changed |= else_.else_expr.0.lock().unwrap().accept(self)?;
-        //             if let Some(typ) = else_.else_expr.0.lock().unwrap().resolved_type().cloned() {
-        //                 types.push(typ.map(|t| (None, t)));
-        //             } else {
-        //                 todo!();
-        //             }
-        //         } else {
-        //             types.push(None);
-        //         }
-        //     }
-        //     IfExprThen::Block(then) => {
-        //         self.thenable_count += 1;
-        //         let (local, term) = self.resolve_stmts(&then.block.stmts)?;
-        //         self.thenable_count -= 1;
+        match &expr.then {
+            IfExprThen::Ternary(then) => {
+                changed |= then.then_expr.0.lock().unwrap().accept(self)?;
 
-        //         changed |= local;
-        //         if let Some(t) = term.as_ref().map(|term| term.resolved_type()) {
-        //             types.extend(t.into_iter().map(|t| Some((term.clone(), t))));
-        //         } else {
-        //             types.push(None);
-        //         }
+                typ = then
+                    .then_expr
+                    .0
+                    .lock()
+                    .unwrap()
+                    .resolved_type()
+                    .cloned()
+                    .flatten();
+            }
+            IfExprThen::Block(then) => {
+                self.thenable_count += 1;
+                let (local_changed, _terminal) = self.resolve_stmts(&then.block.stmts)?;
+                self.thenable_count -= 1;
 
-        //         for else_if in &mut then.else_ifs {
-        //             let mut condition = else_if.condition.0.lock().unwrap();
-        //             if !condition.is_resolved() {
-        //                 changed |= condition.accept(self)?;
+                changed |= local_changed;
 
-        //                 let Some(resolved_type) = condition.resolved_type() else {
-        //                     todo!("Can't check else-if condition on no type!");
-        //                 };
+                // TODO: Try to determine and check type here if terminal is Then stmt
+            }
+        }
 
-        //                 if let Some(resolved_type) = resolved_type {
-        //                     if !Self::can_implicit_cast(resolved_type, &FeType::Bool(None)) {
-        //                         todo!("Can't cast to bool!");
-        //                     }
-        //                 }
-        //             }
+        for else_if in &expr.else_ifs {
+            match else_if {
+                IfExprElseIf::Ternary(else_if) => {
+                    {
+                        let mut condition = else_if.condition.0.lock().unwrap();
 
-        //             self.thenable_count += 1;
-        //             let (local, term) = self.resolve_stmts(&else_if.then_block.stmts)?;
-        //             self.thenable_count -= 1;
+                        changed |= condition.accept(self)?;
 
-        //             changed |= local;
-        //             if let Some(t) = term.as_ref().map(|term| term.resolved_type()) {
-        //                 types.extend(t.into_iter().map(|t| Some((term.clone(), t))));
-        //             } else {
-        //                 types.push(None);
-        //             }
-        //         }
+                        let Some(resolved_type) = condition.resolved_type() else {
+                            todo!("Can't check if condition on no type!");
+                        };
 
-        //         if let Some(else_) = &mut then.else_ {
-        //             self.thenable_count += 1;
-        //             let (local, term) = self.resolve_stmts(&else_.then_block.stmts)?;
-        //             self.thenable_count -= 1;
+                        if let Some(resolved_type) = resolved_type {
+                            if !Self::can_implicit_cast(resolved_type, &FeType::Bool(None)) {
+                                todo!("Can't cast to bool!");
+                            }
+                        }
+                    }
 
-        //             changed |= local;
-        //             if let Some(t) = term.as_ref().map(|term| term.resolved_type()) {
-        //                 types.extend(t.into_iter().map(|t| Some((term.clone(), t))));
-        //             } else {
-        //                 types.push(None);
-        //             }
-        //         } else {
-        //             types.push(None);
-        //         }
-        //     }
-        // }
+                    {
+                        let mut expr = else_if.expr.0.lock().unwrap();
 
-        // if types.len() > 0 {
-        //     if types.iter().filter_map(|x| x.clone()).all(|term| {
-        //         matches!(
-        //             term,
-        //             (
-        //                 Some(TerminationType::Base(BaseTerminationType::Break(_))),
-        //                 _
-        //             )
-        //         )
-        //     }) {
-        //         types = types.into_iter().filter(|x| x.is_some()).collect();
-        //     }
+                        changed |= expr.accept(self)?;
 
-        //     // dbg!(&types);
-        //     // todo!();
+                        let Some(resolved_type) = expr.resolved_type() else {
+                            todo!("Can't use no-type as a value");
+                        };
 
-        //     let first = &types[0];
+                        if let Some(typ) = &typ {
+                            if let Some(resolved_type) = resolved_type {
+                                if !Self::can_implicit_cast(resolved_type, &typ) {
+                                    todo!("Can't cast!");
+                                }
+                            }
+                        } else {
+                            if let Some(resolved_type) = resolved_type {
+                                typ = Some(resolved_type.clone());
+                            }
+                        }
+                    }
+                }
+                IfExprElseIf::Block(else_if) => {
+                    self.thenable_count += 1;
+                    let (local_changed, _terminal) = self.resolve_stmts(&else_if.block.stmts)?;
+                    self.thenable_count -= 1;
 
-        //     for idx in 1..types.len() {
-        //         if types[idx] != *first {
-        //             dbg!(&expr);
-        //             dbg!(&types);
-        //             todo!("Handle multi break types better");
-        //         }
-        //     }
+                    changed |= local_changed;
 
-        //     changed = true;
-        //     expr.resolved_type = Some(first.clone().map(|t| t.1));
-        // }
+                    // TODO: Try to determine and check type here if terminal is Then stmt
+                }
+            }
+        }
 
-        // let _ = expr.is_resolved();
-        // if let Some(terminal) = &expr.resolved_terminal {
-        //     changed = true;
+        if let Some(else_) = &expr.else_ {
+            if !else_.is_resolved() {
+                match else_ {
+                    IfExprElse::Ternary(else_) => {
+                        let mut else_expr = else_.else_expr.0.lock().unwrap();
 
-        //     expr.resolved_type = match terminal {
-        //         None => Some(None),
+                        changed |= else_expr.accept(self)?;
 
-        //         Some(TerminationType::Contains(contains)) => {
-        //             // let mut resolved = None;
+                        let Some(resolved_type) = else_expr.resolved_type() else {
+                            todo!("Can't use no-type as a value");
+                        };
 
-        //             // for term in contains {
-        //             //     // TODO
-        //             //     if let Some(res) = term.resolved_type() {
+                        if let Some(typ) = &typ {
+                            if let Some(resolved_type) = resolved_type {
+                                if !Self::can_implicit_cast(resolved_type, &typ) {
+                                    todo!("Can't cast!");
+                                }
+                            }
+                        } else {
+                            if let Some(resolved_type) = resolved_type {
+                                typ = Some(resolved_type.clone());
+                            }
+                        }
+                    }
+                    IfExprElse::Block(else_) => {
+                        self.thenable_count += 1;
+                        let (local_changed, _terminal) = self.resolve_stmts(&else_.block.stmts)?;
+                        self.thenable_count -= 1;
 
-        //             //     }
-        //             // }
-        //             todo!("if resolution needs thought to implement, I'm too tired right now")
-        //         }
-        //         Some(TerminationType::Base(b)) => Some(b.resolved_type()),
-        //     }
-        // }
+                        changed |= local_changed;
 
-        todo!();
+                        // TODO: Try to determine and check type here if terminal is Then stmt
+                    }
+                }
+            }
+        }
+
+        expr.resolved_type = Some(typ);
 
         return Ok(changed);
     }
