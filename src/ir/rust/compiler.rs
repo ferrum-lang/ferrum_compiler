@@ -381,7 +381,50 @@ impl StmtVisitor<FeType, Result<Vec<ir::RustIRStmt>>> for RustSyntaxCompiler {
     }
 
     fn visit_if_stmt(&mut self, stmt: &mut IfStmt<FeType>) -> Result<Vec<ir::RustIRStmt>> {
-        let expr = stmt.inner.accept(self)?;
+        let condition = Box::new(stmt.condition.0.lock().unwrap().accept(self)?);
+
+        let mut then = vec![];
+        for stmt in &mut stmt.then.stmts {
+            let stmts = stmt.lock().unwrap().accept(self)?;
+
+            then.extend(stmts);
+        }
+
+        let mut else_ifs = vec![];
+        for else_if in &mut stmt.else_ifs {
+            let condition = Box::new(else_if.condition.0.lock().unwrap().accept(self)?);
+
+            let mut then = vec![];
+            for stmt in &mut else_if.then.stmts {
+                let stmts = stmt.lock().unwrap().accept(self)?;
+
+                then.extend(stmts);
+            }
+
+            let else_if = ir::RustIRElseIf { condition, then };
+
+            else_ifs.push(else_if);
+        }
+
+        let else_ = if let Some(else_) = &mut stmt.else_ {
+            let mut then = vec![];
+            for stmt in &mut else_.then.stmts {
+                let stmts = stmt.lock().unwrap().accept(self)?;
+
+                then.extend(stmts);
+            }
+
+            Some(ir::RustIRElse { then })
+        } else {
+            None
+        };
+
+        let expr = ir::RustIRExpr::If(ir::RustIRIfExpr {
+            condition,
+            then,
+            else_ifs,
+            else_,
+        });
 
         return Ok(vec![ir::RustIRStmt::ImplicitReturn(
             ir::RustIRImplicitReturnStmt { expr },
@@ -389,30 +432,34 @@ impl StmtVisitor<FeType, Result<Vec<ir::RustIRStmt>>> for RustSyntaxCompiler {
     }
 
     fn visit_loop_stmt(&mut self, stmt: &mut LoopStmt<FeType>) -> Result<Vec<ir::RustIRStmt>> {
-        let mut stmts = vec![];
+        todo!();
 
-        for stmt in &mut stmt.inner.block.stmts {
-            let ir_stmts = stmt.lock().unwrap().accept(self)?;
-            stmts.extend(ir_stmts);
-        }
+        // let mut stmts = vec![];
 
-        return Ok(vec![ir::RustIRStmt::Loop(ir::RustIRLoopStmt { stmts })]);
+        // for stmt in &mut stmt.inner.block.stmts {
+        //     let ir_stmts = stmt.lock().unwrap().accept(self)?;
+        //     stmts.extend(ir_stmts);
+        // }
+
+        // return Ok(vec![ir::RustIRStmt::Loop(ir::RustIRLoopStmt { stmts })]);
     }
 
     fn visit_while_stmt(&mut self, stmt: &mut WhileStmt<FeType>) -> Result<Vec<ir::RustIRStmt>> {
-        let condition = stmt.inner.condition.0.lock().unwrap().accept(self)?;
+        todo!();
 
-        let mut stmts = vec![];
+        // let condition = stmt.inner.condition.0.lock().unwrap().accept(self)?;
 
-        for stmt in &mut stmt.inner.block.stmts {
-            let ir_stmts = stmt.lock().unwrap().accept(self)?;
-            stmts.extend(ir_stmts);
-        }
+        // let mut stmts = vec![];
 
-        return Ok(vec![ir::RustIRStmt::While(ir::RustIRWhileStmt {
-            condition,
-            stmts,
-        })]);
+        // for stmt in &mut stmt.inner.block.stmts {
+        //     let ir_stmts = stmt.lock().unwrap().accept(self)?;
+        //     stmts.extend(ir_stmts);
+        // }
+
+        // return Ok(vec![ir::RustIRStmt::While(ir::RustIRWhileStmt {
+        //     condition,
+        //     stmts,
+        // })]);
     }
 
     fn visit_break_stmt(&mut self, stmt: &mut BreakStmt<FeType>) -> Result<Vec<ir::RustIRStmt>> {
@@ -709,76 +756,78 @@ impl ExprVisitor<FeType, Result<ir::RustIRExpr>> for RustSyntaxCompiler {
     fn visit_if_expr(&mut self, expr: &mut IfExpr<FeType>) -> Result<ir::RustIRExpr> {
         let if_condition = Box::new(expr.condition.0.lock().unwrap().accept(self)?);
 
-        match &mut expr.then {
-            IfThen::Ternary(t) => {
-                let then = vec![ir::RustIRStmt::ImplicitReturn(
-                    ir::RustIRImplicitReturnStmt {
-                        expr: t.then_expr.0.lock().unwrap().accept(self)?,
-                    },
-                )];
+        todo!();
 
-                let else_ = if let Some(e) = &t.else_ {
-                    Some(ir::RustIRElse {
-                        then: vec![ir::RustIRStmt::ImplicitReturn(
-                            ir::RustIRImplicitReturnStmt {
-                                expr: e.else_expr.0.lock().unwrap().accept(self)?,
-                            },
-                        )],
-                    })
-                } else {
-                    None
-                };
+        // match &mut expr.then {
+        //     IfExprThen::Ternary(t) => {
+        //         let then = vec![ir::RustIRStmt::ImplicitReturn(
+        //             ir::RustIRImplicitReturnStmt {
+        //                 expr: t.then_expr.0.lock().unwrap().accept(self)?,
+        //             },
+        //         )];
 
-                return Ok(ir::RustIRExpr::If(ir::RustIRIfExpr {
-                    condition: if_condition,
-                    then,
-                    else_ifs: vec![],
-                    else_,
-                }));
-            }
-            IfThen::Classic(then) => {
-                let mut if_then_block = vec![];
-                for stmt in &mut then.then_block.stmts {
-                    let stmts = stmt.lock().unwrap().accept(self)?;
-                    if_then_block.extend(stmts.into_iter());
-                }
+        //         let else_ = if let Some(e) = &t.else_ {
+        //             Some(ir::RustIRElse {
+        //                 then: vec![ir::RustIRStmt::ImplicitReturn(
+        //                     ir::RustIRImplicitReturnStmt {
+        //                         expr: e.else_expr.0.lock().unwrap().accept(self)?,
+        //                     },
+        //                 )],
+        //             })
+        //         } else {
+        //             None
+        //         };
 
-                let mut else_ifs = vec![];
-                for else_if in &mut then.else_ifs {
-                    let condition = Box::new(else_if.condition.0.lock().unwrap().accept(self)?);
+        //         return Ok(ir::RustIRExpr::If(ir::RustIRIfExpr {
+        //             condition: if_condition,
+        //             then,
+        //             else_ifs: vec![],
+        //             else_,
+        //         }));
+        //     }
+        //     IfExprThen::Block(then) => {
+        //         let mut if_then_block = vec![];
+        //         for stmt in &mut then.block.stmts {
+        //             let stmts = stmt.lock().unwrap().accept(self)?;
+        //             if_then_block.extend(stmts.into_iter());
+        //         }
 
-                    let mut then_block = vec![];
-                    for stmt in &mut else_if.then_block.stmts {
-                        let stmts = stmt.lock().unwrap().accept(self)?;
-                        then_block.extend(stmts.into_iter());
-                    }
+        //         let mut else_ifs = vec![];
+        //         for else_if in &mut then.else_ifs {
+        //             let condition = Box::new(else_if.condition.0.lock().unwrap().accept(self)?);
 
-                    else_ifs.push(RustIRElseIf {
-                        condition,
-                        then: then_block,
-                    });
-                }
+        //             let mut then_block = vec![];
+        //             for stmt in &mut else_if.then_block.stmts {
+        //                 let stmts = stmt.lock().unwrap().accept(self)?;
+        //                 then_block.extend(stmts.into_iter());
+        //             }
 
-                let else_ = if let Some(else_) = &mut then.else_ {
-                    let mut then_block = vec![];
-                    for stmt in &mut else_.then_block.stmts {
-                        let stmts = stmt.lock().unwrap().accept(self)?;
-                        then_block.extend(stmts.into_iter());
-                    }
+        //             else_ifs.push(RustIRElseIf {
+        //                 condition,
+        //                 then: then_block,
+        //             });
+        //         }
 
-                    Some(ir::RustIRElse { then: then_block })
-                } else {
-                    None
-                };
+        //         let else_ = if let Some(else_) = &mut then.else_ {
+        //             let mut then_block = vec![];
+        //             for stmt in &mut else_.then_block.stmts {
+        //                 let stmts = stmt.lock().unwrap().accept(self)?;
+        //                 then_block.extend(stmts.into_iter());
+        //             }
 
-                return Ok(ir::RustIRExpr::If(ir::RustIRIfExpr {
-                    condition: if_condition,
-                    then: if_then_block,
-                    else_ifs,
-                    else_,
-                }));
-            }
-        }
+        //             Some(ir::RustIRElse { then: then_block })
+        //         } else {
+        //             None
+        //         };
+
+        //         return Ok(ir::RustIRExpr::If(ir::RustIRIfExpr {
+        //             condition: if_condition,
+        //             then: if_then_block,
+        //             else_ifs,
+        //             else_,
+        //         }));
+        //     }
+        // }
     }
 
     fn visit_loop_expr(&mut self, expr: &mut LoopExpr<FeType>) -> Result<ir::RustIRExpr> {

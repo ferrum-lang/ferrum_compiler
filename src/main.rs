@@ -34,11 +34,11 @@ fn main() -> ferrum_compiler::result::Result {
     let rust_code = Arc::new(Mutex::new(RustCodeGen::generate_code(rust_ir)?));
     // dbg!(&rust_code);
 
-    println!("\n");
-    for file in &rust_code.lock().unwrap().files {
-        println!("// {:?}\n{}", file.path, file.content);
-    }
-    todo!();
+    // println!("\n");
+    // for file in &rust_code.lock().unwrap().files {
+    //     println!("// {:?}\n{}", file.path, file.content);
+    // }
+    // todo!();
 
     let dst = path::PathBuf::from("./.ferrum/compiled_rust");
 

@@ -18,7 +18,7 @@ pub use r#static::*;
 
 use crate::r#type::FeType;
 use crate::result::Result;
-use crate::token;
+use crate::token::{self, Token};
 use crate::utils::{fe_from, fe_try_from, from, invert, try_from};
 
 use std::collections::HashMap;
@@ -299,108 +299,108 @@ impl ResolvedType for () {}
 impl ResolvedType for FeType {}
 impl<T: ResolvedType> ResolvedType for Option<T> {}
 
-#[derive(Debug, Clone, PartialEq)]
-pub enum BaseTerminationType<T: ResolvedType> {
-    Break(Option<NestedExpr<T>>),
-    Then(NestedExpr<T>),
-    Return,
-    InfiniteLoop,
-}
+// #[derive(Debug, Clone, PartialEq)]
+// pub enum BaseTerminationType<T: ResolvedType> {
+//     Break(Option<NestedExpr<T>>),
+//     Then(NestedExpr<T>),
+//     Return,
+//     InfiniteLoop,
+// }
 
-#[derive(Debug, Clone, PartialEq)]
-pub enum TerminationType<T: ResolvedType> {
-    Contains(Vec<BaseTerminationType<T>>),
-    Base(BaseTerminationType<T>),
-}
+// #[derive(Debug, Clone, PartialEq)]
+// pub enum TerminationType<T: ResolvedType> {
+//     Contains(Vec<BaseTerminationType<T>>),
+//     Base(BaseTerminationType<T>),
+// }
 
-impl BaseTerminationType<Option<FeType>> {
-    pub fn resolved_type(&self) -> Option<FeType> {
-        match self {
-            Self::Then(expr) | Self::Break(Some(expr)) => {
-                return expr.0.lock().unwrap().resolved_type().cloned().flatten()
-            }
-            Self::Break(None) | Self::Return | Self::InfiniteLoop => return None,
-        }
-    }
-}
+// impl BaseTerminationType<Option<FeType>> {
+//     pub fn resolved_type(&self) -> Option<FeType> {
+//         match self {
+//             Self::Then(expr) | Self::Break(Some(expr)) => {
+//                 return expr.0.lock().unwrap().resolved_type().cloned().flatten()
+//             }
+//             Self::Break(None) | Self::Return | Self::InfiniteLoop => return None,
+//         }
+//     }
+// }
 
-impl TerminationType<Option<FeType>> {
-    pub fn resolved_type(&self) -> Vec<FeType> {
-        match self {
-            Self::Contains(vals) => {
-                return vals
-                    .iter()
-                    .map(|val| val.resolved_type())
-                    .filter_map(|v| v)
-                    .collect();
-            }
-            Self::Base(b) => {
-                let mut vals = vec![];
+// impl TerminationType<Option<FeType>> {
+//     pub fn resolved_type(&self) -> Vec<FeType> {
+//         match self {
+//             Self::Contains(vals) => {
+//                 return vals
+//                     .iter()
+//                     .map(|val| val.resolved_type())
+//                     .filter_map(|v| v)
+//                     .collect();
+//             }
+//             Self::Base(b) => {
+//                 let mut vals = vec![];
 
-                if let Some(v) = b.resolved_type() {
-                    vals.push(v);
-                }
+//                 if let Some(v) = b.resolved_type() {
+//                     vals.push(v);
+//                 }
 
-                return vals;
-            }
-        }
-    }
-}
+//                 return vals;
+//             }
+//         }
+//     }
+// }
 
 pub trait IsTerminal<T: ResolvedType> {
-    fn is_terminal(&mut self) -> Option<TerminationType<T>> {
-        return None;
+    fn is_terminal(&mut self) -> bool {
+        return false;
     }
 }
 
-impl<T: ResolvedType> From<BaseTerminationType<()>> for BaseTerminationType<Option<T>> {
-    fn from(value: BaseTerminationType<()>) -> Self {
-        match value {
-            BaseTerminationType::Break(e) => return Self::Break(e.map(from)),
-            BaseTerminationType::Then(e) => return Self::Then(from(e)),
-            BaseTerminationType::Return => return Self::Return,
-            BaseTerminationType::InfiniteLoop => return Self::InfiniteLoop,
-        }
-    }
-}
+// impl<T: ResolvedType> From<BaseTerminationType<()>> for BaseTerminationType<Option<T>> {
+//     fn from(value: BaseTerminationType<()>) -> Self {
+//         match value {
+//             BaseTerminationType::Break(e) => return Self::Break(e.map(from)),
+//             BaseTerminationType::Then(e) => return Self::Then(from(e)),
+//             BaseTerminationType::Return => return Self::Return,
+//             BaseTerminationType::InfiniteLoop => return Self::InfiniteLoop,
+//         }
+//     }
+// }
 
-impl<T: ResolvedType> TryFrom<BaseTerminationType<Option<T>>> for BaseTerminationType<T> {
-    type Error = FinalizeResolveTypeError;
+// impl<T: ResolvedType> TryFrom<BaseTerminationType<Option<T>>> for BaseTerminationType<T> {
+//     type Error = FinalizeResolveTypeError;
 
-    fn try_from(value: BaseTerminationType<Option<T>>) -> Result<Self, Self::Error> {
-        match value {
-            BaseTerminationType::Break(e) => return Ok(Self::Break(invert(e.map(try_from))?)),
-            BaseTerminationType::Then(e) => return Ok(Self::Then(try_from(e)?)),
-            BaseTerminationType::Return => return Ok(Self::Return),
-            BaseTerminationType::InfiniteLoop => return Ok(Self::InfiniteLoop),
-        }
-    }
-}
+//     fn try_from(value: BaseTerminationType<Option<T>>) -> Result<Self, Self::Error> {
+//         match value {
+//             BaseTerminationType::Break(e) => return Ok(Self::Break(invert(e.map(try_from))?)),
+//             BaseTerminationType::Then(e) => return Ok(Self::Then(try_from(e)?)),
+//             BaseTerminationType::Return => return Ok(Self::Return),
+//             BaseTerminationType::InfiniteLoop => return Ok(Self::InfiniteLoop),
+//         }
+//     }
+// }
 
-impl<T: ResolvedType> From<TerminationType<()>> for TerminationType<Option<T>> {
-    fn from(value: TerminationType<()>) -> Self {
-        match value {
-            TerminationType::Contains(vals) => {
-                return Self::Contains(vals.into_iter().map(from).collect())
-            }
-            TerminationType::Base(b) => return Self::Base(from(b)),
-        }
-    }
-}
+// impl<T: ResolvedType> From<TerminationType<()>> for TerminationType<Option<T>> {
+//     fn from(value: TerminationType<()>) -> Self {
+//         match value {
+//             TerminationType::Contains(vals) => {
+//                 return Self::Contains(vals.into_iter().map(from).collect())
+//             }
+//             TerminationType::Base(b) => return Self::Base(from(b)),
+//         }
+//     }
+// }
 
-impl<T: ResolvedType> TryFrom<TerminationType<Option<T>>> for TerminationType<T> {
-    type Error = FinalizeResolveTypeError;
+// impl<T: ResolvedType> TryFrom<TerminationType<Option<T>>> for TerminationType<T> {
+//     type Error = FinalizeResolveTypeError;
 
-    fn try_from(value: TerminationType<Option<T>>) -> Result<Self, Self::Error> {
-        match value {
-            TerminationType::Contains(vals) => {
-                return Ok(Self::Contains(
-                    vals.into_iter()
-                        .map(|val| try_from(val))
-                        .collect::<Result<Vec<_>, Self::Error>>()?,
-                ))
-            }
-            TerminationType::Base(b) => return Ok(Self::Base(try_from(b)?)),
-        }
-    }
-}
+//     fn try_from(value: TerminationType<Option<T>>) -> Result<Self, Self::Error> {
+//         match value {
+//             TerminationType::Contains(vals) => {
+//                 return Ok(Self::Contains(
+//                     vals.into_iter()
+//                         .map(|val| try_from(val))
+//                         .collect::<Result<Vec<_>, Self::Error>>()?,
+//                 ))
+//             }
+//             TerminationType::Base(b) => return Ok(Self::Base(try_from(b)?)),
+//         }
+//     }
+// }

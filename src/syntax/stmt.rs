@@ -33,7 +33,7 @@ impl<T: ResolvedType> Node<Stmt> for Stmt<T> {
 }
 
 impl<T: ResolvedType> IsTerminal<T> for Stmt<T> {
-    fn is_terminal(&mut self) -> Option<TerminationType<T>> {
+    fn is_terminal(&mut self) -> bool {
         match self {
             Self::Expr(stmt) => return stmt.is_terminal(),
             Self::VarDecl(stmt) => return stmt.is_terminal(),
@@ -406,8 +406,8 @@ impl<T: ResolvedType> Node<Stmt> for ReturnStmt<T> {
 }
 
 impl<T: ResolvedType> IsTerminal<T> for ReturnStmt<T> {
-    fn is_terminal(&mut self) -> Option<TerminationType<T>> {
-        return Some(TerminationType::Base(BaseTerminationType::Return));
+    fn is_terminal(&mut self) -> bool {
+        return true;
     }
 }
 
@@ -448,7 +448,13 @@ impl<T: ResolvedType> TryFrom<ReturnStmt<Option<T>>> for ReturnStmt<T> {
 #[derive(Debug, Clone, PartialEq)]
 pub struct IfStmt<T: ResolvedType = ()> {
     pub id: NodeId<Stmt>,
-    pub inner: IfExpr<T>,
+    pub if_token: Arc<Token>,
+    pub condition: NestedExpr<T>,
+    pub then: CodeBlock<T, ()>,
+    pub else_ifs: Vec<IfStmtElseIf<T>>,
+    pub else_: Option<IfStmtElse<T>>,
+    pub semicolon_token: Arc<Token>,
+    pub resolved_terminal: Option<bool>,
 }
 
 impl<T: ResolvedType> Node<Stmt> for IfStmt<T> {
@@ -458,8 +464,40 @@ impl<T: ResolvedType> Node<Stmt> for IfStmt<T> {
 }
 
 impl<T: ResolvedType> IsTerminal<T> for IfStmt<T> {
-    fn is_terminal(&mut self) -> Option<TerminationType<T>> {
-        return self.inner.is_terminal();
+    fn is_terminal(&mut self) -> bool {
+        if let Some(resolved) = &self.resolved_terminal {
+            return *resolved;
+        }
+
+        // Remember, 'then' is illegal in IfStmt, so any terminals in self are not related to this
+
+        let mut is_terminal = true;
+
+        if let Some(stmt) = self.then.stmts.last() {
+            if !stmt.lock().unwrap().is_terminal() {
+                is_terminal = false;
+            }
+        }
+
+        for else_if in &self.else_ifs {
+            if let Some(stmt) = else_if.then.stmts.last() {
+                if !stmt.lock().unwrap().is_terminal() {
+                    is_terminal = false;
+                }
+            }
+        }
+
+        if let Some(else_) = &self.else_ {
+            if let Some(stmt) = else_.then.stmts.last() {
+                if !stmt.lock().unwrap().is_terminal() {
+                    is_terminal = false;
+                }
+            }
+        }
+
+        self.resolved_terminal = Some(is_terminal);
+
+        return is_terminal;
     }
 }
 
@@ -467,16 +505,41 @@ impl<T: ResolvedType> From<IfStmt<()>> for IfStmt<Option<T>> {
     fn from(value: IfStmt<()>) -> Self {
         return Self {
             id: value.id,
-            inner: from(value.inner),
+            if_token: value.if_token,
+            condition: from(value.condition),
+            then: from(value.then),
+            else_ifs: fe_from(value.else_ifs),
+            else_: fe_from(value.else_),
+            semicolon_token: value.semicolon_token,
+            resolved_terminal: value.resolved_terminal,
         };
     }
 }
 
 impl<T: ResolvedType> Resolvable for IfStmt<Option<T>> {
     fn is_resolved(&self) -> bool {
-        if !self.inner.is_resolved() {
+        if !self.condition.is_resolved() {
             dbg!("false");
             return false;
+        }
+
+        if !self.then.is_resolved() {
+            dbg!("false");
+            return false;
+        }
+
+        for else_if in &self.else_ifs {
+            if !else_if.is_resolved() {
+                dbg!("false");
+                return false;
+            }
+        }
+
+        if let Some(else_) = &self.else_ {
+            if !else_.is_resolved() {
+                dbg!("false");
+                return false;
+            }
         }
 
         return true;
@@ -489,7 +552,98 @@ impl<T: ResolvedType> TryFrom<IfStmt<Option<T>>> for IfStmt<T> {
     fn try_from(value: IfStmt<Option<T>>) -> Result<Self, Self::Error> {
         return Ok(Self {
             id: value.id,
-            inner: try_from(value.inner)?,
+            if_token: value.if_token,
+            condition: try_from(value.condition)?,
+            then: try_from(value.then)?,
+            else_ifs: fe_try_from(value.else_ifs)?,
+            else_: fe_try_from(value.else_)?,
+            semicolon_token: value.semicolon_token,
+            resolved_terminal: value.resolved_terminal,
+        });
+    }
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub struct IfStmtElseIf<T: ResolvedType = ()> {
+    pub else_token: Arc<Token>,
+    pub if_token: Arc<Token>,
+    pub condition: NestedExpr<T>,
+    pub then: CodeBlock<T, ()>,
+}
+
+impl<T: ResolvedType> From<IfStmtElseIf<()>> for IfStmtElseIf<Option<T>> {
+    fn from(value: IfStmtElseIf<()>) -> Self {
+        return Self {
+            else_token: value.else_token,
+            if_token: value.if_token,
+            condition: from(value.condition),
+            then: from(value.then),
+        };
+    }
+}
+
+impl<T: ResolvedType> Resolvable for IfStmtElseIf<Option<T>> {
+    fn is_resolved(&self) -> bool {
+        if !self.condition.is_resolved() {
+            dbg!("false");
+            return false;
+        }
+
+        if !self.then.is_resolved() {
+            dbg!("false");
+            return false;
+        }
+
+        return true;
+    }
+}
+
+impl<T: ResolvedType> TryFrom<IfStmtElseIf<Option<T>>> for IfStmtElseIf<T> {
+    type Error = FinalizeResolveTypeError;
+
+    fn try_from(value: IfStmtElseIf<Option<T>>) -> Result<Self, Self::Error> {
+        return Ok(Self {
+            else_token: value.else_token,
+            if_token: value.if_token,
+            condition: try_from(value.condition)?,
+            then: try_from(value.then)?,
+        });
+    }
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub struct IfStmtElse<T: ResolvedType = ()> {
+    pub else_token: Arc<Token>,
+    pub then: CodeBlock<T, ()>,
+}
+
+impl<T: ResolvedType> From<IfStmtElse<()>> for IfStmtElse<Option<T>> {
+    fn from(value: IfStmtElse<()>) -> Self {
+        return Self {
+            else_token: value.else_token,
+            then: from(value.then),
+        };
+    }
+}
+
+impl<T: ResolvedType> Resolvable for IfStmtElse<Option<T>> {
+    fn is_resolved(&self) -> bool {
+        if !self.then.is_resolved() {
+            dbg!("false");
+            return false;
+        }
+
+        return true;
+    }
+}
+
+impl<T: ResolvedType> TryFrom<IfStmtElse<Option<T>>> for IfStmtElse<T> {
+    type Error = FinalizeResolveTypeError;
+
+    fn try_from(value: IfStmtElse<Option<T>>) -> Result<Self, Self::Error> {
+        return Ok(Self {
+            else_token: value.else_token,
+            then: try_from(value.then)?,
         });
     }
 }
@@ -497,7 +651,10 @@ impl<T: ResolvedType> TryFrom<IfStmt<Option<T>>> for IfStmt<T> {
 #[derive(Debug, Clone, PartialEq)]
 pub struct LoopStmt<T: ResolvedType = ()> {
     pub id: NodeId<Stmt>,
-    pub inner: LoopExpr<T>,
+    pub loop_token: Arc<Token>,
+    pub label: Option<Arc<Token>>,
+    pub block: CodeBlock<T>,
+    pub resolved_terminal: Option<bool>,
 }
 
 impl<T: ResolvedType> Node<Stmt> for LoopStmt<T> {
@@ -507,8 +664,31 @@ impl<T: ResolvedType> Node<Stmt> for LoopStmt<T> {
 }
 
 impl<T: ResolvedType> IsTerminal<T> for LoopStmt<T> {
-    fn is_terminal(&mut self) -> Option<TerminationType<T>> {
-        return self.inner.is_terminal();
+    fn is_terminal(&mut self) -> bool {
+        if let Some(resolved) = &self.resolved_terminal {
+            return *resolved;
+        }
+
+        let mut is_terminal = false;
+
+        // TODO: check for infinite loop?
+        // TODO: check for loop that is terminal without just breaking out of the loop?
+
+        /* TODO: also account for weird situations like so:
+        loop
+            if some_condition()
+                return
+            ;
+
+            ...
+        ;
+
+        ^ That loop is terminal because the only way out is returning
+        */
+
+        self.resolved_terminal = Some(is_terminal);
+
+        return is_terminal;
     }
 }
 
@@ -516,14 +696,17 @@ impl<T: ResolvedType> From<LoopStmt<()>> for LoopStmt<Option<T>> {
     fn from(value: LoopStmt<()>) -> Self {
         return Self {
             id: value.id,
-            inner: from(value.inner),
+            loop_token: value.loop_token,
+            label: value.label,
+            block: from(value.block),
+            resolved_terminal: value.resolved_terminal,
         };
     }
 }
 
 impl<T: ResolvedType> Resolvable for LoopStmt<Option<T>> {
     fn is_resolved(&self) -> bool {
-        if !self.inner.is_resolved() {
+        if !self.block.is_resolved() {
             dbg!("false");
             return false;
         }
@@ -538,7 +721,10 @@ impl<T: ResolvedType> TryFrom<LoopStmt<Option<T>>> for LoopStmt<T> {
     fn try_from(value: LoopStmt<Option<T>>) -> Result<Self, Self::Error> {
         return Ok(Self {
             id: value.id,
-            inner: try_from(value.inner)?,
+            loop_token: value.loop_token,
+            label: value.label,
+            block: try_from(value.block)?,
+            resolved_terminal: value.resolved_terminal,
         });
     }
 }
@@ -546,7 +732,13 @@ impl<T: ResolvedType> TryFrom<LoopStmt<Option<T>>> for LoopStmt<T> {
 #[derive(Debug, Clone, PartialEq)]
 pub struct WhileStmt<T: ResolvedType = ()> {
     pub id: NodeId<Stmt>,
-    pub inner: WhileExpr<T>,
+    pub while_token: Arc<Token>,
+    pub label: Option<Arc<Token>>,
+    pub condition: NestedExpr<T>,
+    pub block: CodeBlock<T, ()>,
+    pub else_: Option<WhileStmtElse<T>>,
+    pub semicolon_token: Arc<Token>,
+    pub resolved_terminal: Option<bool>,
 }
 
 impl<T: ResolvedType> Node<Stmt> for WhileStmt<T> {
@@ -556,8 +748,21 @@ impl<T: ResolvedType> Node<Stmt> for WhileStmt<T> {
 }
 
 impl<T: ResolvedType> IsTerminal<T> for WhileStmt<T> {
-    fn is_terminal(&mut self) -> Option<TerminationType<T>> {
-        return self.inner.is_terminal();
+    fn is_terminal(&mut self) -> bool {
+        if let Some(resolved) = &self.resolved_terminal {
+            return *resolved;
+        }
+
+        let is_terminal = false;
+
+        // TODO: check for infinite while loop?
+        // TODO: check for while loop that is terminal without just breaking out of the while?
+
+        // TODO: does else-case influence terminality? ie if block AND else-case are terminal
+
+        self.resolved_terminal = Some(is_terminal);
+
+        return is_terminal;
     }
 }
 
@@ -565,16 +770,34 @@ impl<T: ResolvedType> From<WhileStmt<()>> for WhileStmt<Option<T>> {
     fn from(value: WhileStmt<()>) -> Self {
         return Self {
             id: value.id,
-            inner: from(value.inner),
+            while_token: value.while_token,
+            label: value.label,
+            condition: from(value.condition),
+            block: from(value.block),
+            else_: fe_from(value.else_),
+            semicolon_token: value.semicolon_token,
+            resolved_terminal: value.resolved_terminal,
         };
     }
 }
 
 impl<T: ResolvedType> Resolvable for WhileStmt<Option<T>> {
     fn is_resolved(&self) -> bool {
-        if !self.inner.is_resolved() {
+        if !self.condition.is_resolved() {
             dbg!("false");
             return false;
+        }
+
+        if !self.block.is_resolved() {
+            dbg!("false");
+            return false;
+        }
+
+        if let Some(else_) = &self.else_ {
+            if !else_.is_resolved() {
+                dbg!("false");
+                return false;
+            }
         }
 
         return true;
@@ -587,7 +810,50 @@ impl<T: ResolvedType> TryFrom<WhileStmt<Option<T>>> for WhileStmt<T> {
     fn try_from(value: WhileStmt<Option<T>>) -> Result<Self, Self::Error> {
         return Ok(Self {
             id: value.id,
-            inner: try_from(value.inner)?,
+            while_token: value.while_token,
+            label: value.label,
+            condition: try_from(value.condition)?,
+            block: try_from(value.block)?,
+            else_: fe_try_from(value.else_)?,
+            semicolon_token: value.semicolon_token,
+            resolved_terminal: value.resolved_terminal,
+        });
+    }
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub struct WhileStmtElse<T: ResolvedType> {
+    pub else_token: Arc<Token>,
+    pub block: CodeBlock<T, ()>,
+}
+
+impl<T: ResolvedType> From<WhileStmtElse<()>> for WhileStmtElse<Option<T>> {
+    fn from(value: WhileStmtElse<()>) -> Self {
+        return Self {
+            else_token: value.else_token,
+            block: from(value.block),
+        };
+    }
+}
+
+impl<T: ResolvedType> Resolvable for WhileStmtElse<Option<T>> {
+    fn is_resolved(&self) -> bool {
+        if !self.block.is_resolved() {
+            dbg!("false");
+            return false;
+        }
+
+        return true;
+    }
+}
+
+impl<T: ResolvedType> TryFrom<WhileStmtElse<Option<T>>> for WhileStmtElse<T> {
+    type Error = FinalizeResolveTypeError;
+
+    fn try_from(value: WhileStmtElse<Option<T>>) -> Result<Self, Self::Error> {
+        return Ok(Self {
+            else_token: value.else_token,
+            block: try_from(value.block)?,
         });
     }
 }
@@ -596,6 +862,7 @@ impl<T: ResolvedType> TryFrom<WhileStmt<Option<T>>> for WhileStmt<T> {
 pub struct BreakStmt<T: ResolvedType = ()> {
     pub id: NodeId<Stmt>,
     pub break_token: Arc<Token>,
+    pub label: Option<Arc<Token>>,
     pub value: Option<NestedExpr<T>>,
     pub resolved_type: Option<T>,
 }
@@ -607,10 +874,8 @@ impl<T: ResolvedType> Node<Stmt> for BreakStmt<T> {
 }
 
 impl<T: ResolvedType> IsTerminal<T> for BreakStmt<T> {
-    fn is_terminal(&mut self) -> Option<TerminationType<T>> {
-        return Some(TerminationType::Base(BaseTerminationType::Break(
-            self.value.as_ref().map(|value| value.clone()),
-        )));
+    fn is_terminal(&mut self) -> bool {
+        return true;
     }
 }
 
@@ -619,6 +884,7 @@ impl<T: ResolvedType> From<BreakStmt<()>> for BreakStmt<Option<T>> {
         return Self {
             id: value.id,
             break_token: value.break_token,
+            label: value.label,
             value: value.value.map(from),
             resolved_type: value.resolved_type.map(|_| None),
         };
@@ -648,6 +914,7 @@ impl<T: ResolvedType> TryFrom<BreakStmt<Option<T>>> for BreakStmt<T> {
         return Ok(Self {
             id: value.id,
             break_token: value.break_token,
+            label: value.label,
             value: invert(value.value.map(try_from))?,
             resolved_type: value.resolved_type.ok_or(FinalizeResolveTypeError {
                 file: file!(),
@@ -661,6 +928,7 @@ impl<T: ResolvedType> TryFrom<BreakStmt<Option<T>>> for BreakStmt<T> {
 pub struct ThenStmt<T: ResolvedType = ()> {
     pub id: NodeId<Stmt>,
     pub then_token: Arc<Token>,
+    pub label: Option<Arc<Token>>,
     pub value: NestedExpr<T>,
     pub resolved_type: T,
 }
@@ -672,10 +940,8 @@ impl<T: ResolvedType> Node<Stmt> for ThenStmt<T> {
 }
 
 impl<T: ResolvedType> IsTerminal<T> for ThenStmt<T> {
-    fn is_terminal(&mut self) -> Option<TerminationType<T>> {
-        return Some(TerminationType::Base(BaseTerminationType::Then(
-            self.value.clone(),
-        )));
+    fn is_terminal(&mut self) -> bool {
+        return true;
     }
 }
 
@@ -684,6 +950,7 @@ impl<T: ResolvedType> From<ThenStmt<()>> for ThenStmt<Option<T>> {
         return Self {
             id: value.id,
             then_token: value.then_token,
+            label: value.label,
             value: from(value.value),
             resolved_type: None,
         };
@@ -707,6 +974,7 @@ impl<T: ResolvedType> TryFrom<ThenStmt<Option<T>>> for ThenStmt<T> {
         return Ok(Self {
             id: value.id,
             then_token: value.then_token,
+            label: value.label,
             value: try_from(value.value)?,
             resolved_type: value.resolved_type.ok_or(FinalizeResolveTypeError {
                 file: file!(),

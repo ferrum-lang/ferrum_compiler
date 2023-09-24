@@ -579,13 +579,24 @@ impl FeTokenSyntaxParser {
     }
 
     fn loop_statement(&mut self, loop_token: Arc<Token>) -> Result<LoopStmt> {
+        let label = self.match_any(&[TokenType::Label], WithNewlines::None);
+
+        let _ = self.consume(&TokenType::Newline, "Expected newline after 'loop' keyword")?;
+
+        let block = self.code_block()?;
+
         return Ok(LoopStmt {
             id: NodeId::gen(),
-            inner: self.loop_expr(loop_token)?,
+            loop_token,
+            label,
+            block,
+            resolved_terminal: None,
         });
     }
 
     fn loop_expr(&mut self, loop_token: Arc<Token>) -> Result<LoopExpr> {
+        let label = self.match_any(&[TokenType::Label], WithNewlines::None);
+
         let _ = self.consume(&TokenType::Newline, "Expected newline after 'loop' keyword")?;
 
         let block = self.code_block()?;
@@ -593,6 +604,7 @@ impl FeTokenSyntaxParser {
         return Ok(LoopExpr {
             id: NodeId::gen(),
             loop_token,
+            label,
             block,
             resolved_terminal: None,
             resolved_type: None,
@@ -600,13 +612,8 @@ impl FeTokenSyntaxParser {
     }
 
     fn while_statement(&mut self, while_token: Arc<Token>) -> Result<WhileStmt> {
-        return Ok(WhileStmt {
-            id: NodeId::gen(),
-            inner: self.while_expr(while_token)?,
-        });
-    }
+        let label = self.match_any(&[TokenType::Label], WithNewlines::None);
 
-    fn while_expr(&mut self, while_token: Arc<Token>) -> Result<WhileExpr> {
         let condition = NestedExpr(self.expression()?);
 
         let _ = self.consume(
@@ -614,13 +621,162 @@ impl FeTokenSyntaxParser {
             "Expected newline after 'while' condition",
         )?;
 
-        let block = self.code_block()?;
+        let (stmts, end) =
+            self.code_block_with_any_end(&[TokenType::Semicolon, TokenType::Else])?;
+
+        let block = CodeBlock {
+            stmts,
+            end_semicolon_token: (),
+        };
+
+        if end.token_type == TokenType::Semicolon {
+            return Ok(WhileStmt {
+                id: NodeId::gen(),
+                while_token,
+                label,
+                condition,
+                block,
+                else_: None,
+                semicolon_token: end,
+                resolved_terminal: None,
+            });
+        }
+
+        let else_token = end;
+
+        let _ = self.consume(&TokenType::Newline, "Expected newline after 'else'")?;
+
+        let (else_stmts, semicolon_token) =
+            self.code_block_with_any_end(&[TokenType::Semicolon])?;
+
+        let else_block = CodeBlock {
+            stmts: else_stmts,
+            end_semicolon_token: (),
+        };
+
+        let else_ = Some(WhileStmtElse {
+            else_token,
+            block: else_block,
+        });
+
+        return Ok(WhileStmt {
+            id: NodeId::gen(),
+            while_token,
+            label,
+            condition,
+            block,
+            else_,
+            semicolon_token,
+            resolved_terminal: None,
+        });
+    }
+
+    fn while_expr(&mut self, while_token: Arc<Token>) -> Result<WhileExpr> {
+        let label = self.match_any(&[TokenType::Label], WithNewlines::None);
+
+        let condition = NestedExpr(self.expression()?);
+
+        let _ = self.consume(
+            &TokenType::Newline,
+            "Expected newline after 'while' condition",
+        )?;
+
+        let (stmts, mut end) = self.code_block_with_any_end(&[
+            TokenType::Semicolon,
+            TokenType::Then,
+            TokenType::Else,
+        ])?;
+        let block = CodeBlock {
+            stmts,
+            end_semicolon_token: (),
+        };
+
+        let mut semicolon_token = Some(end.clone());
+
+        let then = if end.token_type == TokenType::Then {
+            if let Some(_) = self.match_any(&[TokenType::Newline], WithNewlines::None) {
+                let (stmts, then_end) =
+                    self.code_block_with_any_end(&[TokenType::Semicolon, TokenType::Else])?;
+
+                let then_block = CodeBlock {
+                    stmts,
+                    end_semicolon_token: (),
+                };
+
+                let then_token = end;
+                end = then_end;
+                semicolon_token = Some(end.clone());
+
+                Some(WhileExprThen::Block(WhileExprThenBlock {
+                    then_token,
+                    block: then_block,
+                }))
+            } else {
+                let then_expr = NestedExpr(self.expression()?);
+                let then_token = end.clone();
+
+                if self.check(&TokenType::Newline) && self.check_offset(1, &TokenType::Else) {
+                    let _ = self.consume(
+                        &TokenType::Newline,
+                        "Expected newline between 'then' expression and 'else'",
+                    )?;
+
+                    end = self.consume(&TokenType::Else, "Expected 'else'")?;
+                    semicolon_token = Some(end.clone());
+                } else {
+                    semicolon_token = None;
+                }
+
+                Some(WhileExprThen::Ternary(WhileExprThenTernary {
+                    then_token,
+                    then_expr,
+                }))
+            }
+        } else {
+            None
+        };
+
+        let else_ = if end.token_type == TokenType::Else {
+            if let Some(_) = self.match_any(&[TokenType::Newline], WithNewlines::None) {
+                let (stmts, else_end) = self.code_block_with_any_end(&[TokenType::Semicolon])?;
+
+                let else_block = CodeBlock {
+                    stmts,
+                    end_semicolon_token: (),
+                };
+
+                let else_token = end;
+                end = else_end;
+                semicolon_token = Some(end.clone());
+
+                Some(WhileExprElse::Block(WhileExprElseBlock {
+                    else_token,
+                    block: else_block,
+                }))
+            } else {
+                let else_expr = NestedExpr(self.expression()?);
+                let else_token = end.clone();
+
+                semicolon_token = None;
+
+                Some(WhileExprElse::Ternary(WhileExprElseTernary {
+                    else_token,
+                    else_expr,
+                }))
+            }
+        } else {
+            None
+        };
 
         return Ok(WhileExpr {
             id: NodeId::gen(),
             while_token,
+            label,
             condition,
             block,
+            then,
+            else_,
+            semicolon_token,
             resolved_terminal: None,
             resolved_type: None,
         });
@@ -663,132 +819,229 @@ impl FeTokenSyntaxParser {
     }
 
     fn if_statement(&mut self, if_token: Arc<Token>) -> Result<IfStmt> {
+        // TODO: Maybe if condition should be special to allow assigning or naming condition?
+        let condition = NestedExpr(self.expression()?);
+
+        let _ = self.consume(&TokenType::Newline, "Expected newline after if condition")?;
+
+        let (stmts, mut end_token) =
+            self.code_block_with_any_end(&[TokenType::Semicolon, TokenType::Else])?;
+
+        let then = CodeBlock {
+            stmts,
+            end_semicolon_token: (),
+        };
+
+        let mut else_ifs = vec![];
+        let mut else_ = None;
+
+        if end_token.token_type == TokenType::Else {
+            while let Some(if_token) = self.match_any(&[TokenType::If], WithNewlines::None) {
+                let condition = NestedExpr(self.expression()?);
+
+                let mut should_continue = false;
+
+                let (stmts, end) =
+                    self.code_block_with_any_end(&[TokenType::Semicolon, TokenType::Else])?;
+
+                let then = CodeBlock {
+                    stmts,
+                    end_semicolon_token: (),
+                };
+
+                let else_token = end_token;
+                end_token = end;
+
+                if end_token.token_type == TokenType::Else {
+                    should_continue = true;
+                }
+
+                let else_if = IfStmtElseIf {
+                    else_token,
+                    if_token,
+                    condition,
+                    then,
+                };
+
+                else_ifs.push(else_if);
+
+                if !should_continue {
+                    break;
+                }
+            }
+
+            if end_token.token_type == TokenType::Else {
+                let _ = self.match_any(&[TokenType::Newline], WithNewlines::None);
+
+                let (stmts, end) = self.code_block_with_any_end(&[TokenType::Semicolon])?;
+
+                let then = CodeBlock {
+                    stmts,
+                    end_semicolon_token: (),
+                };
+
+                let else_token = end_token;
+                end_token = end;
+
+                else_ = Some(IfStmtElse { else_token, then });
+            }
+        }
+
         return Ok(IfStmt {
             id: NodeId::gen(),
-            inner: self.if_expr(if_token)?,
+            if_token,
+            condition,
+            then,
+            else_ifs,
+            else_,
+            semicolon_token: end_token,
+            resolved_terminal: None,
         });
     }
 
     fn if_expr(&mut self, if_token: Arc<Token>) -> Result<IfExpr> {
+        let label = self.match_any(&[TokenType::Label], WithNewlines::None);
+
         // TODO: Maybe if condition should be special to allow assigning or naming condition?
         let condition = NestedExpr(self.expression()?);
 
-        if let Some(then_token) = self.match_any(&[TokenType::Then], WithNewlines::None) {
+        let mut semicolon_token = None;
+
+        let then = if let Some(then_token) = self.match_any(&[TokenType::Then], WithNewlines::None)
+        {
             let then_expr = NestedExpr(self.expression()?);
 
-            let else_ =
-                if let Some(else_token) = self.match_any(&[TokenType::Else], WithNewlines::None) {
-                    let else_expr = NestedExpr(self.expression()?);
+            if self.check(&TokenType::Else) {
+                todo!()
+            }
 
-                    Some(TernaryElse {
-                        else_token,
-                        else_expr,
-                    })
-                } else {
-                    None
-                };
+            if self.check(&TokenType::Newline) && self.check_offset(1, &TokenType::Else) {
+                todo!()
+            }
 
-            return Ok(IfExpr {
-                id: NodeId::gen(),
-                if_token,
-                condition,
-                then: IfThen::Ternary(IfThenTernary {
-                    then_token,
-                    then_expr,
-                    else_,
-                }),
-                resolved_terminal: None,
-                resolved_type: Some(()),
-            });
+            IfExprThen::Ternary(IfExprThenTernary {
+                then_token,
+                then_expr,
+            })
         } else {
             let _ = self.consume(&TokenType::Newline, "Expected newline after if condition")?;
-        }
 
-        let (stmts, end_token) =
-            self.code_block_with_any_end(&[TokenType::Semicolon, TokenType::Else])?;
-
-        let then_block = CodeBlock {
-            stmts,
-            end_semicolon_token: (),
-        };
-
-        if let TokenType::Semicolon = &end_token.token_type {
-            return Ok(IfExpr {
-                id: NodeId::gen(),
-                if_token,
-                condition,
-                then: IfThen::Classic(IfThenClassic {
-                    then_block,
-                    else_ifs: vec![],
-                    else_: None,
-                    semicolon_token: end_token,
-                }),
-                resolved_terminal: None,
-                resolved_type: None,
-            });
-        }
-
-        let mut else_token = end_token;
-        let mut else_ifs = vec![];
-        while let Some(if_token) = self.match_any(&[TokenType::If], WithNewlines::One) {
-            let condition = NestedExpr(self.expression()?);
-
-            let (stmts, end_token) =
+            let (stmts, end) =
                 self.code_block_with_any_end(&[TokenType::Semicolon, TokenType::Else])?;
 
-            let then_block = CodeBlock {
+            semicolon_token = Some(end);
+
+            let block = CodeBlock {
                 stmts,
                 end_semicolon_token: (),
             };
 
-            else_ifs.push(ElseIfBranch {
-                else_token,
-                if_token,
-                condition,
-                then_block,
-            });
-
-            else_token = end_token;
-        }
-
-        if let TokenType::Semicolon = &else_token.token_type {
-            return Ok(IfExpr {
-                id: NodeId::gen(),
-                if_token,
-                condition,
-                then: IfThen::Classic(IfThenClassic {
-                    then_block,
-                    else_ifs,
-                    else_: None,
-                    semicolon_token: else_token,
-                }),
-                resolved_terminal: None,
-                resolved_type: None,
-            });
-        }
-
-        let (stmts, semicolon_token) = self.code_block_with_any_end(&[TokenType::Semicolon])?;
-
-        let else_then_block = CodeBlock {
-            stmts,
-            end_semicolon_token: (),
+            IfExprThen::Block(IfExprThenBlock { block })
         };
 
-        let else_ = Some(ElseBranch {
-            else_token,
-            then_block: else_then_block,
-        });
+        let mut else_ifs = vec![];
+        let mut else_ = None;
+
+        if let Some(mut end_token) = semicolon_token.clone() {
+            if end_token.token_type == TokenType::Else {
+                while let Some(if_token) = self.match_any(&[TokenType::If], WithNewlines::None) {
+                    let condition = NestedExpr(self.expression()?);
+
+                    let mut should_continue = false;
+
+                    let else_if = if let Some(then_token) =
+                        self.match_any(&[TokenType::Then], WithNewlines::None)
+                    {
+                        let then_expr = NestedExpr(self.expression()?);
+
+                        let else_token = end_token.clone();
+
+                        if let Some(end) = self.match_any(&[TokenType::Else], WithNewlines::One) {
+                            end_token = end;
+                            semicolon_token = Some(end_token.clone());
+
+                            should_continue = true;
+                        } else {
+                            semicolon_token = None;
+                        }
+
+                        IfExprElseIf::Ternary(IfExprElseIfTernary {
+                            else_token,
+                            if_token,
+                            condition,
+                            then_token,
+                            expr: then_expr,
+                        })
+                    } else {
+                        let (stmts, end) =
+                            self.code_block_with_any_end(&[TokenType::Semicolon, TokenType::Else])?;
+
+                        let block = CodeBlock {
+                            stmts,
+                            end_semicolon_token: (),
+                        };
+
+                        let else_token = end_token;
+                        end_token = end;
+                        semicolon_token = Some(end_token.clone());
+
+                        if end_token.token_type == TokenType::Else {
+                            should_continue = true;
+                        }
+
+                        IfExprElseIf::Block(IfExprElseIfBlock {
+                            else_token,
+                            if_token,
+                            condition,
+                            block,
+                        })
+                    };
+
+                    else_ifs.push(else_if);
+
+                    if !should_continue {
+                        break;
+                    }
+                }
+
+                if end_token.token_type == TokenType::Else {
+                    if let Some(_) = self.match_any(&[TokenType::Newline], WithNewlines::None) {
+                        let (stmts, end) = self.code_block_with_any_end(&[TokenType::Semicolon])?;
+
+                        let block = CodeBlock {
+                            stmts,
+                            end_semicolon_token: (),
+                        };
+
+                        let else_token = end_token;
+                        end_token = end;
+                        semicolon_token = Some(end_token.clone());
+
+                        else_ = Some(IfExprElse::Block(IfExprElseBlock { else_token, block }));
+                    } else {
+                        let else_expr = NestedExpr(self.expression()?);
+
+                        let else_token = end_token;
+                        semicolon_token = None;
+
+                        else_ = Some(IfExprElse::Ternary(IfExprElseTernary {
+                            else_token,
+                            else_expr,
+                        }));
+                    }
+                }
+            }
+        }
 
         return Ok(IfExpr {
             id: NodeId::gen(),
             if_token,
+            label,
             condition,
-            then: IfThen::Classic(IfThenClassic {
-                then_block,
-                else_ifs,
-                else_,
-                semicolon_token,
-            }),
+            then,
+            else_ifs,
+            else_,
+            semicolon_token,
             resolved_terminal: None,
             resolved_type: None,
         });
@@ -809,6 +1062,8 @@ impl FeTokenSyntaxParser {
     }
 
     fn break_statement(&mut self, break_token: Arc<Token>) -> Result<BreakStmt> {
+        let label = self.match_any(&[TokenType::Label], WithNewlines::None);
+
         let value = if self.check(&TokenType::Newline) {
             None
         } else {
@@ -818,17 +1073,21 @@ impl FeTokenSyntaxParser {
         return Ok(BreakStmt {
             id: NodeId::gen(),
             break_token,
+            label,
             value,
             resolved_type: None,
         });
     }
 
     fn then_statement(&mut self, break_token: Arc<Token>) -> Result<ThenStmt> {
+        let label = self.match_any(&[TokenType::Label], WithNewlines::None);
+
         let value = NestedExpr(self.expression()?);
 
         return Ok(ThenStmt {
             id: NodeId::gen(),
             then_token: break_token,
+            label,
             value,
             resolved_type: (),
         });

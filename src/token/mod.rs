@@ -158,6 +158,7 @@ pub enum TokenType {
 
     // Other
     Ident,
+    Label,
 
     Newline,
 }

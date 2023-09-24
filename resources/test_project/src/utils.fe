@@ -1,5 +1,0 @@
-use ::fe::print
-
-pub fn hello(name: &String)
-    print("Hello {name}!")
-;
