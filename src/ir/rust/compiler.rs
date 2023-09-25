@@ -1008,9 +1008,20 @@ impl ExprVisitor<FeType, Result<ir::RustIRExpr>> for RustSyntaxCompiler {
     }
 
     fn visit_loop_expr(&mut self, expr: Arc<Mutex<LoopExpr<FeType>>>) -> Result<ir::RustIRExpr> {
-        let mut expr = expr.lock().unwrap();
+        let expr = &mut *expr.lock().unwrap();
 
-        todo!()
+        let label = expr
+            .label
+            .as_ref()
+            .map(|l| format!("loop_expr_{}", &l.lexeme[1..]).into());
+
+        let mut stmts = vec![];
+        for stmt in &expr.block.stmts {
+            let stmt = stmt.try_lock().unwrap().accept(self)?;
+            stmts.extend(stmt);
+        }
+
+        return Ok(ir::RustIRExpr::Loop(ir::RustIRLoopExpr { label, stmts }));
     }
 
     fn visit_while_expr(&mut self, expr: Arc<Mutex<WhileExpr<FeType>>>) -> Result<ir::RustIRExpr> {

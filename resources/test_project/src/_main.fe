@@ -32,5 +32,19 @@ pub fn main()
     ;
 
     print("Config = {config}")
+
+    // // //
+
+    mut count = 0
+
+    const count = loop
+        if count >= 5
+            break count + count
+        ;
+
+        count += 1
+    ;
+
+    print("Count = {count}")
 ;
 

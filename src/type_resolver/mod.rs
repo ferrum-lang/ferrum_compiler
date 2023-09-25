@@ -987,18 +987,39 @@ impl StmtVisitor<Option<FeType>, Result<bool>> for FeTypeResolver {
         if let Some(value) = &stmt.value {
             changed |= value.0.try_lock().unwrap().accept(self)?;
 
-            let Some(break_handler) = self.scope.try_lock().unwrap().handle_break(stmt.label.clone()) else {
-                dbg!(&stmt, &self.scope);
-                todo!();
-            };
-
-            stmt.handler = Some(break_handler.clone());
-
-            dbg!(&break_handler);
-            todo!();
-
             if let Some(resolved_type) = value.0.try_lock().unwrap().resolved_type() {
                 stmt.resolved_type = Some(resolved_type.clone());
+
+                let Some(break_handler) = self.scope.try_lock().unwrap().handle_break(stmt.label.clone()) else {
+                    dbg!(&stmt, &self.scope);
+                    todo!();
+                };
+
+                stmt.handler = Some(break_handler.clone());
+
+                match break_handler {
+                    BreakHandler::LoopStmt(loop_stmt) => {
+                        todo!()
+                    }
+                    BreakHandler::LoopExpr(loop_expr) => {
+                        let loop_expr = &mut *loop_expr.try_lock().unwrap();
+
+                        if let Some(Some(loop_typ)) = &loop_expr.resolved_type {
+                            let Some(typ) = &resolved_type else {
+                            todo!();
+                        };
+
+                            if !Self::can_implicit_cast(&typ, loop_typ) {
+                                todo!();
+                            }
+                        }
+
+                        loop_expr.resolved_type = Some(resolved_type);
+                        changed = true;
+                    }
+                    BreakHandler::WhileStmt(while_stmt) => todo!(),
+                    BreakHandler::WhileExpr(while_expr) => todo!(),
+                }
             }
         }
 
@@ -1786,15 +1807,22 @@ impl ExprVisitor<Option<FeType>, Result<bool>> for FeTypeResolver {
         &mut self,
         shared_expr: Arc<Mutex<LoopExpr<Option<FeType>>>>,
     ) -> Result<bool> {
-        let expr = &mut *shared_expr.try_lock().unwrap();
+        {
+            let expr = &mut *shared_expr.try_lock().unwrap();
 
-        // TODO: Think about how looping affects types
+            // TODO: Think about how looping affects types
 
-        if expr.is_resolved() {
-            return Ok(false);
+            if expr.is_resolved() {
+                return Ok(false);
+            }
         }
 
         let mut changed = false;
+
+        let stmts = {
+            let expr = &mut *shared_expr.try_lock().unwrap();
+            expr.block.stmts.clone()
+        };
 
         self.scope
             .try_lock()
@@ -1802,38 +1830,15 @@ impl ExprVisitor<Option<FeType>, Result<bool>> for FeTypeResolver {
             .begin_scope(Some(ScopeCreator::LoopExpr(shared_expr.clone())));
 
         self.breakable_count += 1;
-        let (changes, _term) = self.resolve_stmts(&expr.block.stmts)?;
-        changed |= changes;
+        let (local_changed, terminal) = self.resolve_stmts(&stmts)?;
+        changed |= local_changed;
         self.breakable_count -= 1;
 
         self.scope.try_lock().unwrap().end_scope();
 
-        // if let Some(TerminationType::Base(BaseTerminationType::InfiniteLoop)) = term {
-        //     todo!("Infinite loop!");
-        // }
-
-        // if let Some(terminal) = &expr.resolved_terminal {
-        //     changed = true;
-
-        //     expr.resolved_type = match terminal {
-        //         None => Some(None),
-
-        //         Some(TerminationType::Contains(contains)) => {
-        //             // let mut resolved = None;
-
-        //             // for term in contains {
-        //             //     // TODO
-        //             //     if let Some(res) = term.resolved_type() {
-
-        //             //     }
-        //             // }
-        //             todo!("if resolution needs thought to implement, I'm too tired right now")
-        //         }
-        //         Some(TerminationType::Base(b)) => Some(b.resolved_type()),
-        //     }
-        // }
-
-        todo!();
+        if !terminal.is_some() {
+            // todo!();
+        }
 
         return Ok(changed);
     }
@@ -1842,42 +1847,52 @@ impl ExprVisitor<Option<FeType>, Result<bool>> for FeTypeResolver {
         &mut self,
         shared_expr: Arc<Mutex<WhileExpr<Option<FeType>>>>,
     ) -> Result<bool> {
-        let expr = &mut *shared_expr.try_lock().unwrap();
+        {
+            let expr = &mut *shared_expr.try_lock().unwrap();
 
-        if expr.is_resolved() {
-            return Ok(false);
+            if expr.is_resolved() {
+                return Ok(false);
+            }
         }
 
         let mut changed = false;
 
-        changed |= expr.condition.0.try_lock().unwrap().accept(self)?;
+        let condition = {
+            let expr = &mut *shared_expr.try_lock().unwrap();
+            expr.condition.clone()
+        };
+
+        changed |= condition.0.try_lock().unwrap().accept(self)?;
+
+        let mut typ = None;
+
+        let stmts = {
+            let expr = &mut *shared_expr.try_lock().unwrap();
+            expr.block.stmts.clone()
+        };
+
+        self.scope
+            .try_lock()
+            .unwrap()
+            .begin_scope(Some(ScopeCreator::WhileExpr(shared_expr.clone())));
 
         self.breakable_count += 1;
-        changed |= self.resolve_stmts(&expr.block.stmts)?.0;
+        changed |= self.resolve_stmts(&stmts)?.0;
         self.breakable_count -= 1;
 
-        // if let Some(terminal) = &expr.resolved_terminal {
-        //     changed = true;
+        self.scope.try_lock().unwrap().end_scope();
 
-        //     expr.resolved_type = match terminal {
-        //         None => Some(None),
+        let expr = &mut *shared_expr.try_lock().unwrap();
 
-        //         Some(TerminationType::Contains(contains)) => {
-        //             // let mut resolved = None;
-
-        //             // for term in contains {
-        //             //     // TODO
-        //             //     if let Some(res) = term.resolved_type() {
-
-        //             //     }
-        //             // }
-        //             todo!("if resolution needs thought to implement, I'm too tired right now")
-        //         }
-        //         Some(TerminationType::Base(b)) => Some(b.resolved_type()),
-        //     }
-        // }
-
-        todo!();
+        if let Some(Some(already)) = &expr.resolved_type {
+            if let Some(typ) = typ {
+                if !Self::can_implicit_cast(&typ, already) {
+                    todo!();
+                }
+            }
+        } else {
+            expr.resolved_type = Some(typ);
+        }
 
         return Ok(changed);
     }
