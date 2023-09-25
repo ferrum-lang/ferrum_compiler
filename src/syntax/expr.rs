@@ -1415,6 +1415,7 @@ impl<T: ResolvedType> TryFrom<IfExprElseIfTernary<Option<T>>> for IfExprElseIfTe
 pub struct IfExprElseIfBlock<T: ResolvedType> {
     pub else_token: Arc<Token>,
     pub if_token: Arc<Token>,
+    pub label: Option<Arc<Token>>,
     pub condition: NestedExpr<T>,
     pub block: CodeBlock<T, ()>,
 }
@@ -1424,6 +1425,7 @@ impl<T: ResolvedType> From<IfExprElseIfBlock<()>> for IfExprElseIfBlock<Option<T
         return Self {
             else_token: value.else_token,
             if_token: value.if_token,
+            label: value.label,
             condition: from(value.condition),
             block: from(value.block),
         };
@@ -1448,6 +1450,7 @@ impl<T: ResolvedType> TryFrom<IfExprElseIfBlock<Option<T>>> for IfExprElseIfBloc
         return Ok(Self {
             else_token: value.else_token,
             if_token: value.if_token,
+            label: value.label,
             condition: try_from(value.condition)?,
             block: try_from(value.block)?,
         });
@@ -1529,6 +1532,7 @@ impl<T: ResolvedType> TryFrom<IfExprElseTernary<Option<T>>> for IfExprElseTernar
 #[derive(Debug, Clone, PartialEq)]
 pub struct IfExprElseBlock<T: ResolvedType> {
     pub else_token: Arc<Token>,
+    pub label: Option<Arc<Token>>,
     pub block: CodeBlock<T, ()>,
 }
 
@@ -1536,6 +1540,7 @@ impl<T: ResolvedType> From<IfExprElseBlock<()>> for IfExprElseBlock<Option<T>> {
     fn from(value: IfExprElseBlock<()>) -> Self {
         return Self {
             else_token: value.else_token,
+            label: value.label,
             block: from(value.block),
         };
     }
@@ -1558,6 +1563,7 @@ impl<T: ResolvedType> TryFrom<IfExprElseBlock<Option<T>>> for IfExprElseBlock<T>
     fn try_from(value: IfExprElseBlock<Option<T>>) -> Result<Self, Self::Error> {
         return Ok(Self {
             else_token: value.else_token,
+            label: value.label,
             block: try_from(value.block)?,
         });
     }

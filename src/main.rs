@@ -20,7 +20,7 @@ fn main() -> ferrum_compiler::result::Result {
     let source = read_source()?;
 
     let tokens = Arc::new(Mutex::new(FeLexer::scan_package(source)?));
-    // dbg!(&tokens);
+    dbg!(&tokens);
 
     let pkg = FeSyntaxParser::parse_package(tokens)?;
     // dbg!(&pkg);

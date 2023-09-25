@@ -943,6 +943,8 @@ impl FeTokenSyntaxParser {
         if let Some(mut end_token) = semicolon_token.clone() {
             if end_token.token_type == TokenType::Else {
                 while let Some(if_token) = self.match_any(&[TokenType::If], WithNewlines::None) {
+                    let label = self.match_any(&[TokenType::Label], WithNewlines::None);
+
                     let condition = NestedExpr(self.expression()?);
 
                     let mut should_continue = false;
@@ -950,6 +952,10 @@ impl FeTokenSyntaxParser {
                     let else_if = if let Some(then_token) =
                         self.match_any(&[TokenType::Then], WithNewlines::None)
                     {
+                        if label.is_some() {
+                            todo!("Unexpected label");
+                        }
+
                         let then_expr = NestedExpr(self.expression()?);
 
                         let else_token = end_token.clone();
@@ -990,6 +996,7 @@ impl FeTokenSyntaxParser {
                         IfExprElseIf::Block(IfExprElseIfBlock {
                             else_token,
                             if_token,
+                            label,
                             condition,
                             block,
                         })
@@ -1003,6 +1010,8 @@ impl FeTokenSyntaxParser {
                 }
 
                 if end_token.token_type == TokenType::Else {
+                    let label = self.match_any(&[TokenType::Label], WithNewlines::None);
+
                     if let Some(_) = self.match_any(&[TokenType::Newline], WithNewlines::None) {
                         let (stmts, end) = self.code_block_with_any_end(&[TokenType::Semicolon])?;
 
@@ -1015,8 +1024,16 @@ impl FeTokenSyntaxParser {
                         end_token = end;
                         semicolon_token = Some(end_token.clone());
 
-                        else_ = Some(IfExprElse::Block(IfExprElseBlock { else_token, block }));
+                        else_ = Some(IfExprElse::Block(IfExprElseBlock {
+                            else_token,
+                            label,
+                            block,
+                        }));
                     } else {
+                        if label.is_some() {
+                            todo!("Unexpected label!");
+                        }
+
                         let else_expr = NestedExpr(self.expression()?);
 
                         let else_token = end_token;
@@ -1077,14 +1094,14 @@ impl FeTokenSyntaxParser {
         });
     }
 
-    fn then_statement(&mut self, break_token: Arc<Token>) -> Result<ThenStmt> {
+    fn then_statement(&mut self, then_token: Arc<Token>) -> Result<ThenStmt> {
         let label = self.match_any(&[TokenType::Label], WithNewlines::None);
 
         let value = NestedExpr(self.expression()?);
 
         return Ok(ThenStmt {
             id: NodeId::gen(),
-            then_token: break_token,
+            then_token,
             label,
             value,
             resolved_type: (),

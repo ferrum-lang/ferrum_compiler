@@ -4,15 +4,15 @@ pub fn main()
     const is_funny = true
     const is_cool = true
 
-    const response = if is_funny
+    const response = if' is_funny
         print("you're funny ...")
 
         if is_cool
             print("Wow you're lucky")
 
-            then "HAHA You're Amazing!"
+            then' "HAHA You're Amazing!"
         else
-            then "hah"
+            then' "hah"
         ;
 
         // print("Not reachable")
@@ -20,13 +20,15 @@ pub fn main()
     else
         print("you're not so funny ...")
 
-        if is_cool
+        const x = if is_cool
             then "Whatevs"
         else
             print("Not so lucky...")
 
-            then "Ew."
+            then "Ew times {42}."
         ;
+
+        then x
 
         // print("Not reachable")
     ;

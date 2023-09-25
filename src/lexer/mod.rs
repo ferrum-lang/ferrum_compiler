@@ -168,6 +168,8 @@ impl FeSourceScanner {
             '"' => Some(self.string(false)),
             '}' if self.format_string_nest > 0 => Some(self.string(true)),
 
+            '\'' => Some(self.label_or_char()),
+
             ' ' | '\r' | '\t' => None,
 
             ',' => Some(TokenType::Comma),
@@ -320,6 +322,47 @@ impl FeSourceScanner {
             //
             // _ => todo!(),
         }
+    }
+
+    fn label_or_char(&mut self) -> TokenType {
+        if self.current() == Some('\\') {
+            self.advance_col();
+
+            if self.current() != Some('\'') {
+                todo!();
+            }
+
+            self.advance_col();
+
+            return TokenType::Char;
+        }
+
+        let Some(c) = self.current() else {
+            return TokenType::Label;
+        };
+
+        if !c.is_whitespace() || c == ' ' {
+            if self.peek_next() == Some('\'') {
+                self.advance_col();
+                self.advance_col();
+
+                return TokenType::Char;
+            }
+        }
+
+        if c.is_ascii_alphabetic() {
+            self.advance_col();
+
+            while let Some(c) = self.current() {
+                if !c.is_ascii_alphanumeric() {
+                    break;
+                }
+
+                self.advance_col();
+            }
+        }
+
+        return TokenType::Label;
     }
 
     fn number(&mut self) -> TokenType {

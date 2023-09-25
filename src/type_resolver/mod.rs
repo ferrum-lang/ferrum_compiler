@@ -551,10 +551,12 @@ impl DeclVisitor<Option<FeType>, Result<bool>> for FeTypeResolver {
         &mut self,
         shared_decl: Arc<Mutex<FnDecl<Option<FeType>>>>,
     ) -> Result<bool> {
-        let mut decl = shared_decl.try_lock().unwrap();
+        {
+            let decl = &mut *shared_decl.try_lock().unwrap();
 
-        if decl.is_signature_resolved() {
-            return Ok(false);
+            if decl.is_signature_resolved() {
+                return Ok(false);
+            }
         }
 
         let mut changed = false;
@@ -562,15 +564,20 @@ impl DeclVisitor<Option<FeType>, Result<bool>> for FeTypeResolver {
         let mut params = vec![];
         let mut all_resolved = true;
 
-        for param in &mut decl.params {
-            if let Some(resolved_type) = &param.resolved_type {
-                params.push((param.name.lexeme.clone(), resolved_type.clone()));
+        let decl_params = {
+            let decl = &mut *shared_decl.try_lock().unwrap();
+            decl.params.clone()
+        };
+
+        for mut param in decl_params {
+            if let Some(resolved_type) = param.resolved_type {
+                params.push((param.name.lexeme.clone(), resolved_type));
             } else {
-                changed = changed | param.static_type_ref.accept(self)?;
+                changed |= param.static_type_ref.accept(self)?;
                 param.resolved_type = param.static_type_ref.resolved_type.clone();
 
-                if let Some(resolved_type) = &param.resolved_type {
-                    params.push((param.name.lexeme.clone(), resolved_type.clone()));
+                if let Some(resolved_type) = param.resolved_type {
+                    params.push((param.name.lexeme.clone(), resolved_type));
                 } else {
                     all_resolved = false;
                 }
@@ -579,15 +586,20 @@ impl DeclVisitor<Option<FeType>, Result<bool>> for FeTypeResolver {
 
         let mut fn_return_type = None;
 
-        if let Some(return_type) = &mut decl.return_type {
+        let return_type = {
+            let decl = &mut *shared_decl.try_lock().unwrap();
+            decl.return_type.clone()
+        };
+
+        if let Some(mut return_type) = return_type {
             if let Some(resolved_type) = &return_type.resolved_type {
                 fn_return_type = Some(Box::new(resolved_type.clone()));
             } else {
-                changed = changed | return_type.static_type.accept(self)?;
+                changed |= return_type.static_type.accept(self)?;
                 return_type.resolved_type = return_type.static_type.resolved_type.clone();
 
-                if let Some(resolved_type) = &return_type.resolved_type {
-                    fn_return_type = Some(Box::new(resolved_type.clone()));
+                if let Some(resolved_type) = return_type.resolved_type {
+                    fn_return_type = Some(Box::new(resolved_type));
                 } else {
                     all_resolved = false;
                 }
@@ -595,6 +607,8 @@ impl DeclVisitor<Option<FeType>, Result<bool>> for FeTypeResolver {
         }
 
         if all_resolved {
+            let decl = &mut *shared_decl.try_lock().unwrap();
+
             changed = true;
             self.scope.try_lock().unwrap().insert(
                 decl.name.lexeme.clone(),
@@ -826,16 +840,23 @@ impl StmtVisitor<Option<FeType>, Result<bool>> for FeTypeResolver {
     }
 
     fn visit_if_stmt(&mut self, shared_stmt: Arc<Mutex<IfStmt<Option<FeType>>>>) -> Result<bool> {
-        let mut stmt = shared_stmt.try_lock().unwrap();
+        {
+            let stmt = &mut *shared_stmt.try_lock().unwrap();
 
-        if stmt.is_resolved() {
-            return Ok(false);
+            if stmt.is_resolved() {
+                return Ok(false);
+            }
         }
 
         let mut changed = false;
 
         {
-            let mut condition = stmt.condition.0.try_lock().unwrap();
+            let condition = {
+                let stmt = &mut *shared_stmt.try_lock().unwrap();
+                stmt.condition.clone()
+            };
+
+            let mut condition = condition.0.try_lock().unwrap();
 
             if !condition.is_resolved() {
                 changed |= condition.accept(self)?;
@@ -854,19 +875,29 @@ impl StmtVisitor<Option<FeType>, Result<bool>> for FeTypeResolver {
 
         // TODO: if stmt terminals? what to do here?
 
-        if !stmt.then.is_resolved() {
+        let then = {
+            let stmt = &mut *shared_stmt.try_lock().unwrap();
+            stmt.then.clone()
+        };
+
+        if !then.is_resolved() {
             self.scope
                 .try_lock()
                 .unwrap()
                 .begin_scope(Some(ScopeCreator::IfStmt(shared_stmt.clone())));
 
-            let (local_changed, _terminal) = self.resolve_stmts(&stmt.then.stmts)?;
+            let (local_changed, _terminal) = self.resolve_stmts(&then.stmts)?;
             changed |= local_changed;
 
             self.scope.try_lock().unwrap().end_scope();
         }
 
-        for else_if in &stmt.else_ifs {
+        let else_ifs = {
+            let stmt = &mut *shared_stmt.try_lock().unwrap();
+            stmt.else_ifs.clone()
+        };
+
+        for else_if in &else_ifs {
             if !else_if.is_resolved() {
                 self.scope
                     .try_lock()
@@ -880,7 +911,12 @@ impl StmtVisitor<Option<FeType>, Result<bool>> for FeTypeResolver {
             }
         }
 
-        if let Some(else_) = &stmt.else_ {
+        let else_ = {
+            let stmt = &mut *shared_stmt.try_lock().unwrap();
+            stmt.else_.clone()
+        };
+
+        if let Some(else_) = &else_ {
             if !else_.is_resolved() {
                 self.scope
                     .try_lock()
@@ -972,10 +1008,14 @@ impl StmtVisitor<Option<FeType>, Result<bool>> for FeTypeResolver {
             stmt.resolved_type = resolved_type.clone();
 
             let Some(then_handler) = self.scope.try_lock().unwrap().handle_then(stmt.label.clone()) else {
+                dbg!(&stmt, &self.scope);
                 todo!();
             };
 
             match then_handler {
+                ThenHandler::IfStmt(if_stmt) => {
+                    todo!("If statement cannot accept a value: {if_stmt:#?}");
+                }
                 ThenHandler::IfExpr(if_expr) => {
                     let if_expr = &mut *if_expr.try_lock().unwrap();
 
@@ -1892,6 +1932,7 @@ enum ReturnHandler {
 #[derive(Debug, Clone)]
 enum ThenHandler {
     IfExpr(Arc<Mutex<IfExpr<Option<FeType>>>>),
+    IfStmt(Arc<Mutex<IfStmt<Option<FeType>>>>),
 }
 
 #[derive(Debug, Clone)]
@@ -1971,10 +2012,24 @@ impl Scope {
     pub fn handle_then(&self, label: Option<Arc<Token>>) -> Option<ThenHandler> {
         for scope in self.stack.iter().rev() {
             match &scope.creator {
-                Some(ScopeCreator::IfExpr(v)) => {
-                    if label == v.try_lock().unwrap().label {
-                        return Some(ThenHandler::IfExpr(v.clone()));
+                Some(ScopeCreator::IfStmt(v)) => {
+                    if label.is_none() {
+                        return Some(ThenHandler::IfStmt(v.clone()));
                     }
+                }
+
+                Some(ScopeCreator::IfExpr(v)) => {
+                    if let Some(label) = &label {
+                        let Some(other) = &v.try_lock().unwrap().label else {
+                            continue;
+                        };
+
+                        if label.lexeme.as_ref() != other.lexeme.as_ref() {
+                            continue;
+                        }
+                    }
+
+                    return Some(ThenHandler::IfExpr(v.clone()));
                 }
 
                 _ => {}

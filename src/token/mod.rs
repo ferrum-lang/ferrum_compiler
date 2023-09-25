@@ -152,6 +152,8 @@ pub enum TokenType {
     MidFmtString,
     CloseFmtString,
 
+    Char,
+
     IntegerNumber,
     DecimalNumber,
     // TODO: other numbers? scientific notation?
