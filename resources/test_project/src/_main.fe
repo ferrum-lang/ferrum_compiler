@@ -1,35 +1,36 @@
 use ::fe::print
 
 pub fn main()
-    const is_funny = true
-    const is_cool = true
+    const is_live = false
+    const use_mocks = true
 
-    const response = if' is_funny
-        print("you're funny ...")
+    const config = if' use_mocks
+        print("Using mocks!")
 
-        if is_cool
-            print("Wow you're lucky")
+        if is_live
+            print("Warning: Using mocks in live environment")
 
-            then' "HAHA You're Amazing!"
+            then' "LIVE_MOCK"
         else
-            then' "hah"
+            then' "LOCAL_MOCK"
         ;
 
         // print("Not reachable")
 
-    else'a
-        print("you're not so funny ...")
+    else'
+        print("Using real integrations!")
 
-        if is_cool
-            then'a "Whatevs"
+        if is_live
+            then' "LIVE_INTEGRATIONS"
         ;
 
-        print("Not so lucky...")
-        then "Ew times {42}."
+        print("Warning: Using live integrations in local dev environment")
+
+        then "LOCAL_INTEGRATIONS"
 
         // print("Not reachable")
     ;
 
-    print("\nRESPONSE = {response}")
+    print("Config = {config}")
 ;
 
