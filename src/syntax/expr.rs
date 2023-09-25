@@ -1122,7 +1122,6 @@ impl<T: ResolvedType> TryFrom<GetExpr<Option<T>>> for GetExpr<T> {
 pub struct IfExpr<T: ResolvedType = ()> {
     pub id: NodeId<Expr>,
     pub if_token: Arc<Token>,
-    pub label: Option<Arc<Token>>,
     pub condition: NestedExpr<T>,
     pub then: IfExprThen<T>,
     pub else_ifs: Vec<IfExprElseIf<T>>,
@@ -1140,12 +1139,6 @@ impl<T: ResolvedType> Node<Expr> for IfExpr<T> {
 
 impl<T: ResolvedType> IsTerminal<T> for IfExpr<T> {
     fn is_terminal(&mut self) -> bool {
-        if let Some(resolved) = &self.resolved_terminal {
-            return *resolved;
-        }
-
-        let mut is_terminal = false;
-
         /* TODO: account for then stmts:
 
         const val = if some_condition()
@@ -1159,6 +1152,57 @@ impl<T: ResolvedType> IsTerminal<T> for IfExpr<T> {
         ^ That if is NOT terminal because the `then` allows returning from the if
         */
 
+        if let Some(resolved) = &self.resolved_terminal {
+            return *resolved;
+        }
+
+        let mut is_terminal = true;
+
+        match &self.then {
+            IfExprThen::Ternary(_) => {
+                is_terminal = false;
+            }
+            IfExprThen::Block(then) => {
+                if let Some(stmt) = then.block.stmts.last() {
+                    if !stmt.try_lock().unwrap().is_terminal() {
+                        is_terminal = false;
+                    }
+                }
+            }
+        }
+
+        for else_if in &self.else_ifs {
+            match else_if {
+                IfExprElseIf::Ternary(_) => {
+                    is_terminal = false;
+                }
+                IfExprElseIf::Block(else_if) => {
+                    if let Some(stmt) = else_if.block.stmts.last() {
+                        if !stmt.try_lock().unwrap().is_terminal() {
+                            is_terminal = false;
+                        }
+                    }
+                }
+            }
+        }
+
+        if let Some(else_) = &self.else_ {
+            match else_ {
+                IfExprElse::Ternary(_) => {
+                    is_terminal = false;
+                }
+                IfExprElse::Block(else_) => {
+                    if let Some(stmt) = else_.block.stmts.last() {
+                        if !stmt.try_lock().unwrap().is_terminal() {
+                            is_terminal = false;
+                        }
+                    }
+                }
+            }
+        } else {
+            is_terminal = false;
+        }
+
         self.resolved_terminal = Some(is_terminal);
 
         return is_terminal;
@@ -1170,7 +1214,6 @@ impl<T: ResolvedType> From<IfExpr<()>> for IfExpr<Option<T>> {
         return Self {
             id: value.id,
             if_token: value.if_token,
-            label: value.label,
             condition: from(value.condition),
             then: from(value.then),
             else_ifs: fe_from(value.else_ifs),
@@ -1205,7 +1248,6 @@ impl<T: ResolvedType> TryFrom<IfExpr<Option<T>>> for IfExpr<T> {
         return Ok(Self {
             id: value.id,
             if_token: value.if_token,
-            label: value.label,
             condition: try_from(value.condition)?,
             then: try_from(value.then)?,
             else_ifs: fe_try_from(value.else_ifs)?,
@@ -1293,12 +1335,14 @@ impl<T: ResolvedType> TryFrom<IfExprThenTernary<Option<T>>> for IfExprThenTernar
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct IfExprThenBlock<T: ResolvedType = ()> {
+    pub label: Option<Arc<Token>>,
     pub block: CodeBlock<T, ()>,
 }
 
 impl<T: ResolvedType> From<IfExprThenBlock<()>> for IfExprThenBlock<Option<T>> {
     fn from(value: IfExprThenBlock<()>) -> Self {
         return Self {
+            label: value.label,
             block: from(value.block),
         };
     }
@@ -1320,6 +1364,7 @@ impl<T: ResolvedType> TryFrom<IfExprThenBlock<Option<T>>> for IfExprThenBlock<T>
 
     fn try_from(value: IfExprThenBlock<Option<T>>) -> Result<Self, Self::Error> {
         return Ok(Self {
+            label: value.label,
             block: try_from(value.block)?,
         });
     }

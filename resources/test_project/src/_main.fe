@@ -17,18 +17,15 @@ pub fn main()
 
         // print("Not reachable")
 
-    else
+    else'a
         print("you're not so funny ...")
 
-        const x = if is_cool
-            then "Whatevs"
-        else
-            print("Not so lucky...")
-
-            then "Ew times {42}."
+        if is_cool
+            then'a "Whatevs"
         ;
 
-        then x
+        print("Not so lucky...")
+        then "Ew times {42}."
 
         // print("Not reachable")
     ;

@@ -14,6 +14,7 @@ pub enum RustIRExpr {
     Binary(RustIRBinaryExpr),
     Assign(RustIRAssignExpr),
     If(RustIRIfExpr),
+    Loop(RustIRLoopExpr),
     Construct(RustIRConstructExpr),
     Get(RustIRGetExpr),
 }
@@ -121,6 +122,12 @@ pub struct RustIRElse {
 }
 
 #[derive(Debug, Clone, PartialEq)]
+pub struct RustIRLoopExpr {
+    pub label: Option<Arc<str>>,
+    pub stmts: Vec<RustIRStmt>,
+}
+
+#[derive(Debug, Clone, PartialEq)]
 pub struct RustIRConstructExpr {
     pub target: RustIRConstructTarget,
     pub args: Vec<RustIRConstructArg>,
@@ -159,6 +166,7 @@ pub trait RustIRExprVisitor<R = ()> {
     fn visit_binary_expr(&mut self, expr: &mut RustIRBinaryExpr) -> R;
     fn visit_assign_expr(&mut self, expr: &mut RustIRAssignExpr) -> R;
     fn visit_if_expr(&mut self, expr: &mut RustIRIfExpr) -> R;
+    fn visit_loop_expr(&mut self, stmt: &mut RustIRLoopExpr) -> R;
     fn visit_construct_expr(&mut self, expr: &mut RustIRConstructExpr) -> R;
     fn visit_get_expr(&mut self, expr: &mut RustIRGetExpr) -> R;
 }
@@ -182,6 +190,7 @@ impl<R, V: RustIRExprVisitor<R>> RustIRExprAccept<R, V> for RustIRExpr {
             Self::Binary(expr) => expr.accept(visitor),
             Self::Assign(expr) => expr.accept(visitor),
             Self::If(expr) => expr.accept(visitor),
+            Self::Loop(expr) => expr.accept(visitor),
             Self::Construct(expr) => expr.accept(visitor),
             Self::Get(expr) => expr.accept(visitor),
         };
@@ -257,6 +266,12 @@ impl<R, V: RustIRExprVisitor<R>> RustIRExprAccept<R, V> for RustIRAssignExpr {
 impl<R, V: RustIRExprVisitor<R>> RustIRExprAccept<R, V> for RustIRIfExpr {
     fn accept(&mut self, visitor: &mut V) -> R {
         return visitor.visit_if_expr(self);
+    }
+}
+
+impl<R, V: RustIRExprVisitor<R>> RustIRExprAccept<R, V> for RustIRLoopExpr {
+    fn accept(&mut self, visitor: &mut V) -> R {
+        return visitor.visit_loop_expr(self);
     }
 }
 

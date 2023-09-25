@@ -884,7 +884,10 @@ impl StmtVisitor<Option<FeType>, Result<bool>> for FeTypeResolver {
             self.scope
                 .try_lock()
                 .unwrap()
-                .begin_scope(Some(ScopeCreator::IfStmt(shared_stmt.clone())));
+                .begin_scope(Some(ScopeCreator::IfStmt(
+                    IfBlock::Then,
+                    shared_stmt.clone(),
+                )));
 
             let (local_changed, _terminal) = self.resolve_stmts(&then.stmts)?;
             changed |= local_changed;
@@ -897,12 +900,15 @@ impl StmtVisitor<Option<FeType>, Result<bool>> for FeTypeResolver {
             stmt.else_ifs.clone()
         };
 
-        for else_if in &else_ifs {
+        for (idx, else_if) in else_ifs.iter().enumerate() {
             if !else_if.is_resolved() {
                 self.scope
                     .try_lock()
                     .unwrap()
-                    .begin_scope(Some(ScopeCreator::IfStmt(shared_stmt.clone())));
+                    .begin_scope(Some(ScopeCreator::IfStmt(
+                        IfBlock::ElseIf(idx),
+                        shared_stmt.clone(),
+                    )));
 
                 let (local_changed, _terminal) = self.resolve_stmts(&else_if.then.stmts)?;
                 changed |= local_changed;
@@ -921,7 +927,10 @@ impl StmtVisitor<Option<FeType>, Result<bool>> for FeTypeResolver {
                 self.scope
                     .try_lock()
                     .unwrap()
-                    .begin_scope(Some(ScopeCreator::IfStmt(shared_stmt.clone())));
+                    .begin_scope(Some(ScopeCreator::IfStmt(
+                        IfBlock::Else,
+                        shared_stmt.clone(),
+                    )));
 
                 let (local_changed, _terminal) = self.resolve_stmts(&else_.then.stmts)?;
                 changed |= local_changed;
@@ -1603,7 +1612,10 @@ impl ExprVisitor<Option<FeType>, Result<bool>> for FeTypeResolver {
                 self.scope
                     .try_lock()
                     .unwrap()
-                    .begin_scope(Some(ScopeCreator::IfExpr(shared_expr.clone())));
+                    .begin_scope(Some(ScopeCreator::IfExpr(
+                        IfBlock::Then,
+                        shared_expr.clone(),
+                    )));
 
                 self.thenable_count += 1;
                 let (local_changed, _terminal) = self.resolve_stmts(&then.block.stmts)?;
@@ -1622,7 +1634,7 @@ impl ExprVisitor<Option<FeType>, Result<bool>> for FeTypeResolver {
             expr.else_ifs.clone()
         };
 
-        for else_if in &else_ifs {
+        for (idx, else_if) in else_ifs.iter().enumerate() {
             match else_if {
                 IfExprElseIf::Ternary(else_if) => {
                     {
@@ -1667,7 +1679,10 @@ impl ExprVisitor<Option<FeType>, Result<bool>> for FeTypeResolver {
                     self.scope
                         .try_lock()
                         .unwrap()
-                        .begin_scope(Some(ScopeCreator::IfExpr(shared_expr.clone())));
+                        .begin_scope(Some(ScopeCreator::IfExpr(
+                            IfBlock::ElseIf(idx),
+                            shared_expr.clone(),
+                        )));
 
                     self.thenable_count += 1;
                     let (local_changed, _terminal) = self.resolve_stmts(&else_if.block.stmts)?;
@@ -1715,7 +1730,10 @@ impl ExprVisitor<Option<FeType>, Result<bool>> for FeTypeResolver {
                         self.scope
                             .try_lock()
                             .unwrap()
-                            .begin_scope(Some(ScopeCreator::IfExpr(shared_expr.clone())));
+                            .begin_scope(Some(ScopeCreator::IfExpr(
+                                IfBlock::Else,
+                                shared_expr.clone(),
+                            )));
 
                         self.thenable_count += 1;
                         let (local_changed, _terminal) = self.resolve_stmts(&else_.block.stmts)?;
@@ -1902,26 +1920,19 @@ struct FlatScope {
 #[derive(Debug, Clone)]
 enum ScopeCreator {
     Fn(Arc<Mutex<FnDecl<Option<FeType>>>>),
-    IfStmt(Arc<Mutex<IfStmt<Option<FeType>>>>),
-    IfExpr(Arc<Mutex<IfExpr<Option<FeType>>>>),
+    IfStmt(IfBlock, Arc<Mutex<IfStmt<Option<FeType>>>>),
+    IfExpr(IfBlock, Arc<Mutex<IfExpr<Option<FeType>>>>),
     WhileStmt(Arc<Mutex<WhileStmt<Option<FeType>>>>),
     WhileExpr(Arc<Mutex<WhileExpr<Option<FeType>>>>),
     LoopStmt(Arc<Mutex<LoopStmt<Option<FeType>>>>),
     LoopExpr(Arc<Mutex<LoopExpr<Option<FeType>>>>),
 }
 
-impl ScopeCreator {
-    fn label(&self) -> Option<Arc<Token>> {
-        match self {
-            Self::Fn(c) => return None,
-            Self::IfStmt(c) => return None,
-            Self::IfExpr(c) => return c.try_lock().unwrap().label.clone(),
-            Self::WhileStmt(c) => return c.try_lock().unwrap().label.clone(),
-            Self::WhileExpr(c) => return c.try_lock().unwrap().label.clone(),
-            Self::LoopStmt(c) => return c.try_lock().unwrap().label.clone(),
-            Self::LoopExpr(c) => return c.try_lock().unwrap().label.clone(),
-        }
-    }
+#[derive(Debug, Clone)]
+enum IfBlock {
+    Then,
+    ElseIf(usize),
+    Else,
 }
 
 #[derive(Debug, Clone)]
@@ -2012,19 +2023,36 @@ impl Scope {
     pub fn handle_then(&self, label: Option<Arc<Token>>) -> Option<ThenHandler> {
         for scope in self.stack.iter().rev() {
             match &scope.creator {
-                Some(ScopeCreator::IfStmt(v)) => {
+                Some(ScopeCreator::IfStmt(_block, v)) => {
                     if label.is_none() {
                         return Some(ThenHandler::IfStmt(v.clone()));
                     }
                 }
 
-                Some(ScopeCreator::IfExpr(v)) => {
+                Some(ScopeCreator::IfExpr(block, v)) => {
                     if let Some(label) = &label {
-                        let Some(other) = &v.try_lock().unwrap().label else {
+                        let scope_label = match block {
+                            IfBlock::Then => match &v.lock().unwrap().then {
+                                IfExprThen::Block(then) => then.label.clone(),
+                                _ => continue,
+                            },
+
+                            IfBlock::ElseIf(idx) => match &v.lock().unwrap().else_ifs.get(*idx) {
+                                Some(IfExprElseIf::Block(else_if)) => else_if.label.clone(),
+                                _ => continue,
+                            },
+
+                            IfBlock::Else => match &v.lock().unwrap().else_ {
+                                Some(IfExprElse::Block(else_)) => else_.label.clone(),
+                                _ => continue,
+                            },
+                        };
+
+                        let Some(scope_label) = scope_label else {
                             continue;
                         };
 
-                        if label.lexeme.as_ref() != other.lexeme.as_ref() {
+                        if label.lexeme.as_ref() != scope_label.lexeme.as_ref() {
                             continue;
                         }
                     }

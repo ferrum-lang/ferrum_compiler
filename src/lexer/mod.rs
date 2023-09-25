@@ -325,24 +325,23 @@ impl FeSourceScanner {
     }
 
     fn label_or_char(&mut self) -> TokenType {
-        if self.current() == Some('\\') {
+        if self.peek_next() == Some('\\') {
             self.advance_col();
 
-            if self.current() != Some('\'') {
-                todo!();
+            if self.peek_next() != Some('\'') {
+                self.advance_col();
+                return TokenType::Char;
             }
 
-            self.advance_col();
-
-            return TokenType::Char;
+            todo!();
         }
 
-        let Some(c) = self.current() else {
+        let Some(c) = self.peek_next() else {
             return TokenType::Label;
         };
 
         if !c.is_whitespace() || c == ' ' {
-            if self.peek_next() == Some('\'') {
+            if self.peek_offset(2) == Some('\'') {
                 self.advance_col();
                 self.advance_col();
 
@@ -353,7 +352,7 @@ impl FeSourceScanner {
         if c.is_ascii_alphabetic() {
             self.advance_col();
 
-            while let Some(c) = self.current() {
+            while let Some(c) = self.peek_next() {
                 if !c.is_ascii_alphanumeric() {
                     break;
                 }

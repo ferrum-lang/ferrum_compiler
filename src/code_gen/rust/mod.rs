@@ -359,27 +359,6 @@ impl ir::RustIRStmtVisitor<Result<Arc<str>>> for RustCodeGen {
         return Ok(out.into());
     }
 
-    fn visit_loop_stmt(&mut self, stmt: &mut ir::RustIRLoopStmt) -> Result<Arc<str>> {
-        let mut out = String::from("loop {");
-
-        self.indent += 1;
-        out.push_str(&self.new_line());
-
-        let stmts_code = stmt
-            .stmts
-            .iter_mut()
-            .map(|stmt| stmt.accept(self))
-            .collect::<Result<Vec<Arc<str>>>>()?
-            .join(&self.new_line());
-        out.push_str(&stmts_code);
-
-        self.indent -= 1;
-        out.push_str(&self.new_line());
-        out.push('}');
-
-        return Ok(out.into());
-    }
-
     fn visit_while_stmt(&mut self, stmt: &mut ir::RustIRWhileStmt) -> Result<Arc<str>> {
         let mut out = String::from("while ");
 
@@ -407,6 +386,11 @@ impl ir::RustIRStmtVisitor<Result<Arc<str>>> for RustCodeGen {
 
     fn visit_break_stmt(&mut self, stmt: &mut ir::RustIRBreakStmt) -> Result<Arc<str>> {
         let mut out = String::from("break");
+
+        if let Some(label) = &stmt.label {
+            out.push_str(" 'label_");
+            out.push_str(&label[1..]);
+        }
 
         if let Some(expr) = &mut stmt.expr {
             out.push(' ');
@@ -629,6 +613,35 @@ impl ir::RustIRExprVisitor<Result<Arc<str>>> for RustCodeGen {
             out.push_str(&self.new_line());
             out.push('}');
         }
+
+        return Ok(out.into());
+    }
+
+    fn visit_loop_expr(&mut self, expr: &mut ir::RustIRLoopExpr) -> Result<Arc<str>> {
+        let mut out = String::new();
+
+        if let Some(label) = &expr.label {
+            out.push_str("'label_");
+            out.push_str(&label[1..]);
+            out.push_str(": ");
+        }
+
+        out.push_str("loop {");
+
+        self.indent += 1;
+        out.push_str(&self.new_line());
+
+        let stmts_code = expr
+            .stmts
+            .iter_mut()
+            .map(|stmt| stmt.accept(self))
+            .collect::<Result<Vec<Arc<str>>>>()?
+            .join(&self.new_line());
+        out.push_str(&stmts_code);
+
+        self.indent -= 1;
+        out.push_str(&self.new_line());
+        out.push('}');
 
         return Ok(out.into());
     }

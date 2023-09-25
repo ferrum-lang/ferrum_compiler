@@ -52,7 +52,7 @@ fn main() -> ferrum_compiler::result::Result {
 
     let out = RustExecutor::cargo_run(&dst)?;
 
-    // println!("{}", String::from_utf8(out.stderr)?);
+    println!("{}", String::from_utf8(out.stderr)?);
     println!("Output:\n------\n");
 
     println!("{}", String::from_utf8(out.stdout)?);

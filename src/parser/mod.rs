@@ -911,6 +911,10 @@ impl FeTokenSyntaxParser {
 
         let then = if let Some(then_token) = self.match_any(&[TokenType::Then], WithNewlines::None)
         {
+            if label.is_some() {
+                todo!("Unexpected label!");
+            }
+
             let then_expr = NestedExpr(self.expression()?);
 
             if let Some(else_token) = self.match_any(&[TokenType::Else], WithNewlines::One) {
@@ -934,7 +938,7 @@ impl FeTokenSyntaxParser {
                 end_semicolon_token: (),
             };
 
-            IfExprThen::Block(IfExprThenBlock { block })
+            IfExprThen::Block(IfExprThenBlock { label, block })
         };
 
         let mut else_ifs = vec![];
@@ -1031,6 +1035,7 @@ impl FeTokenSyntaxParser {
                         }));
                     } else {
                         if label.is_some() {
+                            dbg!(&label);
                             todo!("Unexpected label!");
                         }
 
@@ -1051,7 +1056,6 @@ impl FeTokenSyntaxParser {
         return Ok(IfExpr {
             id: NodeId::gen(),
             if_token,
-            label,
             condition,
             then,
             else_ifs,

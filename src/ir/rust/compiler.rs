@@ -503,13 +503,18 @@ impl StmtVisitor<FeType, Result<Vec<ir::RustIRStmt>>> for RustSyntaxCompiler {
     ) -> Result<Vec<ir::RustIRStmt>> {
         let mut stmt = stmt.lock().unwrap();
 
+        let label = stmt.label.as_ref().map(|l| l.lexeme.clone());
+
         let expr = if let Some(value) = &mut stmt.value {
             Some(value.0.lock().unwrap().accept(self)?)
         } else {
             None
         };
 
-        return Ok(vec![ir::RustIRStmt::Break(ir::RustIRBreakStmt { expr })]);
+        return Ok(vec![ir::RustIRStmt::Break(ir::RustIRBreakStmt {
+            label,
+            expr,
+        })]);
     }
 
     fn visit_then_stmt(
@@ -520,9 +525,14 @@ impl StmtVisitor<FeType, Result<Vec<ir::RustIRStmt>>> for RustSyntaxCompiler {
 
         let expr = stmt.value.0.lock().unwrap().accept(self)?;
 
-        return Ok(vec![ir::RustIRStmt::ImplicitReturn(
-            ir::RustIRImplicitReturnStmt { expr },
-        )]);
+        // return Ok(vec![ir::RustIRStmt::ImplicitReturn(
+        //     ir::RustIRImplicitReturnStmt { expr },
+        // )]);
+
+        return Ok(vec![ir::RustIRStmt::Break(ir::RustIRBreakStmt {
+            label: stmt.label.as_ref().map(|l| l.lexeme.clone()),
+            expr: Some(expr),
+        })]);
     }
 }
 
@@ -849,7 +859,18 @@ impl ExprVisitor<FeType, Result<ir::RustIRExpr>> for RustSyntaxCompiler {
                     then_stmts.extend(stmts);
                 }
 
-                then_stmts
+                if let Some(label) = &then.label {
+                    vec![ir::RustIRStmt::ImplicitReturn(
+                        ir::RustIRImplicitReturnStmt {
+                            expr: ir::RustIRExpr::Loop(ir::RustIRLoopExpr {
+                                label: Some(label.lexeme.clone()),
+                                stmts: then_stmts,
+                            }),
+                        },
+                    )]
+                } else {
+                    then_stmts
+                }
             }
         };
 
@@ -877,6 +898,19 @@ impl ExprVisitor<FeType, Result<ir::RustIRExpr>> for RustSyntaxCompiler {
                         then.extend(stmts);
                     }
 
+                    then = if let Some(label) = &else_if.label {
+                        vec![ir::RustIRStmt::ImplicitReturn(
+                            ir::RustIRImplicitReturnStmt {
+                                expr: ir::RustIRExpr::Loop(ir::RustIRLoopExpr {
+                                    label: Some(label.lexeme.clone()),
+                                    stmts: then,
+                                }),
+                            },
+                        )]
+                    } else {
+                        then
+                    };
+
                     else_ifs.push(ir::RustIRElseIf { condition, then });
                 }
             }
@@ -900,6 +934,19 @@ impl ExprVisitor<FeType, Result<ir::RustIRExpr>> for RustSyntaxCompiler {
                         let stmts = stmt.lock().unwrap().accept(self)?;
                         then.extend(stmts);
                     }
+
+                    then = if let Some(label) = &else_.label {
+                        vec![ir::RustIRStmt::ImplicitReturn(
+                            ir::RustIRImplicitReturnStmt {
+                                expr: ir::RustIRExpr::Loop(ir::RustIRLoopExpr {
+                                    label: Some(label.lexeme.clone()),
+                                    stmts: then,
+                                }),
+                            },
+                        )]
+                    } else {
+                        then
+                    };
 
                     Some(ir::RustIRElse { then })
                 }

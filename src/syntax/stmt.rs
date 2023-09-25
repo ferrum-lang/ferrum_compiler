@@ -577,6 +577,8 @@ impl<T: ResolvedType> IsTerminal<T> for IfStmt<T> {
                     is_terminal = false;
                 }
             }
+        } else {
+            is_terminal = false;
         }
 
         self.resolved_terminal = Some(is_terminal);
