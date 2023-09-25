@@ -17,11 +17,11 @@ pub fn main()
 
         // print("Not reachable")
 
-    else'
+    else'outer
         print("Using real integrations!")
 
         if is_live
-            then' "LIVE_INTEGRATIONS"
+            then'outer "LIVE_INTEGRATIONS"
         ;
 
         print("Warning: Using live integrations in local dev environment")
