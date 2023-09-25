@@ -1196,6 +1196,8 @@ impl<T: ResolvedType> IsTerminal<T> for IfExpr<T> {
                         if !stmt.try_lock().unwrap().is_terminal() {
                             is_terminal = false;
                         }
+                    } else {
+                        is_terminal = false;
                     }
                 }
             }

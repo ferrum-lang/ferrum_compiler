@@ -388,8 +388,8 @@ impl ir::RustIRStmtVisitor<Result<Arc<str>>> for RustCodeGen {
         let mut out = String::from("break");
 
         if let Some(label) = &stmt.label {
-            out.push_str(" 'label_");
-            out.push_str(&label[1..]);
+            out.push(' ');
+            out.push_str(label);
         }
 
         if let Some(expr) = &mut stmt.expr {
@@ -621,8 +621,7 @@ impl ir::RustIRExprVisitor<Result<Arc<str>>> for RustCodeGen {
         let mut out = String::new();
 
         if let Some(label) = &expr.label {
-            out.push_str("'label_");
-            out.push_str(&label[1..]);
+            out.push_str(label);
             out.push_str(": ");
         }
 

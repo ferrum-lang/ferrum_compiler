@@ -1095,6 +1095,7 @@ impl FeTokenSyntaxParser {
             label,
             value,
             resolved_type: None,
+            handler: None,
         });
     }
 
@@ -1109,6 +1110,7 @@ impl FeTokenSyntaxParser {
             label,
             value,
             resolved_type: (),
+            handler: None,
         });
     }
 

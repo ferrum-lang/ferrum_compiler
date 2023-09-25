@@ -987,6 +987,16 @@ impl StmtVisitor<Option<FeType>, Result<bool>> for FeTypeResolver {
         if let Some(value) = &stmt.value {
             changed |= value.0.try_lock().unwrap().accept(self)?;
 
+            let Some(break_handler) = self.scope.try_lock().unwrap().handle_break(stmt.label.clone()) else {
+                dbg!(&stmt, &self.scope);
+                todo!();
+            };
+
+            stmt.handler = Some(break_handler.clone());
+
+            dbg!(&break_handler);
+            todo!();
+
             if let Some(resolved_type) = value.0.try_lock().unwrap().resolved_type() {
                 stmt.resolved_type = Some(resolved_type.clone());
             }
@@ -1021,11 +1031,13 @@ impl StmtVisitor<Option<FeType>, Result<bool>> for FeTypeResolver {
                 todo!();
             };
 
+            stmt.handler = Some(then_handler.clone());
+
             match then_handler {
-                ThenHandler::IfStmt(if_stmt) => {
+                ThenHandler::IfStmt(_block, if_stmt) => {
                     todo!("If statement cannot accept a value: {if_stmt:#?}");
                 }
-                ThenHandler::IfExpr(if_expr) => {
+                ThenHandler::IfExpr(_block, if_expr) => {
                     let if_expr = &mut *if_expr.try_lock().unwrap();
 
                     if let Some(Some(if_typ)) = &if_expr.resolved_type {
@@ -1618,12 +1630,16 @@ impl ExprVisitor<Option<FeType>, Result<bool>> for FeTypeResolver {
                     )));
 
                 self.thenable_count += 1;
-                let (local_changed, _terminal) = self.resolve_stmts(&then.block.stmts)?;
+                let (local_changed, terminal) = self.resolve_stmts(&then.block.stmts)?;
                 self.thenable_count -= 1;
 
                 self.scope.try_lock().unwrap().end_scope();
 
                 changed |= local_changed;
+
+                if !terminal.is_some() {
+                    todo!("TODO: Implicit optional");
+                }
 
                 // TODO: Try to determine and check type here if terminal is Then stmt
             }
@@ -1747,6 +1763,8 @@ impl ExprVisitor<Option<FeType>, Result<bool>> for FeTypeResolver {
                     }
                 }
             }
+        } else {
+            todo!("TODO: Implicit wrap as optional")
         }
 
         let expr = &mut *shared_expr.try_lock().unwrap();
@@ -1929,32 +1947,6 @@ enum ScopeCreator {
 }
 
 #[derive(Debug, Clone)]
-enum IfBlock {
-    Then,
-    ElseIf(usize),
-    Else,
-}
-
-#[derive(Debug, Clone)]
-enum ReturnHandler {
-    Fn(Arc<Mutex<FnDecl<Option<FeType>>>>),
-}
-
-#[derive(Debug, Clone)]
-enum ThenHandler {
-    IfExpr(Arc<Mutex<IfExpr<Option<FeType>>>>),
-    IfStmt(Arc<Mutex<IfStmt<Option<FeType>>>>),
-}
-
-#[derive(Debug, Clone)]
-enum BreakHandler {
-    LoopStmt(Arc<Mutex<LoopStmt<Option<FeType>>>>),
-    LoopExpr(Arc<Mutex<LoopExpr<Option<FeType>>>>),
-    WhileStmt(Arc<Mutex<WhileStmt<Option<FeType>>>>),
-    WhileExpr(Arc<Mutex<WhileExpr<Option<FeType>>>>),
-}
-
-#[derive(Debug, Clone)]
 struct ScopedType {
     pub is_pub: bool,
     pub typ: FeType,
@@ -2023,9 +2015,9 @@ impl Scope {
     pub fn handle_then(&self, label: Option<Arc<Token>>) -> Option<ThenHandler> {
         for scope in self.stack.iter().rev() {
             match &scope.creator {
-                Some(ScopeCreator::IfStmt(_block, v)) => {
+                Some(ScopeCreator::IfStmt(block, v)) => {
                     if label.is_none() {
-                        return Some(ThenHandler::IfStmt(v.clone()));
+                        return Some(ThenHandler::IfStmt(block.clone(), v.clone()));
                     }
                 }
 
@@ -2057,7 +2049,7 @@ impl Scope {
                         }
                     }
 
-                    return Some(ThenHandler::IfExpr(v.clone()));
+                    return Some(ThenHandler::IfExpr(block.clone(), v.clone()));
                 }
 
                 _ => {}

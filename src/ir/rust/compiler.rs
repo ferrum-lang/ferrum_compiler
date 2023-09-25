@@ -525,14 +525,50 @@ impl StmtVisitor<FeType, Result<Vec<ir::RustIRStmt>>> for RustSyntaxCompiler {
 
         let expr = stmt.value.0.lock().unwrap().accept(self)?;
 
-        // return Ok(vec![ir::RustIRStmt::ImplicitReturn(
-        //     ir::RustIRImplicitReturnStmt { expr },
-        // )]);
+        if let Some(handler) = &stmt.handler {
+            match handler {
+                ThenHandler::IfStmt(_, _) => todo!(),
+                ThenHandler::IfExpr(block, handler) => {
+                    let label: Option<Arc<str>> = match block {
+                        IfBlock::Then => match &handler.try_lock().unwrap().then {
+                            IfExprThen::Block(block) => block
+                                .label
+                                .as_ref()
+                                .map(|l| format!("'if_expr_then_{}", &l.lexeme[1..]).into()),
+                            _ => None,
+                        },
 
-        return Ok(vec![ir::RustIRStmt::Break(ir::RustIRBreakStmt {
-            label: stmt.label.as_ref().map(|l| l.lexeme.clone()),
-            expr: Some(expr),
-        })]);
+                        IfBlock::ElseIf(idx) => {
+                            match &handler.try_lock().unwrap().else_ifs.get(*idx) {
+                                Some(IfExprElseIf::Block(block)) => block.label.as_ref().map(|l| {
+                                    format!("'if_expr_else_if_{}_{}", idx, &l.lexeme[1..]).into()
+                                }),
+                                _ => None,
+                            }
+                        }
+
+                        IfBlock::Else => match &handler.try_lock().unwrap().else_ {
+                            Some(IfExprElse::Block(block)) => block
+                                .label
+                                .as_ref()
+                                .map(|l| format!("'if_expr_else_{}", &l.lexeme[1..]).into()),
+                            _ => None,
+                        },
+                    };
+
+                    if label.is_some() {
+                        return Ok(vec![ir::RustIRStmt::Break(ir::RustIRBreakStmt {
+                            label,
+                            expr: Some(expr),
+                        })]);
+                    }
+                }
+            }
+        }
+
+        return Ok(vec![ir::RustIRStmt::ImplicitReturn(
+            ir::RustIRImplicitReturnStmt { expr },
+        )]);
     }
 }
 
@@ -860,10 +896,12 @@ impl ExprVisitor<FeType, Result<ir::RustIRExpr>> for RustSyntaxCompiler {
                 }
 
                 if let Some(label) = &then.label {
+                    let label = format!("'if_expr_then_{}", &label.lexeme[1..]).into();
+
                     vec![ir::RustIRStmt::ImplicitReturn(
                         ir::RustIRImplicitReturnStmt {
                             expr: ir::RustIRExpr::Loop(ir::RustIRLoopExpr {
-                                label: Some(label.lexeme.clone()),
+                                label: Some(label),
                                 stmts: then_stmts,
                             }),
                         },
@@ -899,10 +937,14 @@ impl ExprVisitor<FeType, Result<ir::RustIRExpr>> for RustSyntaxCompiler {
                     }
 
                     then = if let Some(label) = &else_if.label {
+                        let label =
+                            format!("'if_expr_else_if_{}_{}", else_ifs.len(), &label.lexeme[1..])
+                                .into();
+
                         vec![ir::RustIRStmt::ImplicitReturn(
                             ir::RustIRImplicitReturnStmt {
                                 expr: ir::RustIRExpr::Loop(ir::RustIRLoopExpr {
-                                    label: Some(label.lexeme.clone()),
+                                    label: Some(label),
                                     stmts: then,
                                 }),
                             },
@@ -936,10 +978,12 @@ impl ExprVisitor<FeType, Result<ir::RustIRExpr>> for RustSyntaxCompiler {
                     }
 
                     then = if let Some(label) = &else_.label {
+                        let label = format!("'if_expr_else_{}", &label.lexeme[1..]).into();
+
                         vec![ir::RustIRStmt::ImplicitReturn(
                             ir::RustIRImplicitReturnStmt {
                                 expr: ir::RustIRExpr::Loop(ir::RustIRLoopExpr {
-                                    label: Some(label.lexeme.clone()),
+                                    label: Some(label),
                                     stmts: then,
                                 }),
                             },

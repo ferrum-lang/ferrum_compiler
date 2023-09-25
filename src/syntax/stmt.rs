@@ -476,6 +476,11 @@ pub enum AssignOp {
     PlusEq(Arc<Token>),
 }
 
+#[derive(Debug, Clone)]
+pub enum ReturnHandler {
+    Fn(Arc<Mutex<FnDecl<Option<FeType>>>>),
+}
+
 #[derive(Debug, Clone, PartialEq)]
 pub struct ReturnStmt<T: ResolvedType = ()> {
     pub id: NodeId<Stmt>,
@@ -568,6 +573,8 @@ impl<T: ResolvedType> IsTerminal<T> for IfStmt<T> {
                 if !stmt.try_lock().unwrap().is_terminal() {
                     is_terminal = false;
                 }
+            } else {
+                is_terminal = false;
             }
         }
 
@@ -576,6 +583,8 @@ impl<T: ResolvedType> IsTerminal<T> for IfStmt<T> {
                 if !stmt.try_lock().unwrap().is_terminal() {
                     is_terminal = false;
                 }
+            } else {
+                is_terminal = false;
             }
         } else {
             is_terminal = false;
@@ -951,6 +960,7 @@ pub struct BreakStmt<T: ResolvedType = ()> {
     pub label: Option<Arc<Token>>,
     pub value: Option<NestedExpr<T>>,
     pub resolved_type: Option<T>,
+    pub handler: Option<BreakHandler>,
 }
 
 impl<T: ResolvedType> Node<Stmt> for BreakStmt<T> {
@@ -973,6 +983,7 @@ impl<T: ResolvedType> From<BreakStmt<()>> for BreakStmt<Option<T>> {
             label: value.label,
             value: value.value.map(from),
             resolved_type: value.resolved_type.map(|_| None),
+            handler: value.handler,
         };
     }
 }
@@ -981,12 +992,21 @@ impl<T: ResolvedType> Resolvable for BreakStmt<Option<T>> {
     fn is_resolved(&self) -> bool {
         if let Some(value) = &self.value {
             if !value.is_resolved() {
+                dbg!("false");
                 return false;
             }
         }
 
         if let Some(res) = &self.resolved_type {
-            return res.is_some();
+            if !res.is_some() {
+                dbg!("false");
+                return false;
+            }
+        }
+
+        if !self.handler.is_some() {
+            dbg!("false");
+            return false;
         }
 
         return true;
@@ -1006,7 +1026,51 @@ impl<T: ResolvedType> TryFrom<BreakStmt<Option<T>>> for BreakStmt<T> {
                 file: file!(),
                 line: line!(),
             })?,
+            handler: value.handler,
         });
+    }
+}
+
+#[derive(Debug, Clone)]
+pub enum BreakHandler {
+    LoopStmt(Arc<Mutex<LoopStmt<Option<FeType>>>>),
+    LoopExpr(Arc<Mutex<LoopExpr<Option<FeType>>>>),
+    WhileStmt(Arc<Mutex<WhileStmt<Option<FeType>>>>),
+    WhileExpr(Arc<Mutex<WhileExpr<Option<FeType>>>>),
+}
+
+impl PartialEq for BreakHandler {
+    fn eq(&self, other: &Self) -> bool {
+        match self {
+            Self::LoopStmt(v) => {
+                let cloned = { v.try_lock().unwrap().clone() };
+                let Self::LoopStmt(other) = other else {
+                    return false;
+                };
+                return PartialEq::eq(&cloned, &other.try_lock().unwrap());
+            }
+            Self::LoopExpr(v) => {
+                let cloned = { v.try_lock().unwrap().clone() };
+                let Self::LoopExpr(other) = other else {
+                    return false;
+                };
+                return PartialEq::eq(&cloned, &other.try_lock().unwrap());
+            }
+            Self::WhileStmt(v) => {
+                let cloned = { v.try_lock().unwrap().clone() };
+                let Self::WhileStmt(other) = other else {
+                    return false;
+                };
+                return PartialEq::eq(&cloned, &other.try_lock().unwrap());
+            }
+            Self::WhileExpr(v) => {
+                let cloned = { v.try_lock().unwrap().clone() };
+                let Self::WhileExpr(other) = other else {
+                    return false;
+                };
+                return PartialEq::eq(&cloned, &other.try_lock().unwrap());
+            }
+        }
     }
 }
 
@@ -1017,6 +1081,7 @@ pub struct ThenStmt<T: ResolvedType = ()> {
     pub label: Option<Arc<Token>>,
     pub value: NestedExpr<T>,
     pub resolved_type: T,
+    pub handler: Option<ThenHandler>,
 }
 
 impl<T: ResolvedType> Node<Stmt> for ThenStmt<T> {
@@ -1039,6 +1104,7 @@ impl<T: ResolvedType> From<ThenStmt<()>> for ThenStmt<Option<T>> {
             label: value.label,
             value: from(value.value),
             resolved_type: None,
+            handler: value.handler,
         };
     }
 }
@@ -1046,10 +1112,21 @@ impl<T: ResolvedType> From<ThenStmt<()>> for ThenStmt<Option<T>> {
 impl<T: ResolvedType> Resolvable for ThenStmt<Option<T>> {
     fn is_resolved(&self) -> bool {
         if !self.value.is_resolved() {
+            dbg!("false");
             return false;
         }
 
-        return self.resolved_type.is_some();
+        if !self.resolved_type.is_some() {
+            dbg!("false");
+            return false;
+        }
+
+        if !self.handler.is_some() {
+            dbg!("false");
+            return false;
+        }
+
+        return true;
     }
 }
 
@@ -1066,8 +1143,43 @@ impl<T: ResolvedType> TryFrom<ThenStmt<Option<T>>> for ThenStmt<T> {
                 file: file!(),
                 line: line!(),
             })?,
+            handler: value.handler,
         });
     }
+}
+
+#[derive(Debug, Clone)]
+pub enum ThenHandler {
+    IfExpr(IfBlock, Arc<Mutex<IfExpr<Option<FeType>>>>),
+    IfStmt(IfBlock, Arc<Mutex<IfStmt<Option<FeType>>>>),
+}
+
+impl PartialEq for ThenHandler {
+    fn eq(&self, other: &Self) -> bool {
+        match self {
+            Self::IfExpr(v1, v2) => {
+                let cloned = { v2.try_lock().unwrap().clone() };
+                let Self::IfExpr(other1, other2) = other else {
+                    return false;
+                };
+                return v1 == other1 && PartialEq::eq(&cloned, &other2.try_lock().unwrap());
+            }
+            Self::IfStmt(v1, v2) => {
+                let cloned = { v2.try_lock().unwrap().clone() };
+                let Self::IfStmt(other1, other2) = other else {
+                    return false;
+                };
+                return v1 == other1 && PartialEq::eq(&cloned, &other2.try_lock().unwrap());
+            }
+        }
+    }
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub enum IfBlock {
+    Then,
+    ElseIf(usize),
+    Else,
 }
 
 // Visitor pattern
