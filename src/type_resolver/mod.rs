@@ -3,6 +3,7 @@ use crate::syntax::*;
 
 use crate::result::Result;
 
+use crate::token::Token;
 use crate::token::TokenType;
 
 use std::collections::HashMap;
@@ -45,9 +46,9 @@ impl FeTypeResolver {
             thenable_count: 0,
         };
 
-        while !pkg.lock().unwrap().is_resolved() {
+        while !pkg.try_lock().unwrap().is_resolved() {
             println!("1");
-            let changed = match &mut *pkg.lock().unwrap() {
+            let changed = match &mut *pkg.try_lock().unwrap() {
                 FeSyntaxPackage::File(file) => this.resolve_file(file)?,
                 FeSyntaxPackage::Dir(dir) => this.resolve_dir(dir)?,
             };
@@ -85,7 +86,7 @@ impl FeTypeResolver {
             thenable_count: 0,
         };
 
-        match &mut *pkg.lock().unwrap() {
+        match &mut *pkg.try_lock().unwrap() {
             FeSyntaxPackage::File(file) => return this.resolve_file(file),
             FeSyntaxPackage::Dir(dir) => return this.resolve_dir(dir),
         }
@@ -101,19 +102,19 @@ impl FeTypeResolver {
 
         for (name, pkg) in &dir.local_packages {
             let scope = {
-                let ExportsPackage::Dir(dir) = &mut *self.current_pkg_exports.lock().unwrap() else {
+                let ExportsPackage::Dir(dir) = &mut *self.current_pkg_exports.try_lock().unwrap() else {
                     todo!("how?")
                 };
 
                 let exports =
                     dir.local_packages
                         .entry(name.clone())
-                        .or_insert(Arc::new(Mutex::new(match &*pkg.lock().unwrap() {
+                        .or_insert(Arc::new(Mutex::new(match &*pkg.try_lock().unwrap() {
                             FeSyntaxPackage::File(_) => ExportsPackage::new_file(),
                             FeSyntaxPackage::Dir(_) => ExportsPackage::new_dir(),
                         })));
 
-                let lock = exports.lock().unwrap();
+                let lock = exports.try_lock().unwrap();
 
                 lock.scope()
             };
@@ -149,10 +150,10 @@ impl FeTypeResolver {
     fn resolve_file(&mut self, file: &mut FeSyntaxFile<Option<FeType>>) -> Result<bool> {
         let mut changed = None;
 
-        let syntax = file.syntax.lock().unwrap();
+        let syntax = file.syntax.try_lock().unwrap();
 
         for u in &syntax.uses {
-            let local = u.lock().unwrap().accept(self)?;
+            let local = u.accept(self)?;
 
             if let Some(changed) = &mut changed {
                 *changed = *changed | local;
@@ -163,10 +164,10 @@ impl FeTypeResolver {
 
         for decl in &syntax.decls {
             let (id, decl_changed) = {
-                let mut lock = decl.lock().unwrap();
+                let mut lock = decl.try_lock().unwrap();
                 let decl = &mut lock;
 
-                let id = *decl.node_id();
+                let id = decl.node_id();
                 let decl_changed = decl.accept(self)?;
 
                 (id, decl_changed)
@@ -199,8 +200,10 @@ impl FeTypeResolver {
     }
 
     fn evaluate_decl(&mut self, decl: Arc<Mutex<Decl<Option<FeType>>>>) -> Result<bool> {
-        match &mut *decl.lock().unwrap() {
-            Decl::Fn(decl) => {
+        match &mut *decl.try_lock().unwrap() {
+            Decl::Fn(shared_decl) => {
+                let decl = &mut *shared_decl.try_lock().unwrap();
+
                 if let Some(return_type) = &decl.return_type {
                     if let Some(return_type) = &return_type.resolved_type {
                         self.current_return_type = Some(Some(return_type.clone()));
@@ -212,9 +215,14 @@ impl FeTypeResolver {
                     self.current_return_type = Some(None);
                 }
 
-                self.scope.lock().unwrap().begin_scope();
+                self.scope
+                    .try_lock()
+                    .unwrap()
+                    .begin_scope(Some(ScopeCreator::Fn(shared_decl.clone())));
+
                 let res = self.evaluate_fn_decl(decl);
-                self.scope.lock().unwrap().end_scope();
+
+                self.scope.try_lock().unwrap().end_scope();
 
                 self.current_return_type = None;
 
@@ -231,7 +239,7 @@ impl FeTypeResolver {
     fn evaluate_fn_decl(&mut self, decl: &mut FnDecl<Option<FeType>>) -> Result<bool> {
         // Add fn params to scope
         {
-            let mut scope = self.scope.lock().unwrap();
+            let mut scope = self.scope.try_lock().unwrap();
 
             for param in &decl.params {
                 if let Some(resolved_type) = &param.resolved_type {
@@ -273,7 +281,7 @@ impl FeTypeResolver {
                 todo!("Unreachable code after {terminal:#?}!");
             }
 
-            let mut s = stmt.lock().unwrap();
+            let mut s = stmt.try_lock().unwrap();
             changed = changed | s.accept(self)?;
 
             if s.is_terminal() {
@@ -362,7 +370,9 @@ impl FeTypeResolver {
 }
 
 impl UseVisitor<Option<FeType>, Result<bool>> for FeTypeResolver {
-    fn visit_use(&mut self, use_decl: &mut Use<Option<FeType>>) -> Result<bool> {
+    fn visit_use(&mut self, shared_use_decl: Arc<Mutex<Use<Option<FeType>>>>) -> Result<bool> {
+        let use_decl = &mut *shared_use_decl.try_lock().unwrap();
+
         if use_decl.is_resolved() {
             return Ok(false);
         }
@@ -370,7 +380,7 @@ impl UseVisitor<Option<FeType>, Result<bool>> for FeTypeResolver {
         if use_decl.path.name.lexeme.as_ref() == "fe" {
             if let Either::A(UseStaticPathNext::Single(next)) = &mut use_decl.path.details {
                 if next.path.name.lexeme.as_ref() == "print" && next.path.details.is_b() {
-                    self.scope.lock().unwrap().insert(
+                    self.scope.try_lock().unwrap().insert(
                         "print".into(),
                         ScopedType {
                             is_pub: matches!(use_decl.use_mod, Some(UseMod::Pub(_))),
@@ -401,7 +411,7 @@ impl UseVisitor<Option<FeType>, Result<bool>> for FeTypeResolver {
                 }
             };
 
-            let found = match &*exports.lock().unwrap() {
+            let found = match &*exports.try_lock().unwrap() {
                 ExportsPackage::File(f) => todo!("{f:#?}"),
                 ExportsPackage::Dir(d) => d
                     .local_packages
@@ -419,10 +429,10 @@ impl UseVisitor<Option<FeType>, Result<bool>> for FeTypeResolver {
 
             if let Some(found) = found {
                 let typ = found
-                    .lock()
+                    .try_lock()
                     .unwrap()
                     .scope()
-                    .lock()
+                    .try_lock()
                     .unwrap()
                     .search(&next.path.name.lexeme)
                     .cloned();
@@ -437,7 +447,7 @@ impl UseVisitor<Option<FeType>, Result<bool>> for FeTypeResolver {
                     };
                     *use_typ = Some(typ.typ.clone());
 
-                    self.scope.lock().unwrap().insert(
+                    self.scope.try_lock().unwrap().insert(
                         next.path.name.lexeme.clone(),
                         ScopedType {
                             is_pub: matches!(use_decl.use_mod, Some(UseMod::Pub(_))),
@@ -537,7 +547,12 @@ impl StaticVisitor<Option<FeType>, Result<bool>> for FeTypeResolver {
 }
 
 impl DeclVisitor<Option<FeType>, Result<bool>> for FeTypeResolver {
-    fn visit_function_decl(&mut self, decl: &mut FnDecl<Option<FeType>>) -> Result<bool> {
+    fn visit_function_decl(
+        &mut self,
+        shared_decl: Arc<Mutex<FnDecl<Option<FeType>>>>,
+    ) -> Result<bool> {
+        let mut decl = shared_decl.try_lock().unwrap();
+
         if decl.is_signature_resolved() {
             return Ok(false);
         }
@@ -581,7 +596,7 @@ impl DeclVisitor<Option<FeType>, Result<bool>> for FeTypeResolver {
 
         if all_resolved {
             changed = true;
-            self.scope.lock().unwrap().insert(
+            self.scope.try_lock().unwrap().insert(
                 decl.name.lexeme.clone(),
                 ScopedType {
                     is_pub: matches!(decl.decl_mod, Some(DeclMod::Pub(_))),
@@ -598,7 +613,12 @@ impl DeclVisitor<Option<FeType>, Result<bool>> for FeTypeResolver {
         return Ok(changed);
     }
 
-    fn visit_struct_decl(&mut self, decl: &mut StructDecl<Option<FeType>>) -> Result<bool> {
+    fn visit_struct_decl(
+        &mut self,
+        shared_decl: Arc<Mutex<StructDecl<Option<FeType>>>>,
+    ) -> Result<bool> {
+        let decl = &mut *shared_decl.try_lock().unwrap();
+
         if decl.is_resolved() {
             return Ok(false);
         }
@@ -625,7 +645,7 @@ impl DeclVisitor<Option<FeType>, Result<bool>> for FeTypeResolver {
 
         if all_done {
             changed = true;
-            self.scope.lock().unwrap().insert(
+            self.scope.try_lock().unwrap().insert(
                 decl.name.lexeme.clone(),
                 ScopedType {
                     is_pub: matches!(decl.decl_mod, Some(DeclMod::Pub(_))),
@@ -643,19 +663,30 @@ impl DeclVisitor<Option<FeType>, Result<bool>> for FeTypeResolver {
 }
 
 impl StmtVisitor<Option<FeType>, Result<bool>> for FeTypeResolver {
-    fn visit_expr_stmt(&mut self, stmt: &mut ExprStmt<Option<FeType>>) -> Result<bool> {
-        return stmt.expr.lock().unwrap().accept(self);
+    fn visit_expr_stmt(&mut self, stmt: Arc<Mutex<ExprStmt<Option<FeType>>>>) -> Result<bool> {
+        return stmt
+            .try_lock()
+            .unwrap()
+            .expr
+            .try_lock()
+            .unwrap()
+            .accept(self);
     }
 
-    fn visit_var_decl_stmt(&mut self, stmt: &mut VarDeclStmt<Option<FeType>>) -> Result<bool> {
+    fn visit_var_decl_stmt(
+        &mut self,
+        shared_stmt: Arc<Mutex<VarDeclStmt<Option<FeType>>>>,
+    ) -> Result<bool> {
+        let stmt = &mut *shared_stmt.try_lock().unwrap();
+
         let mut changed = false;
 
         let typ = if let Some(value) = &stmt.value {
-            let value = &mut *value.value.0.lock().unwrap();
+            let value = &mut *value.value.0.try_lock().unwrap();
 
             changed = changed | value.accept(self)?;
 
-            value.resolved_type().cloned().flatten()
+            value.resolved_type().flatten()
         } else {
             None
         };
@@ -665,8 +696,8 @@ impl StmtVisitor<Option<FeType>, Result<bool>> for FeTypeResolver {
         if let Some(typ) = typ {
             match &mut stmt.target {
                 VarDeclTarget::Ident(ident) => {
-                    self.scope.lock().unwrap().insert(
-                        ident.ident.lexeme.clone(),
+                    self.scope.try_lock().unwrap().insert(
+                        ident.try_lock().unwrap().ident.lexeme.clone(),
                         ScopedType {
                             is_pub: false,
                             typ: FeType::Owned(FeOwnedOf {
@@ -687,7 +718,12 @@ impl StmtVisitor<Option<FeType>, Result<bool>> for FeTypeResolver {
         return Ok(changed);
     }
 
-    fn visit_assign_stmt(&mut self, stmt: &mut AssignStmt<Option<FeType>>) -> Result<bool> {
+    fn visit_assign_stmt(
+        &mut self,
+        shared_stmt: Arc<Mutex<AssignStmt<Option<FeType>>>>,
+    ) -> Result<bool> {
+        let mut stmt = shared_stmt.try_lock().unwrap();
+
         if stmt.is_resolved() {
             return Ok(false);
         }
@@ -696,12 +732,12 @@ impl StmtVisitor<Option<FeType>, Result<bool>> for FeTypeResolver {
         let mut types = (None, None);
 
         {
-            let mut target = stmt.target.0.lock().unwrap();
+            let mut target = stmt.target.0.try_lock().unwrap();
             changed = changed | target.accept(self)?;
 
             // TODO: ensure LHS expr is assignable (unassigned const ident || mut ident || instance_ref)
 
-            types.0 = target.resolved_type().cloned().flatten();
+            types.0 = target.resolved_type().flatten();
 
             if let Some(resolved_type) = &types.0 {
                 match resolved_type {
@@ -725,10 +761,10 @@ impl StmtVisitor<Option<FeType>, Result<bool>> for FeTypeResolver {
         }
 
         {
-            let mut value = stmt.value.0.lock().unwrap();
+            let mut value = stmt.value.0.try_lock().unwrap();
             changed = changed | value.accept(self)?;
 
-            types.1 = value.resolved_type().cloned().flatten();
+            types.1 = value.resolved_type().flatten();
         }
 
         if let (Some(target_type), Some(value_type)) = types {
@@ -748,7 +784,12 @@ impl StmtVisitor<Option<FeType>, Result<bool>> for FeTypeResolver {
         return Ok(changed);
     }
 
-    fn visit_return_stmt(&mut self, stmt: &mut ReturnStmt<Option<FeType>>) -> Result<bool> {
+    fn visit_return_stmt(
+        &mut self,
+        shared_stmt: Arc<Mutex<ReturnStmt<Option<FeType>>>>,
+    ) -> Result<bool> {
+        let mut stmt = shared_stmt.try_lock().unwrap();
+
         let Some(current_return_type) = self.current_return_type.clone() else {
             todo!("Return statements not allowed!");
         };
@@ -766,10 +807,9 @@ impl StmtVisitor<Option<FeType>, Result<bool>> for FeTypeResolver {
         let mut changed = false;
 
         if let Some(value) = &stmt.value {
-            changed = changed | value.0.lock().unwrap().accept(self)?;
+            changed = changed | value.0.try_lock().unwrap().accept(self)?;
 
-            if let Some(resolved_type) = value.0.lock().unwrap().resolved_type().cloned().flatten()
-            {
+            if let Some(resolved_type) = value.0.try_lock().unwrap().resolved_type().flatten() {
                 match current_return_type {
                     Some(return_type) => {
                         if !Self::can_implicit_cast(&resolved_type, &return_type) {
@@ -785,7 +825,9 @@ impl StmtVisitor<Option<FeType>, Result<bool>> for FeTypeResolver {
         return Ok(changed);
     }
 
-    fn visit_if_stmt(&mut self, stmt: &mut IfStmt<Option<FeType>>) -> Result<bool> {
+    fn visit_if_stmt(&mut self, shared_stmt: Arc<Mutex<IfStmt<Option<FeType>>>>) -> Result<bool> {
+        let mut stmt = shared_stmt.try_lock().unwrap();
+
         if stmt.is_resolved() {
             return Ok(false);
         }
@@ -793,7 +835,7 @@ impl StmtVisitor<Option<FeType>, Result<bool>> for FeTypeResolver {
         let mut changed = false;
 
         {
-            let mut condition = stmt.condition.0.lock().unwrap();
+            let mut condition = stmt.condition.0.try_lock().unwrap();
 
             if !condition.is_resolved() {
                 changed |= condition.accept(self)?;
@@ -803,7 +845,7 @@ impl StmtVisitor<Option<FeType>, Result<bool>> for FeTypeResolver {
                 };
 
                 if let Some(resolved_type) = resolved_type {
-                    if !Self::can_implicit_cast(resolved_type, &FeType::Bool(None)) {
+                    if !Self::can_implicit_cast(&resolved_type, &FeType::Bool(None)) {
                         todo!("Can't cast to bool!");
                     }
                 }
@@ -813,28 +855,54 @@ impl StmtVisitor<Option<FeType>, Result<bool>> for FeTypeResolver {
         // TODO: if stmt terminals? what to do here?
 
         if !stmt.then.is_resolved() {
+            self.scope
+                .try_lock()
+                .unwrap()
+                .begin_scope(Some(ScopeCreator::IfStmt(shared_stmt.clone())));
+
             let (local_changed, _terminal) = self.resolve_stmts(&stmt.then.stmts)?;
             changed |= local_changed;
+
+            self.scope.try_lock().unwrap().end_scope();
         }
 
         for else_if in &stmt.else_ifs {
             if !else_if.is_resolved() {
+                self.scope
+                    .try_lock()
+                    .unwrap()
+                    .begin_scope(Some(ScopeCreator::IfStmt(shared_stmt.clone())));
+
                 let (local_changed, _terminal) = self.resolve_stmts(&else_if.then.stmts)?;
                 changed |= local_changed;
+
+                self.scope.try_lock().unwrap().end_scope();
             }
         }
 
         if let Some(else_) = &stmt.else_ {
             if !else_.is_resolved() {
+                self.scope
+                    .try_lock()
+                    .unwrap()
+                    .begin_scope(Some(ScopeCreator::IfStmt(shared_stmt.clone())));
+
                 let (local_changed, _terminal) = self.resolve_stmts(&else_.then.stmts)?;
                 changed |= local_changed;
+
+                self.scope.try_lock().unwrap().end_scope();
             }
         }
 
         return Ok(changed);
     }
 
-    fn visit_loop_stmt(&mut self, stmt: &mut LoopStmt<Option<FeType>>) -> Result<bool> {
+    fn visit_loop_stmt(
+        &mut self,
+        shared_stmt: Arc<Mutex<LoopStmt<Option<FeType>>>>,
+    ) -> Result<bool> {
+        let mut stmt = shared_stmt.try_lock().unwrap();
+
         if stmt.is_resolved() {
             return Ok(false);
         }
@@ -842,7 +910,12 @@ impl StmtVisitor<Option<FeType>, Result<bool>> for FeTypeResolver {
         todo!();
     }
 
-    fn visit_while_stmt(&mut self, stmt: &mut WhileStmt<Option<FeType>>) -> Result<bool> {
+    fn visit_while_stmt(
+        &mut self,
+        shared_stmt: Arc<Mutex<WhileStmt<Option<FeType>>>>,
+    ) -> Result<bool> {
+        let mut stmt = shared_stmt.try_lock().unwrap();
+
         if stmt.is_resolved() {
             return Ok(false);
         }
@@ -850,7 +923,12 @@ impl StmtVisitor<Option<FeType>, Result<bool>> for FeTypeResolver {
         todo!();
     }
 
-    fn visit_break_stmt(&mut self, stmt: &mut BreakStmt<Option<FeType>>) -> Result<bool> {
+    fn visit_break_stmt(
+        &mut self,
+        shared_stmt: Arc<Mutex<BreakStmt<Option<FeType>>>>,
+    ) -> Result<bool> {
+        let stmt = &mut *shared_stmt.try_lock().unwrap();
+
         if self.breakable_count == 0 {
             todo!("Can't break here! {stmt:#?}");
         }
@@ -862,9 +940,9 @@ impl StmtVisitor<Option<FeType>, Result<bool>> for FeTypeResolver {
         let mut changed = false;
 
         if let Some(value) = &stmt.value {
-            changed |= value.0.lock().unwrap().accept(self)?;
+            changed |= value.0.try_lock().unwrap().accept(self)?;
 
-            if let Some(resolved_type) = value.0.lock().unwrap().resolved_type() {
+            if let Some(resolved_type) = value.0.try_lock().unwrap().resolved_type() {
                 stmt.resolved_type = Some(resolved_type.clone());
             }
         }
@@ -872,7 +950,12 @@ impl StmtVisitor<Option<FeType>, Result<bool>> for FeTypeResolver {
         return Ok(changed);
     }
 
-    fn visit_then_stmt(&mut self, stmt: &mut ThenStmt<Option<FeType>>) -> Result<bool> {
+    fn visit_then_stmt(
+        &mut self,
+        shared_stmt: Arc<Mutex<ThenStmt<Option<FeType>>>>,
+    ) -> Result<bool> {
+        let stmt = &mut *shared_stmt.try_lock().unwrap();
+
         if self.thenable_count == 0 {
             todo!("Can't then here! {stmt:#?}");
         }
@@ -883,10 +966,33 @@ impl StmtVisitor<Option<FeType>, Result<bool>> for FeTypeResolver {
 
         let mut changed = false;
 
-        changed |= stmt.value.0.lock().unwrap().accept(self)?;
+        changed |= stmt.value.0.try_lock().unwrap().accept(self)?;
 
-        if let Some(resolved_type) = stmt.value.0.lock().unwrap().resolved_type() {
+        if let Some(resolved_type) = stmt.value.0.try_lock().unwrap().resolved_type() {
             stmt.resolved_type = resolved_type.clone();
+
+            let Some(then_handler) = self.scope.try_lock().unwrap().handle_then(stmt.label.clone()) else {
+                todo!();
+            };
+
+            match then_handler {
+                ThenHandler::IfExpr(if_expr) => {
+                    let if_expr = &mut *if_expr.try_lock().unwrap();
+
+                    if let Some(Some(if_typ)) = &if_expr.resolved_type {
+                        let Some(typ) = &resolved_type else {
+                            todo!();
+                        };
+
+                        if !Self::can_implicit_cast(&typ, if_typ) {
+                            todo!();
+                        }
+                    }
+
+                    if_expr.resolved_type = Some(resolved_type);
+                    changed = true;
+                }
+            }
         } else {
             todo!();
         }
@@ -898,8 +1004,10 @@ impl StmtVisitor<Option<FeType>, Result<bool>> for FeTypeResolver {
 impl ExprVisitor<Option<FeType>, Result<bool>> for FeTypeResolver {
     fn visit_bool_literal_expr(
         &mut self,
-        expr: &mut BoolLiteralExpr<Option<FeType>>,
+        shared_expr: Arc<Mutex<BoolLiteralExpr<Option<FeType>>>>,
     ) -> Result<bool> {
+        let mut expr = shared_expr.try_lock().unwrap();
+
         if expr.is_resolved() {
             return Ok(false);
         }
@@ -917,8 +1025,10 @@ impl ExprVisitor<Option<FeType>, Result<bool>> for FeTypeResolver {
 
     fn visit_number_literal_expr(
         &mut self,
-        expr: &mut NumberLiteralExpr<Option<FeType>>,
+        shared_expr: Arc<Mutex<NumberLiteralExpr<Option<FeType>>>>,
     ) -> Result<bool> {
+        let mut expr = shared_expr.try_lock().unwrap();
+
         if expr.is_resolved() {
             return Ok(false);
         }
@@ -933,8 +1043,10 @@ impl ExprVisitor<Option<FeType>, Result<bool>> for FeTypeResolver {
 
     fn visit_plain_string_literal_expr(
         &mut self,
-        expr: &mut PlainStringLiteralExpr<Option<FeType>>,
+        shared_expr: Arc<Mutex<PlainStringLiteralExpr<Option<FeType>>>>,
     ) -> Result<bool> {
+        let mut expr = shared_expr.try_lock().unwrap();
+
         if expr.is_resolved() {
             return Ok(false);
         }
@@ -946,8 +1058,10 @@ impl ExprVisitor<Option<FeType>, Result<bool>> for FeTypeResolver {
 
     fn visit_fmt_string_literal_expr(
         &mut self,
-        expr: &mut FmtStringLiteralExpr<Option<FeType>>,
+        shared_expr: Arc<Mutex<FmtStringLiteralExpr<Option<FeType>>>>,
     ) -> Result<bool> {
+        let mut expr = shared_expr.try_lock().unwrap();
+
         if expr.is_resolved() {
             return Ok(false);
         }
@@ -956,9 +1070,9 @@ impl ExprVisitor<Option<FeType>, Result<bool>> for FeTypeResolver {
         let mut is_all_checked = true;
 
         for part in &mut expr.rest {
-            changed = changed | part.expr.0.lock().unwrap().accept(self)?;
+            changed = changed | part.expr.0.try_lock().unwrap().accept(self)?;
 
-            if !part.expr.0.lock().unwrap().is_resolved() {
+            if !part.expr.0.try_lock().unwrap().is_resolved() {
                 is_all_checked = false;
             }
         }
@@ -971,14 +1085,19 @@ impl ExprVisitor<Option<FeType>, Result<bool>> for FeTypeResolver {
         return Ok(changed);
     }
 
-    fn visit_ident_expr(&mut self, expr: &mut IdentExpr<Option<FeType>>) -> Result<bool> {
+    fn visit_ident_expr(
+        &mut self,
+        shared_expr: Arc<Mutex<IdentExpr<Option<FeType>>>>,
+    ) -> Result<bool> {
+        let mut expr = shared_expr.try_lock().unwrap();
+
         if expr.is_resolved() {
             return Ok(false);
         }
 
         let ident = &expr.ident.lexeme;
 
-        if let Some(found) = self.scope.lock().unwrap().search(ident) {
+        if let Some(found) = self.scope.try_lock().unwrap().search(ident) {
             expr.resolved_type = Some(found.typ.clone());
             self.expr_lookup.insert(expr.id, found.typ.clone());
         } else {
@@ -988,14 +1107,19 @@ impl ExprVisitor<Option<FeType>, Result<bool>> for FeTypeResolver {
         return Ok(true);
     }
 
-    fn visit_call_expr(&mut self, expr: &mut CallExpr<Option<FeType>>) -> Result<bool> {
+    fn visit_call_expr(
+        &mut self,
+        shared_expr: Arc<Mutex<CallExpr<Option<FeType>>>>,
+    ) -> Result<bool> {
+        let expr = &mut *shared_expr.try_lock().unwrap();
+
         if expr.is_resolved() {
             return Ok(false);
         }
 
         let mut changed = false;
 
-        let mut callee = expr.callee.0.lock().unwrap();
+        let mut callee = expr.callee.0.try_lock().unwrap();
 
         if !callee.is_resolved() {
             changed |= callee.accept(self)?;
@@ -1003,7 +1127,7 @@ impl ExprVisitor<Option<FeType>, Result<bool>> for FeTypeResolver {
 
         let Some(FeType::Callable(callee)) = self
             .expr_lookup
-            .get(callee.node_id())
+            .get(&callee.node_id())
             .cloned()
         else {
             // todo!("Callee not found: {callee:?}");
@@ -1022,7 +1146,7 @@ impl ExprVisitor<Option<FeType>, Result<bool>> for FeTypeResolver {
             let arg = &mut expr.args[i];
 
             if !arg.is_resolved() {
-                let mut expr = arg.value.0.lock().unwrap();
+                let mut expr = arg.value.0.try_lock().unwrap();
                 let local_changed = expr.accept(self)?;
 
                 if !local_changed {
@@ -1052,24 +1176,21 @@ impl ExprVisitor<Option<FeType>, Result<bool>> for FeTypeResolver {
         return Ok(changed);
     }
 
-    fn visit_unary_expr(&mut self, expr: &mut UnaryExpr<Option<FeType>>) -> Result<bool> {
+    fn visit_unary_expr(
+        &mut self,
+        shared_expr: Arc<Mutex<UnaryExpr<Option<FeType>>>>,
+    ) -> Result<bool> {
+        let expr = &mut *shared_expr.try_lock().unwrap();
+
         if expr.is_resolved() {
             return Ok(false);
         }
 
         let mut changed = false;
 
-        changed = changed | expr.value.0.lock().unwrap().accept(self)?;
+        changed = changed | expr.value.0.try_lock().unwrap().accept(self)?;
 
-        if let Some(resolved_type) = expr
-            .value
-            .0
-            .lock()
-            .unwrap()
-            .resolved_type()
-            .cloned()
-            .flatten()
-        {
+        if let Some(resolved_type) = expr.value.0.try_lock().unwrap().resolved_type().flatten() {
             changed = true;
 
             match &expr.op {
@@ -1103,31 +1224,24 @@ impl ExprVisitor<Option<FeType>, Result<bool>> for FeTypeResolver {
         return Ok(changed);
     }
 
-    fn visit_binary_expr(&mut self, expr: &mut BinaryExpr<Option<FeType>>) -> Result<bool> {
+    fn visit_binary_expr(
+        &mut self,
+        shared_expr: Arc<Mutex<BinaryExpr<Option<FeType>>>>,
+    ) -> Result<bool> {
+        let expr = &mut *shared_expr.try_lock().unwrap();
+
         if expr.is_resolved() {
             return Ok(false);
         }
 
         let mut changed = false;
 
-        changed |= expr.lhs.0.lock().unwrap().accept(self)?;
-        changed |= expr.rhs.0.lock().unwrap().accept(self)?;
+        changed |= expr.lhs.0.try_lock().unwrap().accept(self)?;
+        changed |= expr.rhs.0.try_lock().unwrap().accept(self)?;
 
         if let (Some(resolved_lhs), Some(resolved_rhs)) = (
-            expr.lhs
-                .0
-                .lock()
-                .unwrap()
-                .resolved_type()
-                .cloned()
-                .flatten(),
-            expr.rhs
-                .0
-                .lock()
-                .unwrap()
-                .resolved_type()
-                .cloned()
-                .flatten(),
+            expr.lhs.0.try_lock().unwrap().resolved_type().flatten(),
+            expr.rhs.0.try_lock().unwrap().resolved_type().flatten(),
         ) {
             changed = true;
 
@@ -1230,7 +1344,12 @@ impl ExprVisitor<Option<FeType>, Result<bool>> for FeTypeResolver {
         return Ok(changed);
     }
 
-    fn visit_static_ref_expr(&mut self, expr: &mut StaticRefExpr<Option<FeType>>) -> Result<bool> {
+    fn visit_static_ref_expr(
+        &mut self,
+        shared_expr: Arc<Mutex<StaticRefExpr<Option<FeType>>>>,
+    ) -> Result<bool> {
+        let mut expr = shared_expr.try_lock().unwrap();
+
         if expr.is_resolved() {
             return Ok(false);
         }
@@ -1242,7 +1361,12 @@ impl ExprVisitor<Option<FeType>, Result<bool>> for FeTypeResolver {
         return Ok(changed);
     }
 
-    fn visit_construct_expr(&mut self, expr: &mut ConstructExpr<Option<FeType>>) -> Result<bool> {
+    fn visit_construct_expr(
+        &mut self,
+        shared_expr: Arc<Mutex<ConstructExpr<Option<FeType>>>>,
+    ) -> Result<bool> {
+        let mut expr = shared_expr.try_lock().unwrap();
+
         if expr.is_resolved() {
             return Ok(false);
         }
@@ -1254,7 +1378,7 @@ impl ExprVisitor<Option<FeType>, Result<bool>> for FeTypeResolver {
             ConstructTarget::Ident(ident) => {
                 changed |= ident.accept(self)?;
 
-                if let Some(resolved) = &ident.resolved_type {
+                if let Some(resolved) = &ident.try_lock().unwrap().resolved_type {
                     target = Some(resolved.clone());
                 }
             }
@@ -1284,7 +1408,7 @@ impl ExprVisitor<Option<FeType>, Result<bool>> for FeTypeResolver {
             for arg in &mut expr.args {
                 match arg {
                     ConstructArg::Field(field) => {
-                        changed |= field.value.0.lock().unwrap().accept(self)?;
+                        changed |= field.value.0.try_lock().unwrap().accept(self)?;
 
                         let Some(struct_field) = fields_map.get(&field.name.lexeme) else {
                             todo!("No field found with name {:?} for struct {:?}", field.name.lexeme, target.name);
@@ -1296,14 +1420,8 @@ impl ExprVisitor<Option<FeType>, Result<bool>> for FeTypeResolver {
 
                         seen.insert(field.name.lexeme.clone());
 
-                        if let Some(resolved) = field
-                            .value
-                            .0
-                            .lock()
-                            .unwrap()
-                            .resolved_type()
-                            .cloned()
-                            .flatten()
+                        if let Some(resolved) =
+                            field.value.0.try_lock().unwrap().resolved_type().flatten()
                         {
                             if !Self::can_implicit_cast(&resolved, &struct_field.typ) {
                                 todo!("Invalid type! {resolved:#?}");
@@ -1341,24 +1459,18 @@ impl ExprVisitor<Option<FeType>, Result<bool>> for FeTypeResolver {
         return Ok(changed);
     }
 
-    fn visit_get_expr(&mut self, expr: &mut GetExpr<Option<FeType>>) -> Result<bool> {
+    fn visit_get_expr(&mut self, shared_expr: Arc<Mutex<GetExpr<Option<FeType>>>>) -> Result<bool> {
+        let expr = &mut *shared_expr.try_lock().unwrap();
+
         if expr.is_resolved() {
             return Ok(false);
         }
 
         let mut changed = false;
 
-        changed |= expr.target.0.lock().unwrap().accept(self)?;
+        changed |= expr.target.0.try_lock().unwrap().accept(self)?;
 
-        if let Some(resolved) = expr
-            .target
-            .0
-            .lock()
-            .unwrap()
-            .resolved_type()
-            .cloned()
-            .flatten()
-        {
+        if let Some(resolved) = expr.target.0.try_lock().unwrap().resolved_type().flatten() {
             // TODO: I don't love this, what if theres a shared ref of a mut ref or something weird?
             let Some(instance) = resolved.instance() else {
                 todo!("How can you get a property of a non-instance? Maybe the type system needs reworking... {resolved:#?}");
@@ -1392,15 +1504,24 @@ impl ExprVisitor<Option<FeType>, Result<bool>> for FeTypeResolver {
         return Ok(changed);
     }
 
-    fn visit_if_expr(&mut self, expr: &mut IfExpr<Option<FeType>>) -> Result<bool> {
-        if expr.is_resolved() {
-            return Ok(false);
+    fn visit_if_expr(&mut self, shared_expr: Arc<Mutex<IfExpr<Option<FeType>>>>) -> Result<bool> {
+        {
+            let expr = &mut *shared_expr.try_lock().unwrap();
+
+            if expr.is_resolved() {
+                return Ok(false);
+            }
         }
 
         let mut changed = false;
 
         {
-            let mut condition = expr.condition.0.lock().unwrap();
+            let condition = {
+                let expr = &mut *shared_expr.try_lock().unwrap();
+                expr.condition.clone()
+            };
+
+            let condition = condition.0.try_lock().unwrap();
 
             if !condition.is_resolved() {
                 changed |= condition.accept(self)?;
@@ -1410,7 +1531,7 @@ impl ExprVisitor<Option<FeType>, Result<bool>> for FeTypeResolver {
                 };
 
                 if let Some(resolved_type) = resolved_type {
-                    if !Self::can_implicit_cast(resolved_type, &FeType::Bool(None)) {
+                    if !Self::can_implicit_cast(&resolved_type, &FeType::Bool(None)) {
                         todo!("Can't cast to bool!");
                     }
                 }
@@ -1421,23 +1542,34 @@ impl ExprVisitor<Option<FeType>, Result<bool>> for FeTypeResolver {
 
         let mut typ = None;
 
-        match &expr.then {
+        let then = {
+            let expr = &mut *shared_expr.try_lock().unwrap();
+            expr.then.clone()
+        };
+
+        match &then {
             IfExprThen::Ternary(then) => {
-                changed |= then.then_expr.0.lock().unwrap().accept(self)?;
+                changed |= then.then_expr.0.try_lock().unwrap().accept(self)?;
 
                 typ = then
                     .then_expr
                     .0
-                    .lock()
+                    .try_lock()
                     .unwrap()
                     .resolved_type()
-                    .cloned()
                     .flatten();
             }
             IfExprThen::Block(then) => {
+                self.scope
+                    .try_lock()
+                    .unwrap()
+                    .begin_scope(Some(ScopeCreator::IfExpr(shared_expr.clone())));
+
                 self.thenable_count += 1;
                 let (local_changed, _terminal) = self.resolve_stmts(&then.block.stmts)?;
                 self.thenable_count -= 1;
+
+                self.scope.try_lock().unwrap().end_scope();
 
                 changed |= local_changed;
 
@@ -1445,11 +1577,16 @@ impl ExprVisitor<Option<FeType>, Result<bool>> for FeTypeResolver {
             }
         }
 
-        for else_if in &expr.else_ifs {
+        let else_ifs = {
+            let expr = &mut *shared_expr.try_lock().unwrap();
+            expr.else_ifs.clone()
+        };
+
+        for else_if in &else_ifs {
             match else_if {
                 IfExprElseIf::Ternary(else_if) => {
                     {
-                        let mut condition = else_if.condition.0.lock().unwrap();
+                        let condition = else_if.condition.0.try_lock().unwrap();
 
                         changed |= condition.accept(self)?;
 
@@ -1458,14 +1595,14 @@ impl ExprVisitor<Option<FeType>, Result<bool>> for FeTypeResolver {
                         };
 
                         if let Some(resolved_type) = resolved_type {
-                            if !Self::can_implicit_cast(resolved_type, &FeType::Bool(None)) {
+                            if !Self::can_implicit_cast(&resolved_type, &FeType::Bool(None)) {
                                 todo!("Can't cast to bool!");
                             }
                         }
                     }
 
                     {
-                        let mut expr = else_if.expr.0.lock().unwrap();
+                        let expr = else_if.expr.0.try_lock().unwrap();
 
                         changed |= expr.accept(self)?;
 
@@ -1475,7 +1612,7 @@ impl ExprVisitor<Option<FeType>, Result<bool>> for FeTypeResolver {
 
                         if let Some(typ) = &typ {
                             if let Some(resolved_type) = resolved_type {
-                                if !Self::can_implicit_cast(resolved_type, &typ) {
+                                if !Self::can_implicit_cast(&resolved_type, &typ) {
                                     todo!("Can't cast!");
                                 }
                             }
@@ -1487,9 +1624,16 @@ impl ExprVisitor<Option<FeType>, Result<bool>> for FeTypeResolver {
                     }
                 }
                 IfExprElseIf::Block(else_if) => {
+                    self.scope
+                        .try_lock()
+                        .unwrap()
+                        .begin_scope(Some(ScopeCreator::IfExpr(shared_expr.clone())));
+
                     self.thenable_count += 1;
                     let (local_changed, _terminal) = self.resolve_stmts(&else_if.block.stmts)?;
                     self.thenable_count -= 1;
+
+                    self.scope.try_lock().unwrap().end_scope();
 
                     changed |= local_changed;
 
@@ -1498,11 +1642,16 @@ impl ExprVisitor<Option<FeType>, Result<bool>> for FeTypeResolver {
             }
         }
 
-        if let Some(else_) = &expr.else_ {
+        let else_ = {
+            let expr = &mut *shared_expr.try_lock().unwrap();
+            expr.else_.clone()
+        };
+
+        if let Some(else_) = &else_ {
             if !else_.is_resolved() {
                 match else_ {
                     IfExprElse::Ternary(else_) => {
-                        let mut else_expr = else_.else_expr.0.lock().unwrap();
+                        let else_expr = else_.else_expr.0.try_lock().unwrap();
 
                         changed |= else_expr.accept(self)?;
 
@@ -1512,7 +1661,7 @@ impl ExprVisitor<Option<FeType>, Result<bool>> for FeTypeResolver {
 
                         if let Some(typ) = &typ {
                             if let Some(resolved_type) = resolved_type {
-                                if !Self::can_implicit_cast(resolved_type, &typ) {
+                                if !Self::can_implicit_cast(&resolved_type, &typ) {
                                     todo!("Can't cast!");
                                 }
                             }
@@ -1523,9 +1672,16 @@ impl ExprVisitor<Option<FeType>, Result<bool>> for FeTypeResolver {
                         }
                     }
                     IfExprElse::Block(else_) => {
+                        self.scope
+                            .try_lock()
+                            .unwrap()
+                            .begin_scope(Some(ScopeCreator::IfExpr(shared_expr.clone())));
+
                         self.thenable_count += 1;
                         let (local_changed, _terminal) = self.resolve_stmts(&else_.block.stmts)?;
                         self.thenable_count -= 1;
+
+                        self.scope.try_lock().unwrap().end_scope();
 
                         changed |= local_changed;
 
@@ -1535,12 +1691,27 @@ impl ExprVisitor<Option<FeType>, Result<bool>> for FeTypeResolver {
             }
         }
 
-        expr.resolved_type = Some(typ);
+        let expr = &mut *shared_expr.try_lock().unwrap();
+
+        if let Some(Some(already)) = &expr.resolved_type {
+            if let Some(typ) = typ {
+                if !Self::can_implicit_cast(&typ, already) {
+                    todo!();
+                }
+            }
+        } else {
+            expr.resolved_type = Some(typ);
+        }
 
         return Ok(changed);
     }
 
-    fn visit_loop_expr(&mut self, expr: &mut LoopExpr<Option<FeType>>) -> Result<bool> {
+    fn visit_loop_expr(
+        &mut self,
+        shared_expr: Arc<Mutex<LoopExpr<Option<FeType>>>>,
+    ) -> Result<bool> {
+        let expr = &mut *shared_expr.try_lock().unwrap();
+
         // TODO: Think about how looping affects types
 
         if expr.is_resolved() {
@@ -1549,10 +1720,17 @@ impl ExprVisitor<Option<FeType>, Result<bool>> for FeTypeResolver {
 
         let mut changed = false;
 
+        self.scope
+            .try_lock()
+            .unwrap()
+            .begin_scope(Some(ScopeCreator::LoopExpr(shared_expr.clone())));
+
         self.breakable_count += 1;
         let (changes, _term) = self.resolve_stmts(&expr.block.stmts)?;
         changed |= changes;
         self.breakable_count -= 1;
+
+        self.scope.try_lock().unwrap().end_scope();
 
         // if let Some(TerminationType::Base(BaseTerminationType::InfiniteLoop)) = term {
         //     todo!("Infinite loop!");
@@ -1584,14 +1762,19 @@ impl ExprVisitor<Option<FeType>, Result<bool>> for FeTypeResolver {
         return Ok(changed);
     }
 
-    fn visit_while_expr(&mut self, expr: &mut WhileExpr<Option<FeType>>) -> Result<bool> {
+    fn visit_while_expr(
+        &mut self,
+        shared_expr: Arc<Mutex<WhileExpr<Option<FeType>>>>,
+    ) -> Result<bool> {
+        let expr = &mut *shared_expr.try_lock().unwrap();
+
         if expr.is_resolved() {
             return Ok(false);
         }
 
         let mut changed = false;
 
-        changed |= expr.condition.0.lock().unwrap().accept(self)?;
+        changed |= expr.condition.0.try_lock().unwrap().accept(self)?;
 
         self.breakable_count += 1;
         changed |= self.resolve_stmts(&expr.block.stmts)?.0;
@@ -1672,7 +1855,51 @@ struct Scope {
 
 #[derive(Debug, Clone)]
 struct FlatScope {
+    creator: Option<ScopeCreator>,
     name_lookup: HashMap<Arc<str>, ScopedType>,
+}
+
+#[derive(Debug, Clone)]
+enum ScopeCreator {
+    Fn(Arc<Mutex<FnDecl<Option<FeType>>>>),
+    IfStmt(Arc<Mutex<IfStmt<Option<FeType>>>>),
+    IfExpr(Arc<Mutex<IfExpr<Option<FeType>>>>),
+    WhileStmt(Arc<Mutex<WhileStmt<Option<FeType>>>>),
+    WhileExpr(Arc<Mutex<WhileExpr<Option<FeType>>>>),
+    LoopStmt(Arc<Mutex<LoopStmt<Option<FeType>>>>),
+    LoopExpr(Arc<Mutex<LoopExpr<Option<FeType>>>>),
+}
+
+impl ScopeCreator {
+    fn label(&self) -> Option<Arc<Token>> {
+        match self {
+            Self::Fn(c) => return None,
+            Self::IfStmt(c) => return None,
+            Self::IfExpr(c) => return c.try_lock().unwrap().label.clone(),
+            Self::WhileStmt(c) => return c.try_lock().unwrap().label.clone(),
+            Self::WhileExpr(c) => return c.try_lock().unwrap().label.clone(),
+            Self::LoopStmt(c) => return c.try_lock().unwrap().label.clone(),
+            Self::LoopExpr(c) => return c.try_lock().unwrap().label.clone(),
+        }
+    }
+}
+
+#[derive(Debug, Clone)]
+enum ReturnHandler {
+    Fn(Arc<Mutex<FnDecl<Option<FeType>>>>),
+}
+
+#[derive(Debug, Clone)]
+enum ThenHandler {
+    IfExpr(Arc<Mutex<IfExpr<Option<FeType>>>>),
+}
+
+#[derive(Debug, Clone)]
+enum BreakHandler {
+    LoopStmt(Arc<Mutex<LoopStmt<Option<FeType>>>>),
+    LoopExpr(Arc<Mutex<LoopExpr<Option<FeType>>>>),
+    WhileStmt(Arc<Mutex<WhileStmt<Option<FeType>>>>),
+    WhileExpr(Arc<Mutex<WhileExpr<Option<FeType>>>>),
 }
 
 #[derive(Debug, Clone)]
@@ -1685,13 +1912,15 @@ impl Scope {
     pub fn new() -> Self {
         return Self {
             stack: vec![FlatScope {
+                creator: None,
                 name_lookup: HashMap::new(),
             }],
         };
     }
 
-    pub fn begin_scope(&mut self) {
+    pub fn begin_scope(&mut self, creator: Option<ScopeCreator>) {
         self.stack.push(FlatScope {
+            creator,
             name_lookup: HashMap::new(),
         });
     }
@@ -1719,6 +1948,70 @@ impl Scope {
         for data in self.stack.iter().rev() {
             if let Some(found) = data.name_lookup.get(name) {
                 return Some(found);
+            }
+        }
+
+        return None;
+    }
+
+    pub fn handle_return(&self) -> Option<ReturnHandler> {
+        for scope in self.stack.iter().rev() {
+            match &scope.creator {
+                Some(ScopeCreator::Fn(v)) => {
+                    return Some(ReturnHandler::Fn(v.clone()));
+                }
+
+                _ => {}
+            }
+        }
+
+        return None;
+    }
+
+    pub fn handle_then(&self, label: Option<Arc<Token>>) -> Option<ThenHandler> {
+        for scope in self.stack.iter().rev() {
+            match &scope.creator {
+                Some(ScopeCreator::IfExpr(v)) => {
+                    if label == v.try_lock().unwrap().label {
+                        return Some(ThenHandler::IfExpr(v.clone()));
+                    }
+                }
+
+                _ => {}
+            }
+        }
+
+        return None;
+    }
+
+    pub fn handle_break(&self, label: Option<Arc<Token>>) -> Option<BreakHandler> {
+        for scope in self.stack.iter().rev() {
+            match &scope.creator {
+                Some(ScopeCreator::LoopStmt(v)) => {
+                    if label == v.try_lock().unwrap().label {
+                        return Some(BreakHandler::LoopStmt(v.clone()));
+                    }
+                }
+
+                Some(ScopeCreator::LoopExpr(v)) => {
+                    if label == v.try_lock().unwrap().label {
+                        return Some(BreakHandler::LoopExpr(v.clone()));
+                    }
+                }
+
+                Some(ScopeCreator::WhileStmt(v)) => {
+                    if label == v.try_lock().unwrap().label {
+                        return Some(BreakHandler::WhileStmt(v.clone()));
+                    }
+                }
+
+                Some(ScopeCreator::WhileExpr(v)) => {
+                    if label == v.try_lock().unwrap().label {
+                        return Some(BreakHandler::WhileExpr(v.clone()));
+                    }
+                }
+
+                _ => {}
             }
         }
 

@@ -12,8 +12,8 @@ pub struct Use<ResolvedType = ()> {
 }
 
 impl<T: ResolvedType> Node<Use> for Use<T> {
-    fn node_id(&self) -> &NodeId<Use> {
-        return &self.id;
+    fn node_id(&self) -> NodeId<Use> {
+        return self.id;
     }
 }
 
@@ -343,15 +343,15 @@ pub enum UseMod {
 
 // Visitor pattern
 pub trait UseVisitor<T: ResolvedType, R = ()> {
-    fn visit_use(&mut self, use_decl: &mut Use<T>) -> R;
+    fn visit_use(&mut self, use_decl: Arc<Mutex<Use<T>>>) -> R;
 }
 
 pub trait UseAccept<T: ResolvedType, R, V: UseVisitor<T, R>> {
-    fn accept(&mut self, visitor: &mut V) -> R;
+    fn accept(&self, visitor: &mut V) -> R;
 }
 
-impl<T: ResolvedType, R, V: UseVisitor<T, R>> UseAccept<T, R, V> for Use<T> {
-    fn accept(&mut self, visitor: &mut V) -> R {
-        return visitor.visit_use(self);
+impl<T: ResolvedType, R, V: UseVisitor<T, R>> UseAccept<T, R, V> for Arc<Mutex<Use<T>>> {
+    fn accept(&self, visitor: &mut V) -> R {
+        return visitor.visit_use(self.clone());
     }
 }

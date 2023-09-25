@@ -1,12 +1,36 @@
 use ::fe::print
 
 pub fn main()
-    const is_funny = false
+    const is_funny = true
+    const is_cool = true
 
-    const response = if is_funny 
-        then "HAHA"
-        else "LAME"
+    const response = if is_funny
+        print("you're funny ...")
 
-    print(response)
+        if is_cool
+            print("Wow you're lucky")
+
+            then "HAHA You're Amazing!"
+        else
+            then "hah"
+        ;
+
+        // print("Not reachable")
+
+    else
+        print("you're not so funny ...")
+
+        if is_cool
+            then "Whatevs"
+        else
+            print("Not so lucky...")
+
+            then "Ew."
+        ;
+
+        // print("Not reachable")
+    ;
+
+    print("\nRESPONSE = {response}")
 ;
 

@@ -40,5 +40,5 @@ impl<T> Hash for NodeId<T> {
 }
 
 pub trait Node<T> {
-    fn node_id(&self) -> &NodeId<T>;
+    fn node_id(&self) -> NodeId<T>;
 }

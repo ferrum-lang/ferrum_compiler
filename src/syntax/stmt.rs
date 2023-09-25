@@ -3,31 +3,101 @@ use super::*;
 use crate::token::Token;
 use crate::utils::{fe_from, fe_try_from, from, invert, try_from};
 
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone)]
 pub enum Stmt<T: ResolvedType = ()> {
-    Expr(ExprStmt<T>),
-    VarDecl(VarDeclStmt<T>),
-    Assign(AssignStmt<T>),
-    Return(ReturnStmt<T>),
-    If(IfStmt<T>),
-    Loop(LoopStmt<T>),
-    While(WhileStmt<T>),
-    Break(BreakStmt<T>),
-    Then(ThenStmt<T>),
+    Expr(Arc<Mutex<ExprStmt<T>>>),
+    VarDecl(Arc<Mutex<VarDeclStmt<T>>>),
+    Assign(Arc<Mutex<AssignStmt<T>>>),
+    Return(Arc<Mutex<ReturnStmt<T>>>),
+    If(Arc<Mutex<IfStmt<T>>>),
+    Loop(Arc<Mutex<LoopStmt<T>>>),
+    While(Arc<Mutex<WhileStmt<T>>>),
+    Break(Arc<Mutex<BreakStmt<T>>>),
+    Then(Arc<Mutex<ThenStmt<T>>>),
+}
+
+impl<T: ResolvedType> PartialEq for Stmt<T> {
+    fn eq(&self, other: &Self) -> bool {
+        match self {
+            Self::Expr(d) => {
+                let Self::Expr(other) = other else {
+                    return false;
+                };
+                let cloned = { d.try_lock().unwrap().clone() };
+                return PartialEq::eq(&cloned, &other.try_lock().unwrap());
+            }
+            Self::VarDecl(d) => {
+                let Self::VarDecl(other) = other else {
+                    return false;
+                };
+                let cloned = { d.try_lock().unwrap().clone() };
+                return PartialEq::eq(&cloned, &other.try_lock().unwrap());
+            }
+            Self::Assign(d) => {
+                let Self::Assign(other) = other else {
+                    return false;
+                };
+                let cloned = { d.try_lock().unwrap().clone() };
+                return PartialEq::eq(&cloned, &other.try_lock().unwrap());
+            }
+            Self::Return(d) => {
+                let Self::Return(other) = other else {
+                    return false;
+                };
+                let cloned = { d.try_lock().unwrap().clone() };
+                return PartialEq::eq(&cloned, &other.try_lock().unwrap());
+            }
+            Self::If(d) => {
+                let Self::If(other) = other else {
+                    return false;
+                };
+                let cloned = { d.try_lock().unwrap().clone() };
+                return PartialEq::eq(&cloned, &other.try_lock().unwrap());
+            }
+            Self::Loop(d) => {
+                let Self::Loop(other) = other else {
+                    return false;
+                };
+                let cloned = { d.try_lock().unwrap().clone() };
+                return PartialEq::eq(&cloned, &other.try_lock().unwrap());
+            }
+            Self::While(d) => {
+                let Self::While(other) = other else {
+                    return false;
+                };
+                let cloned = { d.try_lock().unwrap().clone() };
+                return PartialEq::eq(&cloned, &other.try_lock().unwrap());
+            }
+            Self::Break(d) => {
+                let Self::Break(other) = other else {
+                    return false;
+                };
+                let cloned = { d.try_lock().unwrap().clone() };
+                return PartialEq::eq(&cloned, &other.try_lock().unwrap());
+            }
+            Self::Then(d) => {
+                let Self::Then(other) = other else {
+                    return false;
+                };
+                let cloned = { d.try_lock().unwrap().clone() };
+                return PartialEq::eq(&cloned, &other.try_lock().unwrap());
+            }
+        }
+    }
 }
 
 impl<T: ResolvedType> Node<Stmt> for Stmt<T> {
-    fn node_id(&self) -> &NodeId<Stmt> {
+    fn node_id(&self) -> NodeId<Stmt> {
         match self {
-            Self::Expr(stmt) => return stmt.node_id(),
-            Self::VarDecl(stmt) => return stmt.node_id(),
-            Self::Assign(stmt) => return stmt.node_id(),
-            Self::Return(stmt) => return stmt.node_id(),
-            Self::If(stmt) => return stmt.node_id(),
-            Self::Loop(stmt) => return stmt.node_id(),
-            Self::While(stmt) => return stmt.node_id(),
-            Self::Break(stmt) => return stmt.node_id(),
-            Self::Then(stmt) => return stmt.node_id(),
+            Self::Expr(stmt) => return stmt.try_lock().unwrap().node_id(),
+            Self::VarDecl(stmt) => return stmt.try_lock().unwrap().node_id(),
+            Self::Assign(stmt) => return stmt.try_lock().unwrap().node_id(),
+            Self::Return(stmt) => return stmt.try_lock().unwrap().node_id(),
+            Self::If(stmt) => return stmt.try_lock().unwrap().node_id(),
+            Self::Loop(stmt) => return stmt.try_lock().unwrap().node_id(),
+            Self::While(stmt) => return stmt.try_lock().unwrap().node_id(),
+            Self::Break(stmt) => return stmt.try_lock().unwrap().node_id(),
+            Self::Then(stmt) => return stmt.try_lock().unwrap().node_id(),
         }
     }
 }
@@ -35,15 +105,15 @@ impl<T: ResolvedType> Node<Stmt> for Stmt<T> {
 impl<T: ResolvedType> IsTerminal<T> for Stmt<T> {
     fn is_terminal(&mut self) -> bool {
         match self {
-            Self::Expr(stmt) => return stmt.is_terminal(),
-            Self::VarDecl(stmt) => return stmt.is_terminal(),
-            Self::Assign(stmt) => return stmt.is_terminal(),
-            Self::Return(stmt) => return stmt.is_terminal(),
-            Self::If(stmt) => return stmt.is_terminal(),
-            Self::Loop(stmt) => return stmt.is_terminal(),
-            Self::While(stmt) => return stmt.is_terminal(),
-            Self::Break(stmt) => return stmt.is_terminal(),
-            Self::Then(stmt) => return stmt.is_terminal(),
+            Self::Expr(stmt) => return stmt.try_lock().unwrap().is_terminal(),
+            Self::VarDecl(stmt) => return stmt.try_lock().unwrap().is_terminal(),
+            Self::Assign(stmt) => return stmt.try_lock().unwrap().is_terminal(),
+            Self::Return(stmt) => return stmt.try_lock().unwrap().is_terminal(),
+            Self::If(stmt) => return stmt.try_lock().unwrap().is_terminal(),
+            Self::Loop(stmt) => return stmt.try_lock().unwrap().is_terminal(),
+            Self::While(stmt) => return stmt.try_lock().unwrap().is_terminal(),
+            Self::Break(stmt) => return stmt.try_lock().unwrap().is_terminal(),
+            Self::Then(stmt) => return stmt.try_lock().unwrap().is_terminal(),
         }
     }
 }
@@ -51,15 +121,15 @@ impl<T: ResolvedType> IsTerminal<T> for Stmt<T> {
 impl<T: ResolvedType> From<Stmt<()>> for Stmt<Option<T>> {
     fn from(value: Stmt<()>) -> Self {
         match value {
-            Stmt::Expr(stmt) => return Self::Expr(from(stmt)),
-            Stmt::VarDecl(stmt) => return Self::VarDecl(from(stmt)),
-            Stmt::Assign(stmt) => return Self::Assign(from(stmt)),
-            Stmt::Return(stmt) => return Self::Return(from(stmt)),
-            Stmt::If(stmt) => return Self::If(from(stmt)),
-            Stmt::Loop(stmt) => return Self::Loop(from(stmt)),
-            Stmt::While(stmt) => return Self::While(from(stmt)),
-            Stmt::Break(stmt) => return Self::Break(from(stmt)),
-            Stmt::Then(stmt) => return Self::Then(from(stmt)),
+            Stmt::Expr(stmt) => return Self::Expr(fe_from(stmt)),
+            Stmt::VarDecl(stmt) => return Self::VarDecl(fe_from(stmt)),
+            Stmt::Assign(stmt) => return Self::Assign(fe_from(stmt)),
+            Stmt::Return(stmt) => return Self::Return(fe_from(stmt)),
+            Stmt::If(stmt) => return Self::If(fe_from(stmt)),
+            Stmt::Loop(stmt) => return Self::Loop(fe_from(stmt)),
+            Stmt::While(stmt) => return Self::While(fe_from(stmt)),
+            Stmt::Break(stmt) => return Self::Break(fe_from(stmt)),
+            Stmt::Then(stmt) => return Self::Then(fe_from(stmt)),
         }
     }
 }
@@ -67,15 +137,15 @@ impl<T: ResolvedType> From<Stmt<()>> for Stmt<Option<T>> {
 impl<T: ResolvedType> Resolvable for Stmt<Option<T>> {
     fn is_resolved(&self) -> bool {
         match self {
-            Self::Expr(stmt) => return stmt.is_resolved(),
-            Self::VarDecl(stmt) => return stmt.is_resolved(),
-            Self::Assign(stmt) => return stmt.is_resolved(),
-            Self::Return(stmt) => return stmt.is_resolved(),
-            Self::If(stmt) => return stmt.is_resolved(),
-            Self::Loop(stmt) => return stmt.is_resolved(),
-            Self::While(stmt) => return stmt.is_resolved(),
-            Self::Break(stmt) => return stmt.is_resolved(),
-            Self::Then(stmt) => return stmt.is_resolved(),
+            Self::Expr(stmt) => return stmt.try_lock().unwrap().is_resolved(),
+            Self::VarDecl(stmt) => return stmt.try_lock().unwrap().is_resolved(),
+            Self::Assign(stmt) => return stmt.try_lock().unwrap().is_resolved(),
+            Self::Return(stmt) => return stmt.try_lock().unwrap().is_resolved(),
+            Self::If(stmt) => return stmt.try_lock().unwrap().is_resolved(),
+            Self::Loop(stmt) => return stmt.try_lock().unwrap().is_resolved(),
+            Self::While(stmt) => return stmt.try_lock().unwrap().is_resolved(),
+            Self::Break(stmt) => return stmt.try_lock().unwrap().is_resolved(),
+            Self::Then(stmt) => return stmt.try_lock().unwrap().is_resolved(),
         }
     }
 }
@@ -85,15 +155,15 @@ impl<T: ResolvedType> TryFrom<Stmt<Option<T>>> for Stmt<T> {
 
     fn try_from(value: Stmt<Option<T>>) -> Result<Self, Self::Error> {
         match value {
-            Stmt::Expr(stmt) => return Ok(Self::Expr(try_from(stmt)?)),
-            Stmt::VarDecl(stmt) => return Ok(Self::VarDecl(try_from(stmt)?)),
-            Stmt::Assign(stmt) => return Ok(Self::Assign(try_from(stmt)?)),
-            Stmt::Return(stmt) => return Ok(Self::Return(try_from(stmt)?)),
-            Stmt::If(stmt) => return Ok(Self::If(try_from(stmt)?)),
-            Stmt::Loop(stmt) => return Ok(Self::Loop(try_from(stmt)?)),
-            Stmt::While(stmt) => return Ok(Self::While(try_from(stmt)?)),
-            Stmt::Break(stmt) => return Ok(Self::Break(try_from(stmt)?)),
-            Stmt::Then(stmt) => return Ok(Self::Then(try_from(stmt)?)),
+            Stmt::Expr(stmt) => return Ok(Self::Expr(fe_try_from(stmt)?)),
+            Stmt::VarDecl(stmt) => return Ok(Self::VarDecl(fe_try_from(stmt)?)),
+            Stmt::Assign(stmt) => return Ok(Self::Assign(fe_try_from(stmt)?)),
+            Stmt::Return(stmt) => return Ok(Self::Return(fe_try_from(stmt)?)),
+            Stmt::If(stmt) => return Ok(Self::If(fe_try_from(stmt)?)),
+            Stmt::Loop(stmt) => return Ok(Self::Loop(fe_try_from(stmt)?)),
+            Stmt::While(stmt) => return Ok(Self::While(fe_try_from(stmt)?)),
+            Stmt::Break(stmt) => return Ok(Self::Break(fe_try_from(stmt)?)),
+            Stmt::Then(stmt) => return Ok(Self::Then(fe_try_from(stmt)?)),
         }
     }
 }
@@ -105,8 +175,8 @@ pub struct ExprStmt<T: ResolvedType = ()> {
 }
 
 impl<T: ResolvedType> Node<Stmt> for ExprStmt<T> {
-    fn node_id(&self) -> &NodeId<Stmt> {
-        return &self.id;
+    fn node_id(&self) -> NodeId<Stmt> {
+        return self.id;
     }
 }
 
@@ -119,11 +189,11 @@ impl<T: ResolvedType> PartialEq for ExprStmt<T> {
         }
 
         let expr = {
-            let locked = self.expr.lock().unwrap();
+            let locked = self.expr.try_lock().unwrap();
             locked.clone()
         };
 
-        let other = other.expr.lock().unwrap();
+        let other = other.expr.try_lock().unwrap();
 
         if expr != *other {
             return false;
@@ -144,7 +214,7 @@ impl<T: ResolvedType> From<ExprStmt<()>> for ExprStmt<Option<T>> {
 
 impl<T: ResolvedType> Resolvable for ExprStmt<Option<T>> {
     fn is_resolved(&self) -> bool {
-        return self.expr.lock().unwrap().is_resolved();
+        return self.expr.try_lock().unwrap().is_resolved();
     }
 }
 
@@ -169,8 +239,8 @@ pub struct VarDeclStmt<T: ResolvedType = ()> {
 }
 
 impl<T: ResolvedType> Node<Stmt> for VarDeclStmt<T> {
-    fn node_id(&self) -> &NodeId<Stmt> {
-        return &self.id;
+    fn node_id(&self) -> NodeId<Stmt> {
+        return self.id;
     }
 }
 
@@ -230,15 +300,29 @@ pub enum VarDeclMut {
     Mut(Arc<Token>),
 }
 
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone)]
 pub enum VarDeclTarget<T: ResolvedType = ()> {
-    Ident(IdentExpr<T>),
+    Ident(Arc<Mutex<IdentExpr<T>>>),
+}
+
+impl<T: ResolvedType> PartialEq for VarDeclTarget<T> {
+    fn eq(&self, other: &Self) -> bool {
+        match self {
+            Self::Ident(d) => {
+                let Self::Ident(other) = other else {
+                    return false;
+                };
+                let cloned = { d.try_lock().unwrap().clone() };
+                return PartialEq::eq(&cloned, &other.try_lock().unwrap());
+            }
+        }
+    }
 }
 
 impl<T: ResolvedType> From<VarDeclTarget<()>> for VarDeclTarget<Option<T>> {
     fn from(value: VarDeclTarget<()>) -> Self {
         match value {
-            VarDeclTarget::Ident(target) => return Self::Ident(from(target)),
+            VarDeclTarget::Ident(target) => return Self::Ident(fe_from(target)),
         }
     }
 }
@@ -246,7 +330,7 @@ impl<T: ResolvedType> From<VarDeclTarget<()>> for VarDeclTarget<Option<T>> {
 impl<T: ResolvedType> Resolvable for VarDeclTarget<Option<T>> {
     fn is_resolved(&self) -> bool {
         match self {
-            Self::Ident(target) => return target.is_resolved(),
+            Self::Ident(target) => return target.try_lock().unwrap().is_resolved(),
         }
     }
 }
@@ -256,7 +340,7 @@ impl<T: ResolvedType> TryFrom<VarDeclTarget<Option<T>>> for VarDeclTarget<T> {
 
     fn try_from(value: VarDeclTarget<Option<T>>) -> Result<Self, Self::Error> {
         match value {
-            VarDeclTarget::Ident(target) => return Ok(Self::Ident(try_from(target)?)),
+            VarDeclTarget::Ident(target) => return Ok(Self::Ident(fe_try_from(target)?)),
         }
     }
 }
@@ -343,8 +427,8 @@ pub struct AssignStmt<T: ResolvedType = ()> {
 impl<T: ResolvedType> IsTerminal<T> for AssignStmt<T> {}
 
 impl<T: ResolvedType> Node<Stmt> for AssignStmt<T> {
-    fn node_id(&self) -> &NodeId<Stmt> {
-        return &self.id;
+    fn node_id(&self) -> NodeId<Stmt> {
+        return self.id;
     }
 }
 
@@ -400,8 +484,8 @@ pub struct ReturnStmt<T: ResolvedType = ()> {
 }
 
 impl<T: ResolvedType> Node<Stmt> for ReturnStmt<T> {
-    fn node_id(&self) -> &NodeId<Stmt> {
-        return &self.id;
+    fn node_id(&self) -> NodeId<Stmt> {
+        return self.id;
     }
 }
 
@@ -458,8 +542,8 @@ pub struct IfStmt<T: ResolvedType = ()> {
 }
 
 impl<T: ResolvedType> Node<Stmt> for IfStmt<T> {
-    fn node_id(&self) -> &NodeId<Stmt> {
-        return &self.id;
+    fn node_id(&self) -> NodeId<Stmt> {
+        return self.id;
     }
 }
 
@@ -474,14 +558,14 @@ impl<T: ResolvedType> IsTerminal<T> for IfStmt<T> {
         let mut is_terminal = true;
 
         if let Some(stmt) = self.then.stmts.last() {
-            if !stmt.lock().unwrap().is_terminal() {
+            if !stmt.try_lock().unwrap().is_terminal() {
                 is_terminal = false;
             }
         }
 
         for else_if in &self.else_ifs {
             if let Some(stmt) = else_if.then.stmts.last() {
-                if !stmt.lock().unwrap().is_terminal() {
+                if !stmt.try_lock().unwrap().is_terminal() {
                     is_terminal = false;
                 }
             }
@@ -489,7 +573,7 @@ impl<T: ResolvedType> IsTerminal<T> for IfStmt<T> {
 
         if let Some(else_) = &self.else_ {
             if let Some(stmt) = else_.then.stmts.last() {
-                if !stmt.lock().unwrap().is_terminal() {
+                if !stmt.try_lock().unwrap().is_terminal() {
                     is_terminal = false;
                 }
             }
@@ -658,8 +742,8 @@ pub struct LoopStmt<T: ResolvedType = ()> {
 }
 
 impl<T: ResolvedType> Node<Stmt> for LoopStmt<T> {
-    fn node_id(&self) -> &NodeId<Stmt> {
-        return &self.id;
+    fn node_id(&self) -> NodeId<Stmt> {
+        return self.id;
     }
 }
 
@@ -742,8 +826,8 @@ pub struct WhileStmt<T: ResolvedType = ()> {
 }
 
 impl<T: ResolvedType> Node<Stmt> for WhileStmt<T> {
-    fn node_id(&self) -> &NodeId<Stmt> {
-        return &self.id;
+    fn node_id(&self) -> NodeId<Stmt> {
+        return self.id;
     }
 }
 
@@ -868,8 +952,8 @@ pub struct BreakStmt<T: ResolvedType = ()> {
 }
 
 impl<T: ResolvedType> Node<Stmt> for BreakStmt<T> {
-    fn node_id(&self) -> &NodeId<Stmt> {
-        return &self.id;
+    fn node_id(&self) -> NodeId<Stmt> {
+        return self.id;
     }
 }
 
@@ -934,8 +1018,8 @@ pub struct ThenStmt<T: ResolvedType = ()> {
 }
 
 impl<T: ResolvedType> Node<Stmt> for ThenStmt<T> {
-    fn node_id(&self) -> &NodeId<Stmt> {
-        return &self.id;
+    fn node_id(&self) -> NodeId<Stmt> {
+        return self.id;
     }
 }
 
@@ -986,23 +1070,23 @@ impl<T: ResolvedType> TryFrom<ThenStmt<Option<T>>> for ThenStmt<T> {
 
 // Visitor pattern
 pub trait StmtVisitor<T: ResolvedType, R = ()> {
-    fn visit_expr_stmt(&mut self, stmt: &mut ExprStmt<T>) -> R;
-    fn visit_var_decl_stmt(&mut self, stmt: &mut VarDeclStmt<T>) -> R;
-    fn visit_assign_stmt(&mut self, stmt: &mut AssignStmt<T>) -> R;
-    fn visit_return_stmt(&mut self, stmt: &mut ReturnStmt<T>) -> R;
-    fn visit_if_stmt(&mut self, stmt: &mut IfStmt<T>) -> R;
-    fn visit_loop_stmt(&mut self, stmt: &mut LoopStmt<T>) -> R;
-    fn visit_while_stmt(&mut self, stmt: &mut WhileStmt<T>) -> R;
-    fn visit_break_stmt(&mut self, stmt: &mut BreakStmt<T>) -> R;
-    fn visit_then_stmt(&mut self, stmt: &mut ThenStmt<T>) -> R;
+    fn visit_expr_stmt(&mut self, stmt: Arc<Mutex<ExprStmt<T>>>) -> R;
+    fn visit_var_decl_stmt(&mut self, stmt: Arc<Mutex<VarDeclStmt<T>>>) -> R;
+    fn visit_assign_stmt(&mut self, stmt: Arc<Mutex<AssignStmt<T>>>) -> R;
+    fn visit_return_stmt(&mut self, stmt: Arc<Mutex<ReturnStmt<T>>>) -> R;
+    fn visit_if_stmt(&mut self, stmt: Arc<Mutex<IfStmt<T>>>) -> R;
+    fn visit_loop_stmt(&mut self, stmt: Arc<Mutex<LoopStmt<T>>>) -> R;
+    fn visit_while_stmt(&mut self, stmt: Arc<Mutex<WhileStmt<T>>>) -> R;
+    fn visit_break_stmt(&mut self, stmt: Arc<Mutex<BreakStmt<T>>>) -> R;
+    fn visit_then_stmt(&mut self, stmt: Arc<Mutex<ThenStmt<T>>>) -> R;
 }
 
 pub trait StmtAccept<T: ResolvedType, R, V: StmtVisitor<T, R>> {
-    fn accept(&mut self, visitor: &mut V) -> R;
+    fn accept(&self, visitor: &mut V) -> R;
 }
 
 impl<T: ResolvedType, R, V: StmtVisitor<T, R>> StmtAccept<T, R, V> for Stmt<T> {
-    fn accept(&mut self, visitor: &mut V) -> R {
+    fn accept(&self, visitor: &mut V) -> R {
         return match self {
             Self::Expr(stmt) => stmt.accept(visitor),
             Self::VarDecl(stmt) => stmt.accept(visitor),
@@ -1017,56 +1101,56 @@ impl<T: ResolvedType, R, V: StmtVisitor<T, R>> StmtAccept<T, R, V> for Stmt<T> {
     }
 }
 
-impl<T: ResolvedType, R, V: StmtVisitor<T, R>> StmtAccept<T, R, V> for ExprStmt<T> {
-    fn accept(&mut self, visitor: &mut V) -> R {
-        return visitor.visit_expr_stmt(self);
+impl<T: ResolvedType, R, V: StmtVisitor<T, R>> StmtAccept<T, R, V> for Arc<Mutex<ExprStmt<T>>> {
+    fn accept(&self, visitor: &mut V) -> R {
+        return visitor.visit_expr_stmt(self.clone());
     }
 }
 
-impl<T: ResolvedType, R, V: StmtVisitor<T, R>> StmtAccept<T, R, V> for VarDeclStmt<T> {
-    fn accept(&mut self, visitor: &mut V) -> R {
-        return visitor.visit_var_decl_stmt(self);
+impl<T: ResolvedType, R, V: StmtVisitor<T, R>> StmtAccept<T, R, V> for Arc<Mutex<VarDeclStmt<T>>> {
+    fn accept(&self, visitor: &mut V) -> R {
+        return visitor.visit_var_decl_stmt(self.clone());
     }
 }
 
-impl<T: ResolvedType, R, V: StmtVisitor<T, R>> StmtAccept<T, R, V> for AssignStmt<T> {
-    fn accept(&mut self, visitor: &mut V) -> R {
-        return visitor.visit_assign_stmt(self);
+impl<T: ResolvedType, R, V: StmtVisitor<T, R>> StmtAccept<T, R, V> for Arc<Mutex<AssignStmt<T>>> {
+    fn accept(&self, visitor: &mut V) -> R {
+        return visitor.visit_assign_stmt(self.clone());
     }
 }
 
-impl<T: ResolvedType, R, V: StmtVisitor<T, R>> StmtAccept<T, R, V> for ReturnStmt<T> {
-    fn accept(&mut self, visitor: &mut V) -> R {
-        return visitor.visit_return_stmt(self);
+impl<T: ResolvedType, R, V: StmtVisitor<T, R>> StmtAccept<T, R, V> for Arc<Mutex<ReturnStmt<T>>> {
+    fn accept(&self, visitor: &mut V) -> R {
+        return visitor.visit_return_stmt(self.clone());
     }
 }
 
-impl<T: ResolvedType, R, V: StmtVisitor<T, R>> StmtAccept<T, R, V> for IfStmt<T> {
-    fn accept(&mut self, visitor: &mut V) -> R {
-        return visitor.visit_if_stmt(self);
+impl<T: ResolvedType, R, V: StmtVisitor<T, R>> StmtAccept<T, R, V> for Arc<Mutex<IfStmt<T>>> {
+    fn accept(&self, visitor: &mut V) -> R {
+        return visitor.visit_if_stmt(self.clone());
     }
 }
 
-impl<T: ResolvedType, R, V: StmtVisitor<T, R>> StmtAccept<T, R, V> for LoopStmt<T> {
-    fn accept(&mut self, visitor: &mut V) -> R {
-        return visitor.visit_loop_stmt(self);
+impl<T: ResolvedType, R, V: StmtVisitor<T, R>> StmtAccept<T, R, V> for Arc<Mutex<LoopStmt<T>>> {
+    fn accept(&self, visitor: &mut V) -> R {
+        return visitor.visit_loop_stmt(self.clone());
     }
 }
 
-impl<T: ResolvedType, R, V: StmtVisitor<T, R>> StmtAccept<T, R, V> for WhileStmt<T> {
-    fn accept(&mut self, visitor: &mut V) -> R {
-        return visitor.visit_while_stmt(self);
+impl<T: ResolvedType, R, V: StmtVisitor<T, R>> StmtAccept<T, R, V> for Arc<Mutex<WhileStmt<T>>> {
+    fn accept(&self, visitor: &mut V) -> R {
+        return visitor.visit_while_stmt(self.clone());
     }
 }
 
-impl<T: ResolvedType, R, V: StmtVisitor<T, R>> StmtAccept<T, R, V> for BreakStmt<T> {
-    fn accept(&mut self, visitor: &mut V) -> R {
-        return visitor.visit_break_stmt(self);
+impl<T: ResolvedType, R, V: StmtVisitor<T, R>> StmtAccept<T, R, V> for Arc<Mutex<BreakStmt<T>>> {
+    fn accept(&self, visitor: &mut V) -> R {
+        return visitor.visit_break_stmt(self.clone());
     }
 }
 
-impl<T: ResolvedType, R, V: StmtVisitor<T, R>> StmtAccept<T, R, V> for ThenStmt<T> {
-    fn accept(&mut self, visitor: &mut V) -> R {
-        return visitor.visit_then_stmt(self);
+impl<T: ResolvedType, R, V: StmtVisitor<T, R>> StmtAccept<T, R, V> for Arc<Mutex<ThenStmt<T>>> {
+    fn accept(&self, visitor: &mut V) -> R {
+        return visitor.visit_then_stmt(self.clone());
     }
 }

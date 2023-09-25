@@ -4,62 +4,169 @@ use crate::result::Result;
 use crate::token::Token;
 use crate::utils::{fe_from, fe_try_from, from, try_from};
 
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone)]
 pub enum Expr<T: ResolvedType = ()> {
-    BoolLiteral(BoolLiteralExpr<T>),
-    NumberLiteral(NumberLiteralExpr<T>),
-    PlainStringLiteral(PlainStringLiteralExpr<T>),
-    FmtStringLiteral(FmtStringLiteralExpr<T>),
-    Ident(IdentExpr<T>),
-    Call(CallExpr<T>),
-    Unary(UnaryExpr<T>),
-    Binary(BinaryExpr<T>),
-    StaticRef(StaticRefExpr<T>),
-    Construct(ConstructExpr<T>),
-    Get(GetExpr<T>),
-    If(IfExpr<T>),
-    Loop(LoopExpr<T>),
-    While(WhileExpr<T>),
+    BoolLiteral(Arc<Mutex<BoolLiteralExpr<T>>>),
+    NumberLiteral(Arc<Mutex<NumberLiteralExpr<T>>>),
+    PlainStringLiteral(Arc<Mutex<PlainStringLiteralExpr<T>>>),
+    FmtStringLiteral(Arc<Mutex<FmtStringLiteralExpr<T>>>),
+    Ident(Arc<Mutex<IdentExpr<T>>>),
+    Call(Arc<Mutex<CallExpr<T>>>),
+    Unary(Arc<Mutex<UnaryExpr<T>>>),
+    Binary(Arc<Mutex<BinaryExpr<T>>>),
+    StaticRef(Arc<Mutex<StaticRefExpr<T>>>),
+    Construct(Arc<Mutex<ConstructExpr<T>>>),
+    Get(Arc<Mutex<GetExpr<T>>>),
+    If(Arc<Mutex<IfExpr<T>>>),
+    Loop(Arc<Mutex<LoopExpr<T>>>),
+    While(Arc<Mutex<WhileExpr<T>>>),
+}
+
+impl<T: ResolvedType> PartialEq for Expr<T> {
+    fn eq(&self, other: &Self) -> bool {
+        match self {
+            Self::BoolLiteral(d) => {
+                let Self::BoolLiteral(other) = other else {
+                    return false;
+                };
+                let cloned = { d.try_lock().unwrap().clone() };
+                return PartialEq::eq(&cloned, &other.try_lock().unwrap());
+            }
+            Self::NumberLiteral(d) => {
+                let Self::NumberLiteral(other) = other else {
+                    return false;
+                };
+                let cloned = { d.try_lock().unwrap().clone() };
+                return PartialEq::eq(&cloned, &other.try_lock().unwrap());
+            }
+            Self::PlainStringLiteral(d) => {
+                let Self::PlainStringLiteral(other) = other else {
+                    return false;
+                };
+                let cloned = { d.try_lock().unwrap().clone() };
+                return PartialEq::eq(&cloned, &other.try_lock().unwrap());
+            }
+            Self::FmtStringLiteral(d) => {
+                let Self::FmtStringLiteral(other) = other else {
+                    return false;
+                };
+                let cloned = { d.try_lock().unwrap().clone() };
+                return PartialEq::eq(&cloned, &other.try_lock().unwrap());
+            }
+            Self::Ident(d) => {
+                let Self::Ident(other) = other else {
+                    return false;
+                };
+                let cloned = { d.try_lock().unwrap().clone() };
+                return PartialEq::eq(&cloned, &other.try_lock().unwrap());
+            }
+            Self::Call(d) => {
+                let Self::Call(other) = other else {
+                    return false;
+                };
+                let cloned = { d.try_lock().unwrap().clone() };
+                return PartialEq::eq(&cloned, &other.try_lock().unwrap());
+            }
+            Self::Unary(d) => {
+                let Self::Unary(other) = other else {
+                    return false;
+                };
+                let cloned = { d.try_lock().unwrap().clone() };
+                return PartialEq::eq(&cloned, &other.try_lock().unwrap());
+            }
+            Self::Binary(d) => {
+                let Self::Binary(other) = other else {
+                    return false;
+                };
+                let cloned = { d.try_lock().unwrap().clone() };
+                return PartialEq::eq(&cloned, &other.try_lock().unwrap());
+            }
+            Self::StaticRef(d) => {
+                let Self::StaticRef(other) = other else {
+                    return false;
+                };
+                let cloned = { d.try_lock().unwrap().clone() };
+                return PartialEq::eq(&cloned, &other.try_lock().unwrap());
+            }
+            Self::Construct(d) => {
+                let Self::Construct(other) = other else {
+                    return false;
+                };
+                let cloned = { d.try_lock().unwrap().clone() };
+                return PartialEq::eq(&cloned, &other.try_lock().unwrap());
+            }
+            Self::Get(d) => {
+                let Self::Get(other) = other else {
+                    return false;
+                };
+                let cloned = { d.try_lock().unwrap().clone() };
+                return PartialEq::eq(&cloned, &other.try_lock().unwrap());
+            }
+            Self::If(d) => {
+                let Self::If(other) = other else {
+                    return false;
+                };
+                let cloned = { d.try_lock().unwrap().clone() };
+                return PartialEq::eq(&cloned, &other.try_lock().unwrap());
+            }
+            Self::While(d) => {
+                let Self::While(other) = other else {
+                    return false;
+                };
+                let cloned = { d.try_lock().unwrap().clone() };
+                return PartialEq::eq(&cloned, &other.try_lock().unwrap());
+            }
+            Self::Loop(d) => {
+                let Self::Loop(other) = other else {
+                    return false;
+                };
+                let cloned = { d.try_lock().unwrap().clone() };
+                return PartialEq::eq(&cloned, &other.try_lock().unwrap());
+            }
+        }
+    }
 }
 
 impl<T: ResolvedType> Expr<T> {
-    pub fn resolved_type(&self) -> Option<&T> {
+    pub fn resolved_type(&self) -> Option<T> {
         match self {
-            Self::BoolLiteral(v) => return Some(&v.resolved_type),
-            Self::NumberLiteral(v) => return Some(&v.resolved_type),
-            Self::PlainStringLiteral(v) => return Some(&v.resolved_type),
-            Self::FmtStringLiteral(v) => return Some(&v.resolved_type),
-            Self::Ident(v) => return Some(&v.resolved_type),
-            Self::Call(v) => return v.resolved_type.as_ref(),
-            Self::Unary(v) => return Some(&v.resolved_type),
-            Self::Binary(v) => return Some(&v.resolved_type),
-            Self::StaticRef(v) => return Some(&v.resolved_type),
-            Self::Construct(v) => return Some(&v.resolved_type),
-            Self::Get(v) => return Some(&v.resolved_type),
-            Self::If(v) => return v.resolved_type.as_ref(),
-            Self::Loop(v) => return v.resolved_type.as_ref(),
-            Self::While(v) => return v.resolved_type.as_ref(),
+            Self::BoolLiteral(v) => return Some(v.try_lock().unwrap().resolved_type.clone()),
+            Self::NumberLiteral(v) => return Some(v.try_lock().unwrap().resolved_type.clone()),
+            Self::PlainStringLiteral(v) => {
+                return Some(v.try_lock().unwrap().resolved_type.clone())
+            }
+            Self::FmtStringLiteral(v) => return Some(v.try_lock().unwrap().resolved_type.clone()),
+            Self::Ident(v) => return Some(v.try_lock().unwrap().resolved_type.clone()),
+            Self::Call(v) => return v.try_lock().unwrap().resolved_type.clone(),
+            Self::Unary(v) => return Some(v.try_lock().unwrap().resolved_type.clone()),
+            Self::Binary(v) => return Some(v.try_lock().unwrap().resolved_type.clone()),
+            Self::StaticRef(v) => return Some(v.try_lock().unwrap().resolved_type.clone()),
+            Self::Construct(v) => return Some(v.try_lock().unwrap().resolved_type.clone()),
+            Self::Get(v) => return Some(v.try_lock().unwrap().resolved_type.clone()),
+            Self::If(v) => return v.try_lock().unwrap().resolved_type.clone(),
+            Self::Loop(v) => return v.try_lock().unwrap().resolved_type.clone(),
+            Self::While(v) => return v.try_lock().unwrap().resolved_type.clone(),
         }
     }
 }
 
 impl<T: ResolvedType> Node<Expr> for Expr<T> {
-    fn node_id(&self) -> &NodeId<Expr> {
+    fn node_id(&self) -> NodeId<Expr> {
         match self {
-            Self::BoolLiteral(expr) => return expr.node_id(),
-            Self::NumberLiteral(expr) => return expr.node_id(),
-            Self::PlainStringLiteral(expr) => return expr.node_id(),
-            Self::FmtStringLiteral(expr) => return expr.node_id(),
-            Self::Ident(expr) => return expr.node_id(),
-            Self::Call(expr) => return expr.node_id(),
-            Self::Unary(expr) => return expr.node_id(),
-            Self::Binary(expr) => return expr.node_id(),
-            Self::StaticRef(expr) => return expr.node_id(),
-            Self::Construct(expr) => return expr.node_id(),
-            Self::Get(expr) => return expr.node_id(),
-            Self::If(expr) => return expr.node_id(),
-            Self::Loop(expr) => return expr.node_id(),
-            Self::While(expr) => return expr.node_id(),
+            Self::BoolLiteral(expr) => return expr.try_lock().unwrap().node_id(),
+            Self::NumberLiteral(expr) => return expr.try_lock().unwrap().node_id(),
+            Self::PlainStringLiteral(expr) => return expr.try_lock().unwrap().node_id(),
+            Self::FmtStringLiteral(expr) => return expr.try_lock().unwrap().node_id(),
+            Self::Ident(expr) => return expr.try_lock().unwrap().node_id(),
+            Self::Call(expr) => return expr.try_lock().unwrap().node_id(),
+            Self::Unary(expr) => return expr.try_lock().unwrap().node_id(),
+            Self::Binary(expr) => return expr.try_lock().unwrap().node_id(),
+            Self::StaticRef(expr) => return expr.try_lock().unwrap().node_id(),
+            Self::Construct(expr) => return expr.try_lock().unwrap().node_id(),
+            Self::Get(expr) => return expr.try_lock().unwrap().node_id(),
+            Self::If(expr) => return expr.try_lock().unwrap().node_id(),
+            Self::Loop(expr) => return expr.try_lock().unwrap().node_id(),
+            Self::While(expr) => return expr.try_lock().unwrap().node_id(),
         }
     }
 }
@@ -67,20 +174,20 @@ impl<T: ResolvedType> Node<Expr> for Expr<T> {
 impl<T: ResolvedType> From<Expr<()>> for Expr<Option<T>> {
     fn from(value: Expr<()>) -> Self {
         match value {
-            Expr::BoolLiteral(expr) => return Self::BoolLiteral(from(expr)),
-            Expr::NumberLiteral(expr) => return Self::NumberLiteral(from(expr)),
-            Expr::PlainStringLiteral(expr) => return Self::PlainStringLiteral(from(expr)),
-            Expr::FmtStringLiteral(expr) => return Self::FmtStringLiteral(from(expr)),
-            Expr::Ident(expr) => return Self::Ident(from(expr)),
-            Expr::Call(expr) => return Self::Call(from(expr)),
-            Expr::Unary(expr) => return Self::Unary(from(expr)),
-            Expr::Binary(expr) => return Self::Binary(from(expr)),
-            Expr::StaticRef(expr) => return Self::StaticRef(from(expr)),
-            Expr::Construct(expr) => return Self::Construct(from(expr)),
-            Expr::Get(expr) => return Self::Get(from(expr)),
-            Expr::If(expr) => return Self::If(from(expr)),
-            Expr::Loop(expr) => return Self::Loop(from(expr)),
-            Expr::While(expr) => return Self::While(from(expr)),
+            Expr::BoolLiteral(expr) => return Self::BoolLiteral(fe_from(expr)),
+            Expr::NumberLiteral(expr) => return Self::NumberLiteral(fe_from(expr)),
+            Expr::PlainStringLiteral(expr) => return Self::PlainStringLiteral(fe_from(expr)),
+            Expr::FmtStringLiteral(expr) => return Self::FmtStringLiteral(fe_from(expr)),
+            Expr::Ident(expr) => return Self::Ident(fe_from(expr)),
+            Expr::Call(expr) => return Self::Call(fe_from(expr)),
+            Expr::Unary(expr) => return Self::Unary(fe_from(expr)),
+            Expr::Binary(expr) => return Self::Binary(fe_from(expr)),
+            Expr::StaticRef(expr) => return Self::StaticRef(fe_from(expr)),
+            Expr::Construct(expr) => return Self::Construct(fe_from(expr)),
+            Expr::Get(expr) => return Self::Get(fe_from(expr)),
+            Expr::If(expr) => return Self::If(fe_from(expr)),
+            Expr::Loop(expr) => return Self::Loop(fe_from(expr)),
+            Expr::While(expr) => return Self::While(fe_from(expr)),
         }
     }
 }
@@ -88,20 +195,20 @@ impl<T: ResolvedType> From<Expr<()>> for Expr<Option<T>> {
 impl<T: ResolvedType> Resolvable for Expr<Option<T>> {
     fn is_resolved(&self) -> bool {
         match self {
-            Expr::BoolLiteral(expr) => return expr.is_resolved(),
-            Expr::NumberLiteral(expr) => return expr.is_resolved(),
-            Expr::PlainStringLiteral(expr) => return expr.is_resolved(),
-            Expr::FmtStringLiteral(expr) => return expr.is_resolved(),
-            Expr::Ident(expr) => return expr.is_resolved(),
-            Expr::Call(expr) => return expr.is_resolved(),
-            Expr::Unary(expr) => return expr.is_resolved(),
-            Expr::Binary(expr) => return expr.is_resolved(),
-            Expr::StaticRef(expr) => return expr.is_resolved(),
-            Expr::Construct(expr) => return expr.is_resolved(),
-            Expr::Get(expr) => return expr.is_resolved(),
-            Expr::If(expr) => return expr.is_resolved(),
-            Expr::Loop(expr) => return expr.is_resolved(),
-            Expr::While(expr) => return expr.is_resolved(),
+            Expr::BoolLiteral(expr) => return expr.try_lock().unwrap().is_resolved(),
+            Expr::NumberLiteral(expr) => return expr.try_lock().unwrap().is_resolved(),
+            Expr::PlainStringLiteral(expr) => return expr.try_lock().unwrap().is_resolved(),
+            Expr::FmtStringLiteral(expr) => return expr.try_lock().unwrap().is_resolved(),
+            Expr::Ident(expr) => return expr.try_lock().unwrap().is_resolved(),
+            Expr::Call(expr) => return expr.try_lock().unwrap().is_resolved(),
+            Expr::Unary(expr) => return expr.try_lock().unwrap().is_resolved(),
+            Expr::Binary(expr) => return expr.try_lock().unwrap().is_resolved(),
+            Expr::StaticRef(expr) => return expr.try_lock().unwrap().is_resolved(),
+            Expr::Construct(expr) => return expr.try_lock().unwrap().is_resolved(),
+            Expr::Get(expr) => return expr.try_lock().unwrap().is_resolved(),
+            Expr::If(expr) => return expr.try_lock().unwrap().is_resolved(),
+            Expr::Loop(expr) => return expr.try_lock().unwrap().is_resolved(),
+            Expr::While(expr) => return expr.try_lock().unwrap().is_resolved(),
         }
     }
 }
@@ -111,20 +218,22 @@ impl<T: ResolvedType> TryFrom<Expr<Option<T>>> for Expr<T> {
 
     fn try_from(value: Expr<Option<T>>) -> Result<Self, Self::Error> {
         match value {
-            Expr::BoolLiteral(expr) => return Ok(Self::BoolLiteral(try_from(expr)?)),
-            Expr::NumberLiteral(expr) => return Ok(Self::NumberLiteral(try_from(expr)?)),
-            Expr::PlainStringLiteral(expr) => return Ok(Self::PlainStringLiteral(try_from(expr)?)),
-            Expr::FmtStringLiteral(expr) => return Ok(Self::FmtStringLiteral(try_from(expr)?)),
-            Expr::Ident(expr) => return Ok(Self::Ident(try_from(expr)?)),
-            Expr::Call(expr) => return Ok(Self::Call(try_from(expr)?)),
-            Expr::Unary(expr) => return Ok(Self::Unary(try_from(expr)?)),
-            Expr::Binary(expr) => return Ok(Self::Binary(try_from(expr)?)),
-            Expr::StaticRef(expr) => return Ok(Self::StaticRef(try_from(expr)?)),
-            Expr::Construct(expr) => return Ok(Self::Construct(try_from(expr)?)),
-            Expr::Get(expr) => return Ok(Self::Get(try_from(expr)?)),
-            Expr::If(expr) => return Ok(Self::If(try_from(expr)?)),
-            Expr::Loop(expr) => return Ok(Self::Loop(try_from(expr)?)),
-            Expr::While(expr) => return Ok(Self::While(try_from(expr)?)),
+            Expr::BoolLiteral(expr) => return Ok(Self::BoolLiteral(fe_try_from(expr)?)),
+            Expr::NumberLiteral(expr) => return Ok(Self::NumberLiteral(fe_try_from(expr)?)),
+            Expr::PlainStringLiteral(expr) => {
+                return Ok(Self::PlainStringLiteral(fe_try_from(expr)?))
+            }
+            Expr::FmtStringLiteral(expr) => return Ok(Self::FmtStringLiteral(fe_try_from(expr)?)),
+            Expr::Ident(expr) => return Ok(Self::Ident(fe_try_from(expr)?)),
+            Expr::Call(expr) => return Ok(Self::Call(fe_try_from(expr)?)),
+            Expr::Unary(expr) => return Ok(Self::Unary(fe_try_from(expr)?)),
+            Expr::Binary(expr) => return Ok(Self::Binary(fe_try_from(expr)?)),
+            Expr::StaticRef(expr) => return Ok(Self::StaticRef(fe_try_from(expr)?)),
+            Expr::Construct(expr) => return Ok(Self::Construct(fe_try_from(expr)?)),
+            Expr::Get(expr) => return Ok(Self::Get(fe_try_from(expr)?)),
+            Expr::If(expr) => return Ok(Self::If(fe_try_from(expr)?)),
+            Expr::Loop(expr) => return Ok(Self::Loop(fe_try_from(expr)?)),
+            Expr::While(expr) => return Ok(Self::While(fe_try_from(expr)?)),
         }
     }
 }
@@ -134,11 +243,11 @@ pub struct NestedExpr<T: ResolvedType = ()>(pub Arc<Mutex<Expr<T>>>);
 impl<T: ResolvedType> PartialEq for NestedExpr<T> {
     fn eq(&self, other: &Self) -> bool {
         let cloned = {
-            let locked = self.0.lock().unwrap();
+            let locked = self.0.try_lock().unwrap();
             locked.clone()
         };
 
-        let other = other.0.lock().unwrap();
+        let other = other.0.try_lock().unwrap();
 
         return cloned == *other;
     }
@@ -152,7 +261,7 @@ impl<T: ResolvedType> From<NestedExpr<()>> for NestedExpr<Option<T>> {
 
 impl<T: ResolvedType> Resolvable for NestedExpr<Option<T>> {
     fn is_resolved(&self) -> bool {
-        return self.0.lock().unwrap().is_resolved();
+        return self.0.try_lock().unwrap().is_resolved();
     }
 }
 
@@ -172,8 +281,8 @@ pub struct BoolLiteralExpr<T: ResolvedType = ()> {
 }
 
 impl<T: ResolvedType> Node<Expr> for BoolLiteralExpr<T> {
-    fn node_id(&self) -> &NodeId<Expr> {
-        return &self.id;
+    fn node_id(&self) -> NodeId<Expr> {
+        return self.id;
     }
 }
 
@@ -217,8 +326,8 @@ pub struct NumberLiteralExpr<T: ResolvedType = ()> {
 }
 
 impl<T: ResolvedType> Node<Expr> for NumberLiteralExpr<T> {
-    fn node_id(&self) -> &NodeId<Expr> {
-        return &self.id;
+    fn node_id(&self) -> NodeId<Expr> {
+        return self.id;
     }
 }
 
@@ -270,8 +379,8 @@ pub struct PlainStringLiteralExpr<T: ResolvedType = ()> {
 }
 
 impl<T: ResolvedType> Node<Expr> for PlainStringLiteralExpr<T> {
-    fn node_id(&self) -> &NodeId<Expr> {
-        return &self.id;
+    fn node_id(&self) -> NodeId<Expr> {
+        return self.id;
     }
 }
 
@@ -315,8 +424,8 @@ pub struct FmtStringLiteralExpr<T: ResolvedType = ()> {
 }
 
 impl<T: ResolvedType> Node<Expr> for FmtStringLiteralExpr<T> {
-    fn node_id(&self) -> &NodeId<Expr> {
-        return &self.id;
+    fn node_id(&self) -> NodeId<Expr> {
+        return self.id;
     }
 }
 
@@ -408,8 +517,8 @@ pub struct IdentExpr<T: ResolvedType = ()> {
 }
 
 impl<T: ResolvedType> Node<Expr> for IdentExpr<T> {
-    fn node_id(&self) -> &NodeId<Expr> {
-        return &self.id;
+    fn node_id(&self) -> NodeId<Expr> {
+        return self.id;
     }
 }
 
@@ -456,8 +565,8 @@ pub struct CallExpr<T: ResolvedType = ()> {
 }
 
 impl<T: ResolvedType> Node<Expr> for CallExpr<T> {
-    fn node_id(&self) -> &NodeId<Expr> {
-        return &self.id;
+    fn node_id(&self) -> NodeId<Expr> {
+        return self.id;
     }
 }
 
@@ -593,8 +702,8 @@ pub struct UnaryExpr<T: ResolvedType = ()> {
 }
 
 impl<T: ResolvedType> Node<Expr> for UnaryExpr<T> {
-    fn node_id(&self) -> &NodeId<Expr> {
-        return &self.id;
+    fn node_id(&self) -> NodeId<Expr> {
+        return self.id;
     }
 }
 
@@ -651,8 +760,8 @@ pub struct BinaryExpr<T: ResolvedType = ()> {
 }
 
 impl<T: ResolvedType> Node<Expr> for BinaryExpr<T> {
-    fn node_id(&self) -> &NodeId<Expr> {
-        return &self.id;
+    fn node_id(&self) -> NodeId<Expr> {
+        return self.id;
     }
 }
 
@@ -716,8 +825,8 @@ pub struct StaticRefExpr<T: ResolvedType = ()> {
 }
 
 impl<T: ResolvedType> Node<Expr> for StaticRefExpr<T> {
-    fn node_id(&self) -> &NodeId<Expr> {
-        return &self.id;
+    fn node_id(&self) -> NodeId<Expr> {
+        return self.id;
     }
 }
 
@@ -756,16 +865,36 @@ impl<T: ResolvedType> TryFrom<StaticRefExpr<Option<T>>> for StaticRefExpr<T> {
     }
 }
 
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone)]
 pub enum ConstructTarget<T: ResolvedType = ()> {
-    Ident(IdentExpr<T>),
+    Ident(Arc<Mutex<IdentExpr<T>>>),
     StaticPath(StaticPath<T>),
+}
+
+impl<T: ResolvedType> PartialEq for ConstructTarget<T> {
+    fn eq(&self, other: &Self) -> bool {
+        match self {
+            Self::Ident(d) => {
+                let Self::Ident(other) = other else {
+                    return false;
+                };
+                let cloned = { d.try_lock().unwrap().clone() };
+                return PartialEq::eq(&cloned, &other.try_lock().unwrap());
+            }
+            Self::StaticPath(t) => {
+                let Self::StaticPath(other) = other else {
+                    return false;
+                };
+                return PartialEq::eq(t, other);
+            }
+        }
+    }
 }
 
 impl<T: ResolvedType> From<ConstructTarget<()>> for ConstructTarget<Option<T>> {
     fn from(value: ConstructTarget<()>) -> Self {
         match value {
-            ConstructTarget::Ident(target) => return Self::Ident(from(target)),
+            ConstructTarget::Ident(target) => return Self::Ident(fe_from(target)),
             ConstructTarget::StaticPath(target) => return Self::StaticPath(from(target)),
         }
     }
@@ -774,7 +903,7 @@ impl<T: ResolvedType> From<ConstructTarget<()>> for ConstructTarget<Option<T>> {
 impl<T: ResolvedType> Resolvable for ConstructTarget<Option<T>> {
     fn is_resolved(&self) -> bool {
         match self {
-            ConstructTarget::Ident(target) => return target.is_resolved(),
+            ConstructTarget::Ident(target) => return target.try_lock().unwrap().is_resolved(),
             ConstructTarget::StaticPath(target) => return target.is_resolved(),
         }
     }
@@ -785,7 +914,7 @@ impl<T: ResolvedType> TryFrom<ConstructTarget<Option<T>>> for ConstructTarget<T>
 
     fn try_from(value: ConstructTarget<Option<T>>) -> Result<Self, Self::Error> {
         match value {
-            ConstructTarget::Ident(target) => return Ok(Self::Ident(try_from(target)?)),
+            ConstructTarget::Ident(target) => return Ok(Self::Ident(fe_try_from(target)?)),
             ConstructTarget::StaticPath(target) => return Ok(Self::StaticPath(try_from(target)?)),
         }
     }
@@ -802,8 +931,8 @@ pub struct ConstructExpr<T: ResolvedType = ()> {
 }
 
 impl<T: ResolvedType> Node<Expr> for ConstructExpr<T> {
-    fn node_id(&self) -> &NodeId<Expr> {
-        return &self.id;
+    fn node_id(&self) -> NodeId<Expr> {
+        return self.id;
     }
 }
 
@@ -912,7 +1041,7 @@ impl<T: ResolvedType> From<ConstructField<()>> for ConstructField<Option<T>> {
 
 impl<T: ResolvedType> Resolvable for ConstructField<Option<T>> {
     fn is_resolved(&self) -> bool {
-        if !self.value.0.lock().unwrap().is_resolved() {
+        if !self.value.0.try_lock().unwrap().is_resolved() {
             dbg!("false");
             return false;
         }
@@ -944,8 +1073,8 @@ pub struct GetExpr<T: ResolvedType = ()> {
 }
 
 impl<T: ResolvedType> Node<Expr> for GetExpr<T> {
-    fn node_id(&self) -> &NodeId<Expr> {
-        return &self.id;
+    fn node_id(&self) -> NodeId<Expr> {
+        return self.id;
     }
 }
 
@@ -1004,8 +1133,8 @@ pub struct IfExpr<T: ResolvedType = ()> {
 }
 
 impl<T: ResolvedType> Node<Expr> for IfExpr<T> {
-    fn node_id(&self) -> &NodeId<Expr> {
-        return &self.id;
+    fn node_id(&self) -> NodeId<Expr> {
+        return self.id;
     }
 }
 
@@ -1445,8 +1574,8 @@ pub struct LoopExpr<T: ResolvedType = ()> {
 }
 
 impl<T: ResolvedType> Node<Expr> for LoopExpr<T> {
-    fn node_id(&self) -> &NodeId<Expr> {
-        return &self.id;
+    fn node_id(&self) -> NodeId<Expr> {
+        return self.id;
     }
 }
 
@@ -1523,8 +1652,8 @@ pub struct WhileExpr<T: ResolvedType = ()> {
 }
 
 impl<T: ResolvedType> Node<Expr> for WhileExpr<T> {
-    fn node_id(&self) -> &NodeId<Expr> {
-        return &self.id;
+    fn node_id(&self) -> NodeId<Expr> {
+        return self.id;
     }
 }
 
@@ -1818,28 +1947,29 @@ impl<T: ResolvedType> TryFrom<WhileExprElseBlock<Option<T>>> for WhileExprElseBl
 
 // Visitor pattern
 pub trait ExprVisitor<T: ResolvedType, R = ()> {
-    fn visit_bool_literal_expr(&mut self, expr: &mut BoolLiteralExpr<T>) -> R;
-    fn visit_number_literal_expr(&mut self, expr: &mut NumberLiteralExpr<T>) -> R;
-    fn visit_plain_string_literal_expr(&mut self, expr: &mut PlainStringLiteralExpr<T>) -> R;
-    fn visit_fmt_string_literal_expr(&mut self, expr: &mut FmtStringLiteralExpr<T>) -> R;
-    fn visit_ident_expr(&mut self, expr: &mut IdentExpr<T>) -> R;
-    fn visit_call_expr(&mut self, expr: &mut CallExpr<T>) -> R;
-    fn visit_unary_expr(&mut self, expr: &mut UnaryExpr<T>) -> R;
-    fn visit_binary_expr(&mut self, expr: &mut BinaryExpr<T>) -> R;
-    fn visit_static_ref_expr(&mut self, expr: &mut StaticRefExpr<T>) -> R;
-    fn visit_construct_expr(&mut self, expr: &mut ConstructExpr<T>) -> R;
-    fn visit_get_expr(&mut self, expr: &mut GetExpr<T>) -> R;
-    fn visit_if_expr(&mut self, expr: &mut IfExpr<T>) -> R;
-    fn visit_loop_expr(&mut self, expr: &mut LoopExpr<T>) -> R;
-    fn visit_while_expr(&mut self, expr: &mut WhileExpr<T>) -> R;
+    fn visit_bool_literal_expr(&mut self, expr: Arc<Mutex<BoolLiteralExpr<T>>>) -> R;
+    fn visit_number_literal_expr(&mut self, expr: Arc<Mutex<NumberLiteralExpr<T>>>) -> R;
+    fn visit_plain_string_literal_expr(&mut self, expr: Arc<Mutex<PlainStringLiteralExpr<T>>>)
+        -> R;
+    fn visit_fmt_string_literal_expr(&mut self, expr: Arc<Mutex<FmtStringLiteralExpr<T>>>) -> R;
+    fn visit_ident_expr(&mut self, expr: Arc<Mutex<IdentExpr<T>>>) -> R;
+    fn visit_call_expr(&mut self, expr: Arc<Mutex<CallExpr<T>>>) -> R;
+    fn visit_unary_expr(&mut self, expr: Arc<Mutex<UnaryExpr<T>>>) -> R;
+    fn visit_binary_expr(&mut self, expr: Arc<Mutex<BinaryExpr<T>>>) -> R;
+    fn visit_static_ref_expr(&mut self, expr: Arc<Mutex<StaticRefExpr<T>>>) -> R;
+    fn visit_construct_expr(&mut self, expr: Arc<Mutex<ConstructExpr<T>>>) -> R;
+    fn visit_get_expr(&mut self, expr: Arc<Mutex<GetExpr<T>>>) -> R;
+    fn visit_if_expr(&mut self, expr: Arc<Mutex<IfExpr<T>>>) -> R;
+    fn visit_loop_expr(&mut self, expr: Arc<Mutex<LoopExpr<T>>>) -> R;
+    fn visit_while_expr(&mut self, expr: Arc<Mutex<WhileExpr<T>>>) -> R;
 }
 
 pub trait ExprAccept<T: ResolvedType, R, V: ExprVisitor<T, R>> {
-    fn accept(&mut self, visitor: &mut V) -> R;
+    fn accept(&self, visitor: &mut V) -> R;
 }
 
 impl<T: ResolvedType, R, V: ExprVisitor<T, R>> ExprAccept<T, R, V> for Expr<T> {
-    fn accept(&mut self, visitor: &mut V) -> R {
+    fn accept(&self, visitor: &mut V) -> R {
         return match self {
             Self::BoolLiteral(expr) => expr.accept(visitor),
             Self::NumberLiteral(expr) => expr.accept(visitor),
@@ -1859,86 +1989,98 @@ impl<T: ResolvedType, R, V: ExprVisitor<T, R>> ExprAccept<T, R, V> for Expr<T> {
     }
 }
 
-impl<T: ResolvedType, R, V: ExprVisitor<T, R>> ExprAccept<T, R, V> for BoolLiteralExpr<T> {
-    fn accept(&mut self, visitor: &mut V) -> R {
-        return visitor.visit_bool_literal_expr(self);
+impl<T: ResolvedType, R, V: ExprVisitor<T, R>> ExprAccept<T, R, V>
+    for Arc<Mutex<BoolLiteralExpr<T>>>
+{
+    fn accept(&self, visitor: &mut V) -> R {
+        return visitor.visit_bool_literal_expr(self.clone());
     }
 }
 
-impl<T: ResolvedType, R, V: ExprVisitor<T, R>> ExprAccept<T, R, V> for NumberLiteralExpr<T> {
-    fn accept(&mut self, visitor: &mut V) -> R {
-        return visitor.visit_number_literal_expr(self);
+impl<T: ResolvedType, R, V: ExprVisitor<T, R>> ExprAccept<T, R, V>
+    for Arc<Mutex<NumberLiteralExpr<T>>>
+{
+    fn accept(&self, visitor: &mut V) -> R {
+        return visitor.visit_number_literal_expr(self.clone());
     }
 }
 
-impl<T: ResolvedType, R, V: ExprVisitor<T, R>> ExprAccept<T, R, V> for PlainStringLiteralExpr<T> {
-    fn accept(&mut self, visitor: &mut V) -> R {
-        return visitor.visit_plain_string_literal_expr(self);
+impl<T: ResolvedType, R, V: ExprVisitor<T, R>> ExprAccept<T, R, V>
+    for Arc<Mutex<PlainStringLiteralExpr<T>>>
+{
+    fn accept(&self, visitor: &mut V) -> R {
+        return visitor.visit_plain_string_literal_expr(self.clone());
     }
 }
 
-impl<T: ResolvedType, R, V: ExprVisitor<T, R>> ExprAccept<T, R, V> for FmtStringLiteralExpr<T> {
-    fn accept(&mut self, visitor: &mut V) -> R {
-        return visitor.visit_fmt_string_literal_expr(self);
+impl<T: ResolvedType, R, V: ExprVisitor<T, R>> ExprAccept<T, R, V>
+    for Arc<Mutex<FmtStringLiteralExpr<T>>>
+{
+    fn accept(&self, visitor: &mut V) -> R {
+        return visitor.visit_fmt_string_literal_expr(self.clone());
     }
 }
 
-impl<T: ResolvedType, R, V: ExprVisitor<T, R>> ExprAccept<T, R, V> for IdentExpr<T> {
-    fn accept(&mut self, visitor: &mut V) -> R {
-        return visitor.visit_ident_expr(self);
+impl<T: ResolvedType, R, V: ExprVisitor<T, R>> ExprAccept<T, R, V> for Arc<Mutex<IdentExpr<T>>> {
+    fn accept(&self, visitor: &mut V) -> R {
+        return visitor.visit_ident_expr(self.clone());
     }
 }
 
-impl<T: ResolvedType, R, V: ExprVisitor<T, R>> ExprAccept<T, R, V> for CallExpr<T> {
-    fn accept(&mut self, visitor: &mut V) -> R {
-        return visitor.visit_call_expr(self);
+impl<T: ResolvedType, R, V: ExprVisitor<T, R>> ExprAccept<T, R, V> for Arc<Mutex<CallExpr<T>>> {
+    fn accept(&self, visitor: &mut V) -> R {
+        return visitor.visit_call_expr(self.clone());
     }
 }
 
-impl<T: ResolvedType, R, V: ExprVisitor<T, R>> ExprAccept<T, R, V> for UnaryExpr<T> {
-    fn accept(&mut self, visitor: &mut V) -> R {
-        return visitor.visit_unary_expr(self);
+impl<T: ResolvedType, R, V: ExprVisitor<T, R>> ExprAccept<T, R, V> for Arc<Mutex<UnaryExpr<T>>> {
+    fn accept(&self, visitor: &mut V) -> R {
+        return visitor.visit_unary_expr(self.clone());
     }
 }
 
-impl<T: ResolvedType, R, V: ExprVisitor<T, R>> ExprAccept<T, R, V> for BinaryExpr<T> {
-    fn accept(&mut self, visitor: &mut V) -> R {
-        return visitor.visit_binary_expr(self);
+impl<T: ResolvedType, R, V: ExprVisitor<T, R>> ExprAccept<T, R, V> for Arc<Mutex<BinaryExpr<T>>> {
+    fn accept(&self, visitor: &mut V) -> R {
+        return visitor.visit_binary_expr(self.clone());
     }
 }
 
-impl<T: ResolvedType, R, V: ExprVisitor<T, R>> ExprAccept<T, R, V> for StaticRefExpr<T> {
-    fn accept(&mut self, visitor: &mut V) -> R {
-        return visitor.visit_static_ref_expr(self);
+impl<T: ResolvedType, R, V: ExprVisitor<T, R>> ExprAccept<T, R, V>
+    for Arc<Mutex<StaticRefExpr<T>>>
+{
+    fn accept(&self, visitor: &mut V) -> R {
+        return visitor.visit_static_ref_expr(self.clone());
     }
 }
 
-impl<T: ResolvedType, R, V: ExprVisitor<T, R>> ExprAccept<T, R, V> for ConstructExpr<T> {
-    fn accept(&mut self, visitor: &mut V) -> R {
-        return visitor.visit_construct_expr(self);
+impl<T: ResolvedType, R, V: ExprVisitor<T, R>> ExprAccept<T, R, V>
+    for Arc<Mutex<ConstructExpr<T>>>
+{
+    fn accept(&self, visitor: &mut V) -> R {
+        return visitor.visit_construct_expr(self.clone());
     }
 }
 
-impl<T: ResolvedType, R, V: ExprVisitor<T, R>> ExprAccept<T, R, V> for GetExpr<T> {
-    fn accept(&mut self, visitor: &mut V) -> R {
-        return visitor.visit_get_expr(self);
+impl<T: ResolvedType, R, V: ExprVisitor<T, R>> ExprAccept<T, R, V> for Arc<Mutex<GetExpr<T>>> {
+    fn accept(&self, visitor: &mut V) -> R {
+        return visitor.visit_get_expr(self.clone());
     }
 }
 
-impl<T: ResolvedType, R, V: ExprVisitor<T, R>> ExprAccept<T, R, V> for IfExpr<T> {
-    fn accept(&mut self, visitor: &mut V) -> R {
-        return visitor.visit_if_expr(self);
+impl<T: ResolvedType, R, V: ExprVisitor<T, R>> ExprAccept<T, R, V> for Arc<Mutex<IfExpr<T>>> {
+    fn accept(&self, visitor: &mut V) -> R {
+        return visitor.visit_if_expr(self.clone());
     }
 }
 
-impl<T: ResolvedType, R, V: ExprVisitor<T, R>> ExprAccept<T, R, V> for LoopExpr<T> {
-    fn accept(&mut self, visitor: &mut V) -> R {
-        return visitor.visit_loop_expr(self);
+impl<T: ResolvedType, R, V: ExprVisitor<T, R>> ExprAccept<T, R, V> for Arc<Mutex<LoopExpr<T>>> {
+    fn accept(&self, visitor: &mut V) -> R {
+        return visitor.visit_loop_expr(self.clone());
     }
 }
 
-impl<T: ResolvedType, R, V: ExprVisitor<T, R>> ExprAccept<T, R, V> for WhileExpr<T> {
-    fn accept(&mut self, visitor: &mut V) -> R {
-        return visitor.visit_while_expr(self);
+impl<T: ResolvedType, R, V: ExprVisitor<T, R>> ExprAccept<T, R, V> for Arc<Mutex<WhileExpr<T>>> {
+    fn accept(&self, visitor: &mut V) -> R {
+        return visitor.visit_while_expr(self.clone());
     }
 }

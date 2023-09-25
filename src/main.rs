@@ -34,7 +34,7 @@ fn main() -> ferrum_compiler::result::Result {
     let rust_code = Arc::new(Mutex::new(RustCodeGen::generate_code(rust_ir)?));
     // dbg!(&rust_code);
 
-    println!("\n");
+    println!("\n\nCompiled Files:\n------\n");
     for file in &rust_code.lock().unwrap().files {
         println!("// {:?}\n{}", file.path, file.content);
     }
@@ -53,6 +53,7 @@ fn main() -> ferrum_compiler::result::Result {
     let out = RustExecutor::cargo_run(&dst)?;
 
     // println!("{}", String::from_utf8(out.stderr)?);
+    println!("Output:\n------\n");
 
     println!("{}", String::from_utf8(out.stdout)?);
 

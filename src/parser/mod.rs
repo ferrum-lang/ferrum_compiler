@@ -236,16 +236,16 @@ impl FeTokenSyntaxParser {
             };
 
             if let Some(fn_token) = fn_token {
-                return Ok(Arc::new(Mutex::new(Decl::Fn(
+                return Ok(Arc::new(Mutex::new(Decl::Fn(Arc::new(Mutex::new(
                     self.fn_decl(decl_mod, fn_mod, fn_token)?,
-                ))));
+                ))))));
             }
         }
 
         if let Some(token) = self.match_any(&[TokenType::Struct], WithNewlines::Many) {
-            return Ok(Arc::new(Mutex::new(Decl::Struct(
+            return Ok(Arc::new(Mutex::new(Decl::Struct(Arc::new(Mutex::new(
                 self.struct_decl(decl_mod, token)?,
-            ))));
+            ))))));
         }
 
         todo!()
@@ -520,27 +520,27 @@ impl FeTokenSyntaxParser {
         */
 
         if let Some(token) = self.match_any(&[TokenType::Loop], WithNewlines::Many) {
-            return Ok(Arc::new(Mutex::new(Stmt::Loop(
+            return Ok(Arc::new(Mutex::new(Stmt::Loop(Arc::new(Mutex::new(
                 self.loop_statement(token)?,
-            ))));
+            ))))));
         }
 
         if let Some(token) = self.match_any(&[TokenType::While], WithNewlines::Many) {
-            return Ok(Arc::new(Mutex::new(Stmt::While(
+            return Ok(Arc::new(Mutex::new(Stmt::While(Arc::new(Mutex::new(
                 self.while_statement(token)?,
-            ))));
+            ))))));
         }
 
         if let Some(token) = self.match_any(&[TokenType::Const], WithNewlines::Many) {
-            return Ok(Arc::new(Mutex::new(Stmt::VarDecl(
+            return Ok(Arc::new(Mutex::new(Stmt::VarDecl(Arc::new(Mutex::new(
                 self.var_decl_statement(VarDeclMut::Const(token))?,
-            ))));
+            ))))));
         }
 
         if let Some(token) = self.match_any(&[TokenType::Mut], WithNewlines::Many) {
-            return Ok(Arc::new(Mutex::new(Stmt::VarDecl(
+            return Ok(Arc::new(Mutex::new(Stmt::VarDecl(Arc::new(Mutex::new(
                 self.var_decl_statement(VarDeclMut::Mut(token))?,
-            ))));
+            ))))));
         }
 
         /*
@@ -552,25 +552,27 @@ impl FeTokenSyntaxParser {
         */
 
         if let Some(token) = self.match_any(&[TokenType::If], WithNewlines::Many) {
-            return Ok(Arc::new(Mutex::new(Stmt::If(self.if_statement(token)?))));
+            return Ok(Arc::new(Mutex::new(Stmt::If(Arc::new(Mutex::new(
+                self.if_statement(token)?,
+            ))))));
         }
 
         if let Some(token) = self.match_any(&[TokenType::Return], WithNewlines::Many) {
-            return Ok(Arc::new(Mutex::new(Stmt::Return(
+            return Ok(Arc::new(Mutex::new(Stmt::Return(Arc::new(Mutex::new(
                 self.return_statement(token)?,
-            ))));
+            ))))));
         }
 
         if let Some(token) = self.match_any(&[TokenType::Break], WithNewlines::Many) {
-            return Ok(Arc::new(Mutex::new(Stmt::Break(
+            return Ok(Arc::new(Mutex::new(Stmt::Break(Arc::new(Mutex::new(
                 self.break_statement(token)?,
-            ))));
+            ))))));
         }
 
         if let Some(token) = self.match_any(&[TokenType::Then], WithNewlines::Many) {
-            return Ok(Arc::new(Mutex::new(Stmt::Then(
+            return Ok(Arc::new(Mutex::new(Stmt::Then(Arc::new(Mutex::new(
                 self.then_statement(token)?,
-            ))));
+            ))))));
         }
 
         let stmt = self.expr_or_assign_statement()?;
@@ -808,14 +810,14 @@ impl FeTokenSyntaxParser {
     fn var_decl_target(&mut self) -> Result<VarDeclTarget> {
         // TODO
 
-        return Ok(VarDeclTarget::Ident(IdentExpr {
+        return Ok(VarDeclTarget::Ident(Arc::new(Mutex::new(IdentExpr {
             id: NodeId::gen(),
             ident: self.consume(
                 &TokenType::Ident,
                 "TODO: Handle more complicated assignment patterns",
             )?,
             resolved_type: (),
-        }));
+        }))));
     }
 
     fn if_statement(&mut self, if_token: Arc<Token>) -> Result<IfStmt> {
@@ -1110,31 +1112,41 @@ impl FeTokenSyntaxParser {
 
             let value = self.break_expr()?;
 
-            return Ok(Arc::new(Mutex::new(Stmt::Assign(AssignStmt {
-                id: NodeId::gen(),
-                target: NestedExpr(expr),
-                op,
-                value: NestedExpr(value),
-            }))));
+            return Ok(Arc::new(Mutex::new(Stmt::Assign(Arc::new(Mutex::new(
+                AssignStmt {
+                    id: NodeId::gen(),
+                    target: NestedExpr(expr),
+                    op,
+                    value: NestedExpr(value),
+                },
+            ))))));
         } else {
-            return Ok(Arc::new(Mutex::new(Stmt::Expr(ExprStmt {
-                id: NodeId::gen(),
-                expr,
-            }))));
+            return Ok(Arc::new(Mutex::new(Stmt::Expr(Arc::new(Mutex::new(
+                ExprStmt {
+                    id: NodeId::gen(),
+                    expr,
+                },
+            ))))));
         }
     }
 
     fn break_expr(&mut self) -> Result<Arc<Mutex<Expr>>> {
         if let Some(token) = self.match_any(&[TokenType::Loop], WithNewlines::Many) {
-            return Ok(Arc::new(Mutex::new(Expr::Loop(self.loop_expr(token)?))));
+            return Ok(Arc::new(Mutex::new(Expr::Loop(Arc::new(Mutex::new(
+                self.loop_expr(token)?,
+            ))))));
         }
 
         if let Some(token) = self.match_any(&[TokenType::While], WithNewlines::Many) {
-            return Ok(Arc::new(Mutex::new(Expr::While(self.while_expr(token)?))));
+            return Ok(Arc::new(Mutex::new(Expr::While(Arc::new(Mutex::new(
+                self.while_expr(token)?,
+            ))))));
         }
 
         if let Some(token) = self.match_any(&[TokenType::If], WithNewlines::Many) {
-            return Ok(Arc::new(Mutex::new(Expr::If(self.if_expr(token)?))));
+            return Ok(Arc::new(Mutex::new(Expr::If(Arc::new(Mutex::new(
+                self.if_expr(token)?,
+            ))))));
         }
 
         return self.expression();
@@ -1246,13 +1258,13 @@ impl FeTokenSyntaxParser {
 
             let right = self.range()?;
 
-            expr = Arc::new(Mutex::new(Expr::Binary(BinaryExpr {
+            expr = Arc::new(Mutex::new(Expr::Binary(Arc::new(Mutex::new(BinaryExpr {
                 id: NodeId::gen(),
                 lhs: NestedExpr(expr),
                 op,
                 rhs: NestedExpr(right),
                 resolved_type: (),
-            })));
+            })))));
         }
 
         return Ok(expr);
@@ -1309,13 +1321,13 @@ impl FeTokenSyntaxParser {
 
             let right = self.factor()?;
 
-            expr = Arc::new(Mutex::new(Expr::Binary(BinaryExpr {
+            expr = Arc::new(Mutex::new(Expr::Binary(Arc::new(Mutex::new(BinaryExpr {
                 id: NodeId::gen(),
                 lhs: NestedExpr(expr),
                 op,
                 rhs: NestedExpr(right),
                 resolved_type: (),
-            })));
+            })))));
         }
 
         return Ok(expr);
@@ -1423,12 +1435,14 @@ impl FeTokenSyntaxParser {
 
             let value = self.unary()?;
 
-            return Ok(Arc::new(Mutex::new(Expr::Unary(UnaryExpr {
-                id: NodeId::gen(),
-                op,
-                value: NestedExpr(value),
-                resolved_type: (),
-            }))));
+            return Ok(Arc::new(Mutex::new(Expr::Unary(Arc::new(Mutex::new(
+                UnaryExpr {
+                    id: NodeId::gen(),
+                    op,
+                    value: NestedExpr(value),
+                    resolved_type: (),
+                },
+            ))))));
         }
 
         return self.call();
@@ -1445,13 +1459,13 @@ impl FeTokenSyntaxParser {
             } else if let Some(dot_token) = self.match_any(&[TokenType::Dot], WithNewlines::One) {
                 let name = self.consume(&TokenType::Ident, "Expect property name '.'")?;
 
-                expr = Arc::new(Mutex::new(Expr::Get(GetExpr {
+                expr = Arc::new(Mutex::new(Expr::Get(Arc::new(Mutex::new(GetExpr {
                     id: NodeId::gen(),
                     target: NestedExpr(expr),
                     dot_token,
                     name,
                     resolved_type: (),
-                })));
+                })))));
             } else {
                 break;
             }
@@ -1503,15 +1517,17 @@ impl FeTokenSyntaxParser {
             "Expect ')' after arguments".to_string(),
         )?;
 
-        return Ok(Arc::new(Mutex::new(Expr::Call(CallExpr {
-            id: NodeId::gen(),
-            callee: NestedExpr(callee),
-            open_paren_token,
-            pre_comma_token,
-            args,
-            close_paren_token,
-            resolved_type: None,
-        }))));
+        return Ok(Arc::new(Mutex::new(Expr::Call(Arc::new(Mutex::new(
+            CallExpr {
+                id: NodeId::gen(),
+                callee: NestedExpr(callee),
+                open_paren_token,
+                pre_comma_token,
+                args,
+                close_paren_token,
+                resolved_type: None,
+            },
+        ))))));
     }
 
     fn ident(&mut self) -> Result<Arc<Mutex<Expr>>> {
@@ -1520,11 +1536,11 @@ impl FeTokenSyntaxParser {
         {
             Some(ConstructTarget::StaticPath(self.static_path()?))
         } else if let Some(ident) = self.match_any(&[TokenType::Ident], WithNewlines::None) {
-            Some(ConstructTarget::Ident(IdentExpr {
+            Some(ConstructTarget::Ident(Arc::new(Mutex::new(IdentExpr {
                 id: NodeId::gen(),
                 ident,
                 resolved_type: (),
-            }))
+            }))))
         } else {
             None
         };
@@ -1565,23 +1581,27 @@ impl FeTokenSyntaxParser {
                     }
                 };
 
-                return Ok(Arc::new(Mutex::new(Expr::Construct(ConstructExpr {
-                    id: NodeId::gen(),
-                    target: ident_expr,
-                    open_squirly_brace,
-                    args,
-                    close_squirly_brace,
-                    resolved_type: (),
-                }))));
+                return Ok(Arc::new(Mutex::new(Expr::Construct(Arc::new(Mutex::new(
+                    ConstructExpr {
+                        id: NodeId::gen(),
+                        target: ident_expr,
+                        open_squirly_brace,
+                        args,
+                        close_squirly_brace,
+                        resolved_type: (),
+                    },
+                ))))));
             }
 
             let ident_expr = match ident_expr {
                 ConstructTarget::Ident(ident) => Expr::Ident(ident),
-                ConstructTarget::StaticPath(static_path) => Expr::StaticRef(StaticRefExpr {
-                    id: NodeId::gen(),
-                    static_path,
-                    resolved_type: (),
-                }),
+                ConstructTarget::StaticPath(static_path) => {
+                    Expr::StaticRef(Arc::new(Mutex::new(StaticRefExpr {
+                        id: NodeId::gen(),
+                        static_path,
+                        resolved_type: (),
+                    })))
+                }
             };
 
             return Ok(Arc::new(Mutex::new(ident_expr)));
@@ -1593,13 +1613,13 @@ impl FeTokenSyntaxParser {
     fn primary(&mut self) -> Result<Arc<Mutex<Expr>>> {
         match self.advance().as_ref().map(|t| (t.clone(), &t.token_type)) {
             Some((t, TokenType::PlainString)) => {
-                return Ok(Arc::new(Mutex::new(Expr::PlainStringLiteral(
-                    PlainStringLiteralExpr {
+                return Ok(Arc::new(Mutex::new(Expr::PlainStringLiteral(Arc::new(
+                    Mutex::new(PlainStringLiteralExpr {
                         id: NodeId::gen(),
                         literal: t,
                         resolved_type: (),
-                    },
-                ))))
+                    }),
+                )))))
             }
 
             Some((t, TokenType::OpenFmtString)) => {
@@ -1630,43 +1650,45 @@ impl FeTokenSyntaxParser {
                     }
                 }
 
-                return Ok(Arc::new(Mutex::new(Expr::FmtStringLiteral(
-                    FmtStringLiteralExpr {
+                return Ok(Arc::new(Mutex::new(Expr::FmtStringLiteral(Arc::new(
+                    Mutex::new(FmtStringLiteralExpr {
                         id: NodeId::gen(),
                         first: t,
                         rest,
                         resolved_type: (),
-                    },
-                ))));
+                    }),
+                )))));
             }
 
             Some((t, TokenType::IntegerNumber)) => {
-                return Ok(Arc::new(Mutex::new(Expr::NumberLiteral(
-                    NumberLiteralExpr {
+                return Ok(Arc::new(Mutex::new(Expr::NumberLiteral(Arc::new(
+                    Mutex::new(NumberLiteralExpr {
                         id: NodeId::gen(),
                         details: NumberLiteralDetails::Integer(t.lexeme.parse()?),
                         literal: t,
                         resolved_type: (),
-                    },
-                ))));
+                    }),
+                )))));
             }
             Some((t, TokenType::DecimalNumber)) => {
-                return Ok(Arc::new(Mutex::new(Expr::NumberLiteral(
-                    NumberLiteralExpr {
+                return Ok(Arc::new(Mutex::new(Expr::NumberLiteral(Arc::new(
+                    Mutex::new(NumberLiteralExpr {
                         id: NodeId::gen(),
                         details: NumberLiteralDetails::Decimal(t.lexeme.parse()?),
                         literal: t,
                         resolved_type: (),
-                    },
-                ))));
+                    }),
+                )))));
             }
 
             Some((t, TokenType::True | TokenType::False)) => {
-                return Ok(Arc::new(Mutex::new(Expr::BoolLiteral(BoolLiteralExpr {
-                    id: NodeId::gen(),
-                    literal: t,
-                    resolved_type: (),
-                }))));
+                return Ok(Arc::new(Mutex::new(Expr::BoolLiteral(Arc::new(
+                    Mutex::new(BoolLiteralExpr {
+                        id: NodeId::gen(),
+                        literal: t,
+                        resolved_type: (),
+                    }),
+                )))));
             }
 
             /*

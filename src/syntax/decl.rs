@@ -3,17 +3,38 @@ use super::*;
 use crate::token::Token;
 use crate::utils::{fe_from, fe_try_from, from, invert, try_from};
 
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone)]
 pub enum Decl<T: ResolvedType = ()> {
-    Fn(FnDecl<T>),
-    Struct(StructDecl<T>),
+    Fn(Arc<Mutex<FnDecl<T>>>),
+    Struct(Arc<Mutex<StructDecl<T>>>),
+}
+
+impl<T: ResolvedType> PartialEq for Decl<T> {
+    fn eq(&self, other: &Self) -> bool {
+        match self {
+            Self::Fn(d) => {
+                let Self::Fn(other) = other else {
+                    return false;
+                };
+                let cloned = { d.try_lock().unwrap().clone() };
+                return PartialEq::eq(&cloned, &other.try_lock().unwrap());
+            }
+            Self::Struct(d) => {
+                let Self::Struct(other) = other else {
+                    return false;
+                };
+                let cloned = { d.try_lock().unwrap().clone() };
+                return PartialEq::eq(&cloned, &other.try_lock().unwrap());
+            }
+        }
+    }
 }
 
 impl<T: ResolvedType> Node<Decl> for Decl<T> {
-    fn node_id(&self) -> &NodeId<Decl> {
+    fn node_id(&self) -> NodeId<Decl> {
         match self {
-            Self::Fn(decl) => return decl.node_id(),
-            Self::Struct(decl) => return decl.node_id(),
+            Self::Fn(decl) => return decl.try_lock().unwrap().node_id().clone(),
+            Self::Struct(decl) => return decl.try_lock().unwrap().node_id().clone(),
         }
     }
 }
@@ -21,8 +42,8 @@ impl<T: ResolvedType> Node<Decl> for Decl<T> {
 impl<T: ResolvedType> From<Decl<()>> for Decl<Option<T>> {
     fn from(value: Decl<()>) -> Self {
         match value {
-            Decl::Fn(decl) => return Self::Fn(from(decl)),
-            Decl::Struct(decl) => return Self::Struct(from(decl)),
+            Decl::Fn(decl) => return Self::Fn(fe_from(decl)),
+            Decl::Struct(decl) => return Self::Struct(fe_from(decl)),
         }
     }
 }
@@ -30,8 +51,8 @@ impl<T: ResolvedType> From<Decl<()>> for Decl<Option<T>> {
 impl<T: ResolvedType> Resolvable for Decl<Option<T>> {
     fn is_resolved(&self) -> bool {
         match self {
-            Self::Fn(decl) => return decl.is_resolved(),
-            Self::Struct(decl) => return decl.is_resolved(),
+            Self::Fn(decl) => return decl.try_lock().unwrap().is_resolved(),
+            Self::Struct(decl) => return decl.try_lock().unwrap().is_resolved(),
         }
     }
 }
@@ -41,8 +62,8 @@ impl<T: ResolvedType> TryFrom<Decl<Option<T>>> for Decl<T> {
 
     fn try_from(value: Decl<Option<T>>) -> Result<Self, Self::Error> {
         match value {
-            Decl::Fn(decl) => return Ok(Self::Fn(try_from(decl)?)),
-            Decl::Struct(decl) => return Ok(Self::Struct(try_from(decl)?)),
+            Decl::Fn(decl) => return Ok(Self::Fn(fe_try_from(decl)?)),
+            Decl::Struct(decl) => return Ok(Self::Struct(fe_try_from(decl)?)),
         }
     }
 }
@@ -69,8 +90,8 @@ pub struct FnDecl<T: ResolvedType = ()> {
 }
 
 impl<T: ResolvedType> Node<Decl> for FnDecl<T> {
-    fn node_id(&self) -> &NodeId<Decl> {
-        return &self.id;
+    fn node_id(&self) -> NodeId<Decl> {
+        return self.id;
     }
 }
 
@@ -366,11 +387,11 @@ impl<T: ResolvedType, S: PartialEq> PartialEq for CodeBlock<T, S> {
 
         for i in 0..self.stmts.len() {
             let stmt = {
-                let locked = self.stmts[i].lock().unwrap();
+                let locked = self.stmts[i].try_lock().unwrap();
                 locked.clone()
             };
 
-            let other = other.stmts[i].lock().unwrap();
+            let other = other.stmts[i].try_lock().unwrap();
 
             if stmt != *other {
                 return false;
@@ -393,7 +414,7 @@ impl<T: ResolvedType, S: PartialEq> From<CodeBlock<(), S>> for CodeBlock<Option<
 impl<T: ResolvedType, S: PartialEq> Resolvable for CodeBlock<Option<T>, S> {
     fn is_resolved(&self) -> bool {
         for stmt in &self.stmts {
-            if !stmt.lock().unwrap().is_resolved() {
+            if !stmt.try_lock().unwrap().is_resolved() {
                 dbg!("false");
                 return false;
             }
@@ -432,8 +453,8 @@ pub struct StructDecl<T: ResolvedType = ()> {
 }
 
 impl<T: ResolvedType> Node<Decl> for StructDecl<T> {
-    fn node_id(&self) -> &NodeId<Decl> {
-        return &self.id;
+    fn node_id(&self) -> NodeId<Decl> {
+        return self.id;
     }
 }
 
@@ -600,16 +621,16 @@ pub enum StructFieldMod {
 
 // Visitor pattern
 pub trait DeclVisitor<T: ResolvedType, R = ()> {
-    fn visit_function_decl(&mut self, decl: &mut FnDecl<T>) -> R;
-    fn visit_struct_decl(&mut self, decl: &mut StructDecl<T>) -> R;
+    fn visit_function_decl(&mut self, decl: Arc<Mutex<FnDecl<T>>>) -> R;
+    fn visit_struct_decl(&mut self, decl: Arc<Mutex<StructDecl<T>>>) -> R;
 }
 
 pub trait DeclAccept<T: ResolvedType, R, V: DeclVisitor<T, R>> {
-    fn accept(&mut self, visitor: &mut V) -> R;
+    fn accept(&self, visitor: &mut V) -> R;
 }
 
 impl<T: ResolvedType, R, V: DeclVisitor<T, R>> DeclAccept<T, R, V> for Decl<T> {
-    fn accept(&mut self, visitor: &mut V) -> R {
+    fn accept(&self, visitor: &mut V) -> R {
         return match self {
             Self::Fn(decl) => decl.accept(visitor),
             Self::Struct(decl) => decl.accept(visitor),
@@ -617,14 +638,14 @@ impl<T: ResolvedType, R, V: DeclVisitor<T, R>> DeclAccept<T, R, V> for Decl<T> {
     }
 }
 
-impl<T: ResolvedType, R, V: DeclVisitor<T, R>> DeclAccept<T, R, V> for FnDecl<T> {
-    fn accept(&mut self, visitor: &mut V) -> R {
-        return visitor.visit_function_decl(self);
+impl<T: ResolvedType, R, V: DeclVisitor<T, R>> DeclAccept<T, R, V> for Arc<Mutex<FnDecl<T>>> {
+    fn accept(&self, visitor: &mut V) -> R {
+        return visitor.visit_function_decl(self.clone());
     }
 }
 
-impl<T: ResolvedType, R, V: DeclVisitor<T, R>> DeclAccept<T, R, V> for StructDecl<T> {
-    fn accept(&mut self, visitor: &mut V) -> R {
-        return visitor.visit_struct_decl(self);
+impl<T: ResolvedType, R, V: DeclVisitor<T, R>> DeclAccept<T, R, V> for Arc<Mutex<StructDecl<T>>> {
+    fn accept(&self, visitor: &mut V) -> R {
+        return visitor.visit_struct_decl(self.clone());
     }
 }
