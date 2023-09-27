@@ -15,7 +15,7 @@ use std::sync::{Arc, Mutex};
 fn main() -> ferrum_compiler::result::Result {
     let root_dir = get_root_dir();
 
-    let source = read_project_files(root_dir)?;
+    let source = Arc::new(Mutex::new(Reader::read_project_files(root_dir)?));
 
     let tokens = Arc::new(Mutex::new(FeLexer::scan_package(source)?));
     dbg!(&tokens);
