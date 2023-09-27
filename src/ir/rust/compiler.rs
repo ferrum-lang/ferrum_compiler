@@ -38,12 +38,12 @@ impl RustSyntaxCompiler {
     }
 
     fn compile(mut self) -> Result<ir::RustIR> {
-        self.compile_package(&mut Arc::clone(&self.entry).try_lock().unwrap())?;
+        self.internal_compile_package(&mut Arc::clone(&self.entry).try_lock().unwrap())?;
 
         return Ok(self.out);
     }
 
-    fn compile_package(&mut self, package: &mut FeSyntaxPackage<FeType>) -> Result {
+    fn internal_compile_package(&mut self, package: &mut FeSyntaxPackage<FeType>) -> Result {
         match package {
             FeSyntaxPackage::File(file) => {
                 self.compile_file(file)?;
@@ -67,7 +67,7 @@ impl RustSyntaxCompiler {
                         uses: vec![],
                         decls: vec![],
                     });
-                    self.compile_package(&mut package.try_lock().unwrap())?;
+                    self.internal_compile_package(&mut package.try_lock().unwrap())?;
                 }
             }
         };
