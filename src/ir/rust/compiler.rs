@@ -4,6 +4,7 @@ use crate::r#type::*;
 use crate::syntax::*;
 
 use crate::ir;
+use crate::token::Token;
 use crate::utils::invert;
 
 use crate::result::Result;
@@ -50,7 +51,7 @@ impl RustSyntaxCompiler {
 
             FeSyntaxPackage::Dir(dir) => {
                 {
-                    let mut syntax = dir.entry_file.syntax.lock().unwrap();
+                    let mut syntax = dir.entry_file.syntax.try_lock().unwrap();
 
                     for name in dir.local_packages.keys() {
                         syntax.mods.push(Mod(name.0.clone()));
@@ -66,7 +67,7 @@ impl RustSyntaxCompiler {
                         uses: vec![],
                         decls: vec![],
                     });
-                    self.compile_package(&mut package.lock().unwrap())?;
+                    self.compile_package(&mut package.try_lock().unwrap())?;
                 }
             }
         };
@@ -75,7 +76,7 @@ impl RustSyntaxCompiler {
     }
 
     fn compile_file(&mut self, file: &mut FeSyntaxFile<FeType>) -> Result {
-        let mut syntax = file.syntax.lock().unwrap();
+        let mut syntax = file.syntax.try_lock().unwrap();
 
         {
             let file_idx = self.out.files.len() - 1;
@@ -91,7 +92,7 @@ impl RustSyntaxCompiler {
         }
 
         for decl in &mut syntax.decls {
-            decl.lock().unwrap().accept(self)?;
+            decl.try_lock().unwrap().accept(self)?;
         }
 
         return Ok(());
@@ -125,7 +126,7 @@ impl RustSyntaxCompiler {
             FnDeclBody::Short(short) => todo!(),
             FnDeclBody::Block(block) => {
                 for stmt in &mut block.stmts {
-                    let stmt_ir = stmt.lock().unwrap().accept(self)?;
+                    let stmt_ir = stmt.try_lock().unwrap().accept(self)?;
 
                     block_ir.stmts.extend(stmt_ir);
                 }
@@ -225,11 +226,17 @@ impl RustSyntaxCompiler {
 
         return Ok(Some(path_ir));
     }
+
+    fn map_label(&self, label: &Option<Arc<Token>>) -> Option<Arc<str>> {
+        return label
+            .as_ref()
+            .map(|l| format!("'label_{}", &l.lexeme[1..]).into());
+    }
 }
 
 impl UseVisitor<FeType, Result> for RustSyntaxCompiler {
     fn visit_use(&mut self, use_decl: Arc<Mutex<Use<FeType>>>) -> Result {
-        let mut use_decl = use_decl.lock().unwrap();
+        let mut use_decl = use_decl.try_lock().unwrap();
 
         let use_mod = use_decl
             .use_mod
@@ -251,7 +258,7 @@ impl UseVisitor<FeType, Result> for RustSyntaxCompiler {
 
 impl DeclVisitor<FeType, Result> for RustSyntaxCompiler {
     fn visit_function_decl(&mut self, decl: Arc<Mutex<FnDecl<FeType>>>) -> Result {
-        let mut decl = decl.lock().unwrap();
+        let mut decl = decl.try_lock().unwrap();
 
         let fn_ir = ir::RustIRFnDecl {
             macros: vec![],
@@ -290,7 +297,7 @@ impl DeclVisitor<FeType, Result> for RustSyntaxCompiler {
     }
 
     fn visit_struct_decl(&mut self, decl: Arc<Mutex<StructDecl<FeType>>>) -> Result {
-        let mut decl = decl.lock().unwrap();
+        let mut decl = decl.try_lock().unwrap();
 
         let struct_ir = ir::RustIRStructDecl {
             macros: vec![],
@@ -324,9 +331,9 @@ impl StmtVisitor<FeType, Result<Vec<ir::RustIRStmt>>> for RustSyntaxCompiler {
         &mut self,
         stmt: Arc<Mutex<ExprStmt<FeType>>>,
     ) -> Result<Vec<ir::RustIRStmt>> {
-        let mut stmt = stmt.lock().unwrap();
+        let mut stmt = stmt.try_lock().unwrap();
 
-        let expr = stmt.expr.lock().unwrap().accept(self)?;
+        let expr = stmt.expr.try_lock().unwrap().accept(self)?;
 
         return Ok(vec![ir::RustIRStmt::Expr(ir::RustIRExprStmt { expr })]);
     }
@@ -335,10 +342,10 @@ impl StmtVisitor<FeType, Result<Vec<ir::RustIRStmt>>> for RustSyntaxCompiler {
         &mut self,
         stmt: Arc<Mutex<VarDeclStmt<FeType>>>,
     ) -> Result<Vec<ir::RustIRStmt>> {
-        let mut stmt = stmt.lock().unwrap();
+        let mut stmt = stmt.try_lock().unwrap();
 
         let value = invert(stmt.value.as_mut().map(|value| {
-            let value = value.value.0.lock().unwrap().accept(self);
+            let value = value.value.0.try_lock().unwrap().accept(self);
 
             // '?' doesn't work here without explicit type annotation
             // I guess rustc can't guarantee Result::Error here without explicit return Err(...)
@@ -357,7 +364,7 @@ impl StmtVisitor<FeType, Result<Vec<ir::RustIRStmt>>> for RustSyntaxCompiler {
                         VarDeclMut::Const(_) => false,
                         VarDeclMut::Mut(_) => true,
                     },
-                    name: ident.lock().unwrap().ident.lexeme.clone(),
+                    name: ident.try_lock().unwrap().ident.lexeme.clone(),
                     explicit_type: None,
                     value,
                 })])
@@ -369,10 +376,10 @@ impl StmtVisitor<FeType, Result<Vec<ir::RustIRStmt>>> for RustSyntaxCompiler {
         &mut self,
         stmt: Arc<Mutex<AssignStmt<FeType>>>,
     ) -> Result<Vec<ir::RustIRStmt>> {
-        let mut stmt = stmt.lock().unwrap();
+        let mut stmt = stmt.try_lock().unwrap();
 
-        let lhs = stmt.target.0.lock().unwrap().accept(self)?;
-        let rhs = stmt.value.0.lock().unwrap().accept(self)?;
+        let lhs = stmt.target.0.try_lock().unwrap().accept(self)?;
+        let rhs = stmt.value.0.try_lock().unwrap().accept(self)?;
 
         let op = match &stmt.op {
             AssignOp::Eq(_) => ir::RustIRAssignOp::Eq,
@@ -392,10 +399,10 @@ impl StmtVisitor<FeType, Result<Vec<ir::RustIRStmt>>> for RustSyntaxCompiler {
         &mut self,
         stmt: Arc<Mutex<ReturnStmt<FeType>>>,
     ) -> Result<Vec<ir::RustIRStmt>> {
-        let mut stmt = stmt.lock().unwrap();
+        let mut stmt = stmt.try_lock().unwrap();
 
         let expr = if let Some(value) = &mut stmt.value {
-            Some(value.0.lock().unwrap().accept(self)?)
+            Some(value.0.try_lock().unwrap().accept(self)?)
         } else {
             None
         };
@@ -404,24 +411,24 @@ impl StmtVisitor<FeType, Result<Vec<ir::RustIRStmt>>> for RustSyntaxCompiler {
     }
 
     fn visit_if_stmt(&mut self, stmt: Arc<Mutex<IfStmt<FeType>>>) -> Result<Vec<ir::RustIRStmt>> {
-        let mut stmt = stmt.lock().unwrap();
+        let mut stmt = stmt.try_lock().unwrap();
 
-        let condition = Box::new(stmt.condition.0.lock().unwrap().accept(self)?);
+        let condition = Box::new(stmt.condition.0.try_lock().unwrap().accept(self)?);
 
         let mut then = vec![];
         for stmt in &mut stmt.then.stmts {
-            let stmts = stmt.lock().unwrap().accept(self)?;
+            let stmts = stmt.try_lock().unwrap().accept(self)?;
 
             then.extend(stmts);
         }
 
         let mut else_ifs = vec![];
         for else_if in &mut stmt.else_ifs {
-            let condition = Box::new(else_if.condition.0.lock().unwrap().accept(self)?);
+            let condition = Box::new(else_if.condition.0.try_lock().unwrap().accept(self)?);
 
             let mut then = vec![];
             for stmt in &mut else_if.then.stmts {
-                let stmts = stmt.lock().unwrap().accept(self)?;
+                let stmts = stmt.try_lock().unwrap().accept(self)?;
 
                 then.extend(stmts);
             }
@@ -434,7 +441,7 @@ impl StmtVisitor<FeType, Result<Vec<ir::RustIRStmt>>> for RustSyntaxCompiler {
         let else_ = if let Some(else_) = &mut stmt.else_ {
             let mut then = vec![];
             for stmt in &mut else_.then.stmts {
-                let stmts = stmt.lock().unwrap().accept(self)?;
+                let stmts = stmt.try_lock().unwrap().accept(self)?;
 
                 then.extend(stmts);
             }
@@ -462,11 +469,11 @@ impl StmtVisitor<FeType, Result<Vec<ir::RustIRStmt>>> for RustSyntaxCompiler {
     ) -> Result<Vec<ir::RustIRStmt>> {
         let mut stmt = stmt.try_lock().unwrap();
 
-        let label = stmt.label.as_ref().map(|l| l.lexeme.clone());
+        let label = self.map_label(&stmt.label);
 
         let mut stmts = vec![];
         for stmt in &mut stmt.block.stmts {
-            let ir_stmts = stmt.lock().unwrap().accept(self)?;
+            let ir_stmts = stmt.try_lock().unwrap().accept(self)?;
             stmts.extend(ir_stmts);
         }
 
@@ -483,6 +490,8 @@ impl StmtVisitor<FeType, Result<Vec<ir::RustIRStmt>>> for RustSyntaxCompiler {
     ) -> Result<Vec<ir::RustIRStmt>> {
         let mut stmt = stmt.try_lock().unwrap();
 
+        let label = self.map_label(&stmt.label);
+
         let condition = stmt.condition.0.try_lock().unwrap().accept(self)?;
 
         let mut stmts = vec![];
@@ -492,7 +501,17 @@ impl StmtVisitor<FeType, Result<Vec<ir::RustIRStmt>>> for RustSyntaxCompiler {
         }
 
         if stmt.label.is_some() {
-            todo!("how? Maybe outer loop with break after while?");
+            return Ok(vec![ir::RustIRStmt::ImplicitReturn(
+                ir::RustIRImplicitReturnStmt {
+                    expr: ir::RustIRExpr::Loop(ir::RustIRLoopExpr {
+                        label: label.clone(),
+                        stmts: vec![
+                            ir::RustIRStmt::While(ir::RustIRWhileStmt { condition, stmts }),
+                            ir::RustIRStmt::Break(ir::RustIRBreakStmt { label, expr: None }),
+                        ],
+                    }),
+                },
+            )]);
         }
 
         return Ok(vec![ir::RustIRStmt::While(ir::RustIRWhileStmt {
@@ -505,12 +524,12 @@ impl StmtVisitor<FeType, Result<Vec<ir::RustIRStmt>>> for RustSyntaxCompiler {
         &mut self,
         stmt: Arc<Mutex<BreakStmt<FeType>>>,
     ) -> Result<Vec<ir::RustIRStmt>> {
-        let mut stmt = stmt.lock().unwrap();
+        let stmt = &mut *stmt.try_lock().unwrap();
 
-        let label = stmt.label.as_ref().map(|l| l.lexeme.clone());
+        let label = self.map_label(&stmt.label);
 
         let expr = if let Some(value) = &mut stmt.value {
-            Some(value.0.lock().unwrap().accept(self)?)
+            Some(value.0.try_lock().unwrap().accept(self)?)
         } else {
             None
         };
@@ -525,49 +544,46 @@ impl StmtVisitor<FeType, Result<Vec<ir::RustIRStmt>>> for RustSyntaxCompiler {
         &mut self,
         stmt: Arc<Mutex<ThenStmt<FeType>>>,
     ) -> Result<Vec<ir::RustIRStmt>> {
-        let mut stmt = stmt.lock().unwrap();
+        let stmt = &mut *stmt.try_lock().unwrap();
 
-        let expr = stmt.value.0.lock().unwrap().accept(self)?;
+        let expr = stmt.value.0.try_lock().unwrap().accept(self)?;
 
-        if let Some(handler) = &stmt.handler {
-            match handler {
-                ThenHandler::IfStmt(_, _) => todo!(),
-                ThenHandler::IfExpr(block, handler) => {
-                    let label: Option<Arc<str>> = match block {
-                        IfBlock::Then => match &handler.try_lock().unwrap().then {
-                            IfExprThen::Block(block) => block
-                                .label
-                                .as_ref()
-                                .map(|l| format!("'if_expr_then_{}", &l.lexeme[1..]).into()),
-                            _ => None,
-                        },
+        let label = self.map_label(&stmt.label);
 
-                        IfBlock::ElseIf(idx) => {
-                            match &handler.try_lock().unwrap().else_ifs.get(*idx) {
-                                Some(IfExprElseIf::Block(block)) => block.label.as_ref().map(|l| {
-                                    format!("'if_expr_else_if_{}_{}", idx, &l.lexeme[1..]).into()
-                                }),
-                                _ => None,
-                            }
-                        }
+        if label.is_some() {
+            return Ok(vec![ir::RustIRStmt::Break(ir::RustIRBreakStmt {
+                label,
+                expr: Some(expr),
+            })]);
+        }
 
-                        IfBlock::Else => match &handler.try_lock().unwrap().else_ {
-                            Some(IfExprElse::Block(block)) => block
-                                .label
-                                .as_ref()
-                                .map(|l| format!("'if_expr_else_{}", &l.lexeme[1..]).into()),
-                            _ => None,
-                        },
-                    };
+        match &stmt.handler {
+            Some(ThenHandler::IfExpr(block, if_expr)) => {
+                let if_expr = &mut *if_expr.try_lock().unwrap();
 
-                    if label.is_some() {
-                        return Ok(vec![ir::RustIRStmt::Break(ir::RustIRBreakStmt {
-                            label,
-                            expr: Some(expr),
-                        })]);
-                    }
+                let label = match block {
+                    IfBlock::Then => match &if_expr.then {
+                        IfExprThen::Block(if_expr) => self.map_label(&if_expr.label),
+                        _ => None,
+                    },
+                    IfBlock::ElseIf(idx) => match &if_expr.else_ifs.get(*idx) {
+                        Some(IfExprElseIf::Block(if_expr)) => self.map_label(&if_expr.label),
+                        _ => None,
+                    },
+                    IfBlock::Else => match &if_expr.else_ {
+                        Some(IfExprElse::Block(if_expr)) => self.map_label(&if_expr.label),
+                        _ => None,
+                    },
+                };
+
+                if label.is_some() {
+                    return Ok(vec![ir::RustIRStmt::Break(ir::RustIRBreakStmt {
+                        label,
+                        expr: Some(expr),
+                    })]);
                 }
             }
+            _ => {}
         }
 
         return Ok(vec![ir::RustIRStmt::ImplicitReturn(
@@ -581,7 +597,7 @@ impl ExprVisitor<FeType, Result<ir::RustIRExpr>> for RustSyntaxCompiler {
         &mut self,
         expr: Arc<Mutex<BoolLiteralExpr<FeType>>>,
     ) -> Result<ir::RustIRExpr> {
-        let mut expr = expr.lock().unwrap();
+        let mut expr = expr.try_lock().unwrap();
 
         return Ok(ir::RustIRExpr::BoolLiteral(ir::RustIRBoolLiteralExpr {
             literal: expr.resolved_type == FeType::Bool(Some(true)),
@@ -592,7 +608,7 @@ impl ExprVisitor<FeType, Result<ir::RustIRExpr>> for RustSyntaxCompiler {
         &mut self,
         expr: Arc<Mutex<NumberLiteralExpr<FeType>>>,
     ) -> Result<ir::RustIRExpr> {
-        let mut expr = expr.lock().unwrap();
+        let mut expr = expr.try_lock().unwrap();
 
         return Ok(ir::RustIRExpr::NumberLiteral(ir::RustIRNumberLiteralExpr {
             literal: expr.literal.lexeme.clone(),
@@ -603,7 +619,7 @@ impl ExprVisitor<FeType, Result<ir::RustIRExpr>> for RustSyntaxCompiler {
         &mut self,
         expr: Arc<Mutex<PlainStringLiteralExpr<FeType>>>,
     ) -> Result<ir::RustIRExpr> {
-        let mut expr = expr.lock().unwrap();
+        let mut expr = expr.try_lock().unwrap();
 
         return Ok(ir::RustIRExpr::Call(ir::RustIRCallExpr {
             callee: Box::new(ir::RustIRExpr::StaticRef(ir::RustIRStaticRefExpr {
@@ -625,7 +641,7 @@ impl ExprVisitor<FeType, Result<ir::RustIRExpr>> for RustSyntaxCompiler {
         &mut self,
         expr: Arc<Mutex<FmtStringLiteralExpr<FeType>>>,
     ) -> Result<ir::RustIRExpr> {
-        let mut expr = expr.lock().unwrap();
+        let mut expr = expr.try_lock().unwrap();
 
         let mut fmt_str = String::new();
         fmt_str.push_str(
@@ -650,7 +666,7 @@ impl ExprVisitor<FeType, Result<ir::RustIRExpr>> for RustSyntaxCompiler {
         })];
 
         for part in &expr.rest {
-            args.push(part.expr.0.lock().unwrap().accept(self)?);
+            args.push(part.expr.0.try_lock().unwrap().accept(self)?);
         }
 
         return Ok(ir::RustIRExpr::MacroFnCall(ir::RustIRMacroFnCallExpr {
@@ -660,7 +676,7 @@ impl ExprVisitor<FeType, Result<ir::RustIRExpr>> for RustSyntaxCompiler {
     }
 
     fn visit_ident_expr(&mut self, expr: Arc<Mutex<IdentExpr<FeType>>>) -> Result<ir::RustIRExpr> {
-        let mut expr = expr.lock().unwrap();
+        let mut expr = expr.try_lock().unwrap();
 
         return Ok(ir::RustIRExpr::Ident(ir::RustIRIdentExpr {
             ident: expr.ident.lexeme.clone(),
@@ -668,22 +684,22 @@ impl ExprVisitor<FeType, Result<ir::RustIRExpr>> for RustSyntaxCompiler {
     }
 
     fn visit_call_expr(&mut self, expr: Arc<Mutex<CallExpr<FeType>>>) -> Result<ir::RustIRExpr> {
-        let mut expr = expr.lock().unwrap();
+        let mut expr = expr.try_lock().unwrap();
 
         if let Some(FeType::Callable(Callable {
             special: Some(SpecialCallable::Print),
             ..
-        })) = expr.callee.0.lock().unwrap().resolved_type()
+        })) = expr.callee.0.try_lock().unwrap().resolved_type()
         {
             if expr.args.len() == 1 {
-                match &mut *expr.args[0].value.0.lock().unwrap() {
+                match &mut *expr.args[0].value.0.try_lock().unwrap() {
                     Expr::PlainStringLiteral(literal) => {
                         return Ok(ir::RustIRExpr::MacroFnCall(ir::RustIRMacroFnCallExpr {
                             callee: "println".into(),
                             args: vec![ir::RustIRExpr::StringLiteral(
                                 ir::RustIRStringLiteralExpr {
                                     literal: literal
-                                        .lock()
+                                        .try_lock()
                                         .unwrap()
                                         .literal
                                         .lexeme
@@ -718,7 +734,7 @@ impl ExprVisitor<FeType, Result<ir::RustIRExpr>> for RustSyntaxCompiler {
             })];
 
             for arg in &expr.args {
-                let value = arg.value.0.lock().unwrap();
+                let value = arg.value.0.try_lock().unwrap();
                 let arg_ir = value.accept(self)?;
 
                 args.push(arg_ir);
@@ -730,14 +746,14 @@ impl ExprVisitor<FeType, Result<ir::RustIRExpr>> for RustSyntaxCompiler {
             }));
         }
 
-        let callee = expr.callee.0.lock().unwrap();
+        let callee = expr.callee.0.try_lock().unwrap();
         let callee = Box::new(callee.accept(self)?);
 
         let mut args = vec![];
 
         // TODO: Handle named, variadic, optional, etc params
         for arg in &expr.args {
-            let value = arg.value.0.lock().unwrap();
+            let value = arg.value.0.try_lock().unwrap();
             let arg_ir = value.accept(self)?;
 
             args.push(arg_ir);
@@ -747,25 +763,25 @@ impl ExprVisitor<FeType, Result<ir::RustIRExpr>> for RustSyntaxCompiler {
     }
 
     fn visit_unary_expr(&mut self, expr: Arc<Mutex<UnaryExpr<FeType>>>) -> Result<ir::RustIRExpr> {
-        let mut expr = expr.lock().unwrap();
+        let mut expr = expr.try_lock().unwrap();
 
         match &expr.op {
             UnaryOp::Ref(RefType::Shared { .. }) => {
                 return Ok(ir::RustIRExpr::Unary(ir::RustIRUnaryExpr {
                     op: ir::RustIRUnaryOp::Ref(ir::RustIRRefType::Shared),
-                    value: Box::new(expr.value.0.lock().unwrap().accept(self)?),
+                    value: Box::new(expr.value.0.try_lock().unwrap().accept(self)?),
                 }))
             }
             UnaryOp::Ref(RefType::Mut { .. }) => {
                 return Ok(ir::RustIRExpr::Unary(ir::RustIRUnaryExpr {
                     op: ir::RustIRUnaryOp::Ref(ir::RustIRRefType::Mut),
-                    value: Box::new(expr.value.0.lock().unwrap().accept(self)?),
+                    value: Box::new(expr.value.0.try_lock().unwrap().accept(self)?),
                 }))
             }
             UnaryOp::Not(_) => {
                 return Ok(ir::RustIRExpr::Unary(ir::RustIRUnaryExpr {
                     op: ir::RustIRUnaryOp::Not,
-                    value: Box::new(expr.value.0.lock().unwrap().accept(self)?),
+                    value: Box::new(expr.value.0.try_lock().unwrap().accept(self)?),
                 }));
             }
         }
@@ -775,10 +791,10 @@ impl ExprVisitor<FeType, Result<ir::RustIRExpr>> for RustSyntaxCompiler {
         &mut self,
         expr: Arc<Mutex<BinaryExpr<FeType>>>,
     ) -> Result<ir::RustIRExpr> {
-        let mut expr = expr.lock().unwrap();
+        let mut expr = expr.try_lock().unwrap();
 
-        let lhs = Box::new(expr.lhs.0.lock().unwrap().accept(self)?);
-        let rhs = Box::new(expr.rhs.0.lock().unwrap().accept(self)?);
+        let lhs = Box::new(expr.lhs.0.try_lock().unwrap().accept(self)?);
+        let rhs = Box::new(expr.rhs.0.try_lock().unwrap().accept(self)?);
 
         match &expr.op {
             BinaryOp::Add(_) => {
@@ -824,7 +840,7 @@ impl ExprVisitor<FeType, Result<ir::RustIRExpr>> for RustSyntaxCompiler {
         &mut self,
         expr: Arc<Mutex<StaticRefExpr<FeType>>>,
     ) -> Result<ir::RustIRExpr> {
-        let mut expr = expr.lock().unwrap();
+        let mut expr = expr.try_lock().unwrap();
 
         todo!()
     }
@@ -833,11 +849,11 @@ impl ExprVisitor<FeType, Result<ir::RustIRExpr>> for RustSyntaxCompiler {
         &mut self,
         expr: Arc<Mutex<ConstructExpr<FeType>>>,
     ) -> Result<ir::RustIRExpr> {
-        let mut expr = expr.lock().unwrap();
+        let mut expr = expr.try_lock().unwrap();
 
         let target = match &mut expr.target {
             ConstructTarget::Ident(ident) => {
-                ir::RustIRConstructTarget::Ident(ident.lock().unwrap().ident.lexeme.clone())
+                ir::RustIRConstructTarget::Ident(ident.try_lock().unwrap().ident.lexeme.clone())
             }
 
             ConstructTarget::StaticPath(path) => {
@@ -851,7 +867,7 @@ impl ExprVisitor<FeType, Result<ir::RustIRExpr>> for RustSyntaxCompiler {
                 ConstructArg::Field(field) => {
                     args.push(ir::RustIRConstructArg {
                         name: field.name.lexeme.clone(),
-                        value: field.value.0.lock().unwrap().accept(self)?,
+                        value: field.value.0.try_lock().unwrap().accept(self)?,
                     });
                 }
             }
@@ -868,9 +884,9 @@ impl ExprVisitor<FeType, Result<ir::RustIRExpr>> for RustSyntaxCompiler {
     }
 
     fn visit_get_expr(&mut self, expr: Arc<Mutex<GetExpr<FeType>>>) -> Result<ir::RustIRExpr> {
-        let mut expr = expr.lock().unwrap();
+        let mut expr = expr.try_lock().unwrap();
 
-        let target = Box::new(expr.target.0.lock().unwrap().accept(self)?);
+        let target = Box::new(expr.target.0.try_lock().unwrap().accept(self)?);
 
         return Ok(ir::RustIRExpr::Get(ir::RustIRGetExpr {
             target,
@@ -879,13 +895,13 @@ impl ExprVisitor<FeType, Result<ir::RustIRExpr>> for RustSyntaxCompiler {
     }
 
     fn visit_if_expr(&mut self, expr: Arc<Mutex<IfExpr<FeType>>>) -> Result<ir::RustIRExpr> {
-        let mut expr = expr.lock().unwrap();
+        let expr = expr.try_lock().unwrap();
 
-        let condition = Box::new(expr.condition.0.lock().unwrap().accept(self)?);
+        let condition = Box::new(expr.condition.0.try_lock().unwrap().accept(self)?);
 
         let then = match &expr.then {
             IfExprThen::Ternary(then) => {
-                let expr = then.then_expr.0.lock().unwrap().accept(self)?;
+                let expr = then.then_expr.0.try_lock().unwrap().accept(self)?;
 
                 let stmt = ir::RustIRStmt::ImplicitReturn(ir::RustIRImplicitReturnStmt { expr });
 
@@ -895,17 +911,17 @@ impl ExprVisitor<FeType, Result<ir::RustIRExpr>> for RustSyntaxCompiler {
                 let mut then_stmts = vec![];
 
                 for stmt in &then.block.stmts {
-                    let stmts = stmt.lock().unwrap().accept(self)?;
+                    let stmts = stmt.try_lock().unwrap().accept(self)?;
                     then_stmts.extend(stmts);
                 }
 
-                if let Some(label) = &then.label {
-                    let label = format!("'if_expr_then_{}", &label.lexeme[1..]).into();
+                if then.label.is_some() {
+                    let label = self.map_label(&then.label);
 
                     vec![ir::RustIRStmt::ImplicitReturn(
                         ir::RustIRImplicitReturnStmt {
                             expr: ir::RustIRExpr::Loop(ir::RustIRLoopExpr {
-                                label: Some(label),
+                                label,
                                 stmts: then_stmts,
                             }),
                         },
@@ -920,9 +936,9 @@ impl ExprVisitor<FeType, Result<ir::RustIRExpr>> for RustSyntaxCompiler {
         for else_if in &expr.else_ifs {
             match else_if {
                 IfExprElseIf::Ternary(else_if) => {
-                    let condition = Box::new(else_if.condition.0.lock().unwrap().accept(self)?);
+                    let condition = Box::new(else_if.condition.0.try_lock().unwrap().accept(self)?);
 
-                    let expr = else_if.expr.0.lock().unwrap().accept(self)?;
+                    let expr = else_if.expr.0.try_lock().unwrap().accept(self)?;
 
                     let then = vec![ir::RustIRStmt::ImplicitReturn(
                         ir::RustIRImplicitReturnStmt { expr },
@@ -931,24 +947,22 @@ impl ExprVisitor<FeType, Result<ir::RustIRExpr>> for RustSyntaxCompiler {
                     else_ifs.push(ir::RustIRElseIf { condition, then });
                 }
                 IfExprElseIf::Block(else_if) => {
-                    let condition = Box::new(else_if.condition.0.lock().unwrap().accept(self)?);
+                    let condition = Box::new(else_if.condition.0.try_lock().unwrap().accept(self)?);
 
                     let mut then = vec![];
 
                     for stmt in &else_if.block.stmts {
-                        let stmts = stmt.lock().unwrap().accept(self)?;
+                        let stmts = stmt.try_lock().unwrap().accept(self)?;
                         then.extend(stmts);
                     }
 
-                    then = if let Some(label) = &else_if.label {
-                        let label =
-                            format!("'if_expr_else_if_{}_{}", else_ifs.len(), &label.lexeme[1..])
-                                .into();
+                    then = if else_if.label.is_some() {
+                        let label = self.map_label(&else_if.label);
 
                         vec![ir::RustIRStmt::ImplicitReturn(
                             ir::RustIRImplicitReturnStmt {
                                 expr: ir::RustIRExpr::Loop(ir::RustIRLoopExpr {
-                                    label: Some(label),
+                                    label,
                                     stmts: then,
                                 }),
                             },
@@ -965,7 +979,7 @@ impl ExprVisitor<FeType, Result<ir::RustIRExpr>> for RustSyntaxCompiler {
         let else_ = if let Some(else_) = &expr.else_ {
             match else_ {
                 IfExprElse::Ternary(else_) => {
-                    let expr = else_.else_expr.0.lock().unwrap().accept(self)?;
+                    let expr = else_.else_expr.0.try_lock().unwrap().accept(self)?;
 
                     let then = vec![ir::RustIRStmt::ImplicitReturn(
                         ir::RustIRImplicitReturnStmt { expr },
@@ -977,17 +991,17 @@ impl ExprVisitor<FeType, Result<ir::RustIRExpr>> for RustSyntaxCompiler {
                     let mut then = vec![];
 
                     for stmt in &else_.block.stmts {
-                        let stmts = stmt.lock().unwrap().accept(self)?;
+                        let stmts = stmt.try_lock().unwrap().accept(self)?;
                         then.extend(stmts);
                     }
 
-                    then = if let Some(label) = &else_.label {
-                        let label = format!("'if_expr_else_{}", &label.lexeme[1..]).into();
+                    then = if else_.label.is_some() {
+                        let label = self.map_label(&else_.label);
 
                         vec![ir::RustIRStmt::ImplicitReturn(
                             ir::RustIRImplicitReturnStmt {
                                 expr: ir::RustIRExpr::Loop(ir::RustIRLoopExpr {
-                                    label: Some(label),
+                                    label,
                                     stmts: then,
                                 }),
                             },
@@ -1012,12 +1026,9 @@ impl ExprVisitor<FeType, Result<ir::RustIRExpr>> for RustSyntaxCompiler {
     }
 
     fn visit_loop_expr(&mut self, expr: Arc<Mutex<LoopExpr<FeType>>>) -> Result<ir::RustIRExpr> {
-        let expr = &mut *expr.lock().unwrap();
+        let expr = &mut *expr.try_lock().unwrap();
 
-        let label = expr
-            .label
-            .as_ref()
-            .map(|l| format!("loop_expr_{}", &l.lexeme[1..]).into());
+        let label = self.map_label(&expr.label);
 
         let mut stmts = vec![];
         for stmt in &expr.block.stmts {
@@ -1029,7 +1040,9 @@ impl ExprVisitor<FeType, Result<ir::RustIRExpr>> for RustSyntaxCompiler {
     }
 
     fn visit_while_expr(&mut self, expr: Arc<Mutex<WhileExpr<FeType>>>) -> Result<ir::RustIRExpr> {
-        let mut expr = expr.lock().unwrap();
+        let expr = &mut *expr.try_lock().unwrap();
+
+        let label = self.map_label(&expr.label);
 
         todo!()
     }

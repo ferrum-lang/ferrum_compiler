@@ -1061,6 +1061,12 @@ impl StmtVisitor<Option<FeType>, Result<bool>> for FeTypeResolver {
                     todo!("Can't break a value");
                 }
             }
+            BreakHandler::WhileStmt(_while_stmt) => {
+                if stmt.value.is_some() {
+                    todo!("Can't break a value");
+                }
+            }
+
             BreakHandler::LoopExpr(loop_expr) => {
                 if stmt.value.is_none() {
                     todo!("TODO: ?::None");
@@ -1081,8 +1087,26 @@ impl StmtVisitor<Option<FeType>, Result<bool>> for FeTypeResolver {
                 loop_expr.resolved_type = Some(resolved_type);
                 changed = true;
             }
-            BreakHandler::WhileStmt(while_stmt) => todo!(),
-            BreakHandler::WhileExpr(while_expr) => todo!(),
+            BreakHandler::WhileExpr(while_expr) => {
+                if stmt.value.is_none() {
+                    todo!("TODO: ?::None");
+                }
+
+                let while_expr = &mut *while_expr.try_lock().unwrap();
+
+                if let Some(Some(loop_typ)) = &while_expr.resolved_type {
+                    let Some(typ) = &resolved_type else {
+                            todo!();
+                        };
+
+                    if !Self::can_implicit_cast(&typ, loop_typ) {
+                        todo!();
+                    }
+                }
+
+                while_expr.resolved_type = Some(resolved_type);
+                changed = true;
+            }
         }
 
         return Ok(changed);
@@ -2090,6 +2114,8 @@ impl Scope {
     }
 
     pub fn handle_then(&self, label: Option<Arc<Token>>) -> Option<ThenHandler> {
+        let label = label.as_ref().map(|label| label.lexeme.as_ref());
+
         for scope in self.stack.iter().rev() {
             match &scope.creator {
                 Some(ScopeCreator::IfStmt(block, v)) => {
@@ -2099,7 +2125,7 @@ impl Scope {
                 }
 
                 Some(ScopeCreator::IfExpr(block, v)) => {
-                    if let Some(label) = &label {
+                    if let Some(label) = label {
                         let scope_label = match block {
                             IfBlock::Then => match &v.lock().unwrap().then {
                                 IfExprThen::Block(then) => then.label.clone(),
@@ -2121,7 +2147,7 @@ impl Scope {
                             continue;
                         };
 
-                        if label.lexeme.as_ref() != scope_label.lexeme.as_ref() {
+                        if label != scope_label.lexeme.as_ref() {
                             continue;
                         }
                     }
@@ -2137,28 +2163,54 @@ impl Scope {
     }
 
     pub fn handle_break(&self, label: Option<Arc<Token>>) -> Option<BreakHandler> {
+        let label = label.as_ref().map(|label| label.lexeme.as_ref());
+
         for scope in self.stack.iter().rev() {
             match &scope.creator {
                 Some(ScopeCreator::LoopStmt(v)) => {
-                    if label == v.try_lock().unwrap().label {
+                    if label
+                        == v.try_lock()
+                            .unwrap()
+                            .label
+                            .as_ref()
+                            .map(|l| l.lexeme.as_ref())
+                    {
                         return Some(BreakHandler::LoopStmt(v.clone()));
                     }
                 }
 
                 Some(ScopeCreator::LoopExpr(v)) => {
-                    if label == v.try_lock().unwrap().label {
+                    if label
+                        == v.try_lock()
+                            .unwrap()
+                            .label
+                            .as_ref()
+                            .map(|l| l.lexeme.as_ref())
+                    {
                         return Some(BreakHandler::LoopExpr(v.clone()));
                     }
                 }
 
                 Some(ScopeCreator::WhileStmt(v)) => {
-                    if label == v.try_lock().unwrap().label {
+                    if label
+                        == v.try_lock()
+                            .unwrap()
+                            .label
+                            .as_ref()
+                            .map(|l| l.lexeme.as_ref())
+                    {
                         return Some(BreakHandler::WhileStmt(v.clone()));
                     }
                 }
 
                 Some(ScopeCreator::WhileExpr(v)) => {
-                    if label == v.try_lock().unwrap().label {
+                    if label
+                        == v.try_lock()
+                            .unwrap()
+                            .label
+                            .as_ref()
+                            .map(|l| l.lexeme.as_ref())
+                    {
                         return Some(BreakHandler::WhileExpr(v.clone()));
                     }
                 }
