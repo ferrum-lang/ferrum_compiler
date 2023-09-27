@@ -4,6 +4,7 @@ pub mod ir;
 pub mod lexer;
 pub mod parser;
 pub mod project_gen;
+pub mod reader;
 pub mod result;
 pub mod source;
 pub mod syntax;
