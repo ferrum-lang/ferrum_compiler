@@ -585,9 +585,10 @@ impl<T: ResolvedType> From<CallExpr<()>> for CallExpr<Option<T>> {
 }
 
 impl<T: ResolvedType> Resolvable for CallExpr<Option<T>> {
+    #[allow(clippy::nonminimal_bool)]
     fn is_resolved(&self) -> bool {
         if let Some(resolved_type) = &self.resolved_type {
-            if resolved_type.is_none() {
+            if !resolved_type.is_some() {
                 dbg!("false");
                 return false;
             }
@@ -656,8 +657,9 @@ impl<T: ResolvedType> From<CallArg<()>> for CallArg<Option<T>> {
 }
 
 impl<T: ResolvedType> Resolvable for CallArg<Option<T>> {
+    #[allow(clippy::nonminimal_bool)]
     fn is_resolved(&self) -> bool {
-        if self.resolved_type.is_none() {
+        if !self.resolved_type.is_some() {
             dbg!("false");
             return false;
         }
@@ -1638,7 +1640,7 @@ impl<T: ResolvedType> IsTerminal<T> for LoopExpr<T> {
             return *resolved;
         }
 
-        let mut is_terminal = false;
+        let is_terminal = false;
 
         // TODO: same issues as loop expr
 
@@ -1716,7 +1718,7 @@ impl<T: ResolvedType> IsTerminal<T> for WhileExpr<T> {
             return *resolved;
         }
 
-        let mut is_terminal = false;
+        let is_terminal = false;
 
         // TODO: same issues as while expr
 

@@ -1,7 +1,7 @@
 use super::*;
 
 use crate::token::Token;
-use crate::utils::{from, invert, try_from};
+use crate::utils::{from, try_from};
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct Use<ResolvedType = ()> {
@@ -142,7 +142,7 @@ impl<T: ResolvedType> From<UseStaticPath<()>> for UseStaticPath<Option<T>> {
         return Self {
             pre: value.pre,
             name: value.name,
-            details: value.details.map_a(|next| from(next)).map_b(|_| None),
+            details: value.details.map_a(from).map_b(|_| None),
         };
     }
 }
@@ -174,14 +174,15 @@ impl<T: ResolvedType> TryFrom<UseStaticPath<Option<T>>> for UseStaticPath<T> {
         return Ok(Self {
             pre: value.pre,
             name: value.name,
-            details: value.details.try_map_a(|next| try_from(next))?.try_map_b(
-                |resolved_type| {
+            details: value
+                .details
+                .try_map_a(try_from)?
+                .try_map_b(|resolved_type| {
                     resolved_type.ok_or(FinalizeResolveTypeError {
                         file: file!(),
                         line: line!(),
                     })
-                },
-            )?,
+                })?,
         });
     }
 }
@@ -295,7 +296,7 @@ impl<T: ResolvedType> TryFrom<UseStaticPathNextMany<Option<T>>> for UseStaticPat
             nexts: value
                 .nexts
                 .into_iter()
-                .map(|next| try_from(next))
+                .map(try_from)
                 .collect::<Result<Vec<UseStaticPathNextManyItem<T>>, Self::Error>>()?,
             close_brace: value.close_brace,
         });

@@ -33,8 +33,8 @@ impl<T: ResolvedType> PartialEq for Decl<T> {
 impl<T: ResolvedType> Node<Decl> for Decl<T> {
     fn node_id(&self) -> NodeId<Decl> {
         match self {
-            Self::Fn(decl) => return decl.try_lock().unwrap().node_id().clone(),
-            Self::Struct(decl) => return decl.try_lock().unwrap().node_id().clone(),
+            Self::Fn(decl) => return decl.try_lock().unwrap().node_id(),
+            Self::Struct(decl) => return decl.try_lock().unwrap().node_id(),
         }
     }
 }

@@ -62,16 +62,16 @@ impl FeLexer {
     }
 
     pub fn new(source_pkg: Arc<Mutex<FeSourcePackage>>) -> Self {
-        let out = source_pkg.lock().unwrap().clone().into();
+        let out = source_pkg.try_lock().unwrap().clone().into();
 
         return Self { source_pkg, out };
     }
 
     pub fn scan(mut self) -> Result<FeTokenPackage> {
-        fn _scan<'a, 'b>(
-            src_pkg: &'a FeSourcePackage,
-            out: &'b mut FeTokenPackage,
-        ) -> Result<&'b mut FeTokenPackage> {
+        fn _scan<'a>(
+            src_pkg: &FeSourcePackage,
+            out: &'a mut FeTokenPackage,
+        ) -> Result<&'a mut FeTokenPackage> {
             match (src_pkg, &mut *out) {
                 (FeSourcePackage::File(source_file), FeTokenPackage::File(token_file)) => {
                     FeSourceScanner::scan_source(
@@ -92,7 +92,10 @@ impl FeLexer {
                             .get(&TokenPackageName::from(name.clone()))
                             .expect("source doesn't match tokens structure");
 
-                        _scan(&source_pkg.lock().unwrap(), &mut token_pkg.lock().unwrap())?;
+                        _scan(
+                            &source_pkg.try_lock().unwrap(),
+                            &mut token_pkg.try_lock().unwrap(),
+                        )?;
                     }
                 }
 
@@ -102,7 +105,7 @@ impl FeLexer {
             return Ok(out);
         }
 
-        _scan(&*self.source_pkg.lock().unwrap(), &mut self.out)?;
+        _scan(&self.source_pkg.try_lock().unwrap(), &mut self.out)?;
 
         return Ok(self.out);
     }
@@ -244,7 +247,7 @@ impl FeSourceScanner {
             }
 
             c if self.is_digit(c) => Some(self.number()),
-            c if self.is_alpha(c) => Some(self.identifier()),
+            c if self.is_letter(c) => Some(self.identifier()),
 
             c => todo!("TODO: Support [{c}]\n{}", &self.source[self.cursor..]),
         };
@@ -340,13 +343,11 @@ impl FeSourceScanner {
             return TokenType::Label;
         };
 
-        if !c.is_whitespace() || c == ' ' {
-            if self.peek_offset(2) == Some('\'') {
-                self.advance_col();
-                self.advance_col();
+        if (!c.is_whitespace() || c == ' ') && self.peek_offset(2) == Some('\'') {
+            self.advance_col();
+            self.advance_col();
 
-                return TokenType::Char;
-            }
+            return TokenType::Char;
         }
 
         if c.is_ascii_alphabetic() {
@@ -398,7 +399,7 @@ impl FeSourceScanner {
 
     fn identifier(&mut self) -> TokenType {
         while let Some(peek) = self.peek_next() {
-            if !self.is_alpha_numeric(peek) {
+            if !self.is_letter_or_digit(peek) {
                 break;
             }
 
@@ -420,7 +421,7 @@ impl FeSourceScanner {
     fn add_token(&mut self, token_type: TokenType) {
         let text = &self.source[self.span.start.index..=self.span.end.index];
 
-        self.out.lock().unwrap().push(Arc::new(Token {
+        self.out.try_lock().unwrap().push(Arc::new(Token {
             token_type,
             lexeme: text.into(),
             span: self.span.clone(),
@@ -443,16 +444,16 @@ impl FeSourceScanner {
         self.span.end.column = 1;
     }
 
-    fn is_alpha(&self, c: char) -> bool {
-        return (c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z') || c == '_';
+    fn is_letter(&self, c: char) -> bool {
+        return c.is_ascii_alphabetic() || c == '_';
     }
 
     fn is_digit(&self, c: char) -> bool {
-        return c >= '0' && c <= '9';
+        return c.is_ascii_digit();
     }
 
-    fn is_alpha_numeric(&self, c: char) -> bool {
-        return self.is_alpha(c) || self.is_digit(c);
+    fn is_letter_or_digit(&self, c: char) -> bool {
+        return self.is_letter(c) || self.is_digit(c);
     }
 
     fn is_end(&self) -> bool {

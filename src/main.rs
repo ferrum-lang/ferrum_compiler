@@ -1,3 +1,5 @@
+#![allow(clippy::needless_return)]
+
 use ferrum_compiler::code_gen::*;
 use ferrum_compiler::executor::*;
 use ferrum_compiler::ir::*;

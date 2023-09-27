@@ -259,6 +259,7 @@ impl<T: ResolvedType> From<VarDeclStmt<()>> for VarDeclStmt<Option<T>> {
 }
 
 impl<T: ResolvedType> Resolvable for VarDeclStmt<Option<T>> {
+    #[allow(clippy::nonminimal_bool)]
     fn is_resolved(&self) -> bool {
         if !self.target.is_resolved() {
             return false;
@@ -309,9 +310,7 @@ impl<T: ResolvedType> PartialEq for VarDeclTarget<T> {
     fn eq(&self, other: &Self) -> bool {
         match self {
             Self::Ident(d) => {
-                let Self::Ident(other) = other else {
-                    return false;
-                };
+                let Self::Ident(other) = other;
                 let cloned = { d.try_lock().unwrap().clone() };
                 return PartialEq::eq(&cloned, &other.try_lock().unwrap());
             }
@@ -444,6 +443,7 @@ impl<T: ResolvedType> From<AssignStmt<()>> for AssignStmt<Option<T>> {
 }
 
 impl<T: ResolvedType> Resolvable for AssignStmt<Option<T>> {
+    #[allow(clippy::nonminimal_bool)]
     fn is_resolved(&self) -> bool {
         if !self.target.is_resolved() {
             return false;
@@ -764,7 +764,7 @@ impl<T: ResolvedType> IsTerminal<T> for LoopStmt<T> {
             return *resolved;
         }
 
-        let mut is_terminal = false;
+        let is_terminal = false;
 
         // TODO: check for infinite loop?
         // TODO: check for loop that is terminal without just breaking out of the loop?
@@ -989,6 +989,7 @@ impl<T: ResolvedType> From<BreakStmt<()>> for BreakStmt<Option<T>> {
 }
 
 impl<T: ResolvedType> Resolvable for BreakStmt<Option<T>> {
+    #[allow(clippy::nonminimal_bool)]
     fn is_resolved(&self) -> bool {
         if let Some(value) = &self.value {
             if !value.is_resolved() {
@@ -1112,6 +1113,7 @@ impl<T: ResolvedType> From<ThenStmt<()>> for ThenStmt<Option<T>> {
 }
 
 impl<T: ResolvedType> Resolvable for ThenStmt<Option<T>> {
+    #[allow(clippy::nonminimal_bool)]
     fn is_resolved(&self) -> bool {
         if !self.value.is_resolved() {
             dbg!("false");

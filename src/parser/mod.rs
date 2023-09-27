@@ -1,9 +1,7 @@
-use crate::result;
 use crate::result::Result;
 use crate::syntax::*;
 use crate::token::*;
 
-use std::marker;
 use std::sync::{Arc, Mutex};
 
 use thiserror::Error;
@@ -21,26 +19,26 @@ impl FeSyntaxParser {
     }
 
     pub fn new(token_pkg: Arc<Mutex<FeTokenPackage>>) -> Self {
-        let out = token_pkg.lock().unwrap().clone().into();
+        let out = token_pkg.try_lock().unwrap().clone().into();
 
         return Self { token_pkg, out };
     }
 
     pub fn parse(mut self) -> Result<FeSyntaxPackage> {
-        fn _parse<'a, 'b>(
-            token_pkg: &'a FeTokenPackage,
-            syntax_pkg: &'b mut FeSyntaxPackage,
-        ) -> Result<&'b mut FeSyntaxPackage> {
+        fn _parse<'a>(
+            token_pkg: &FeTokenPackage,
+            syntax_pkg: &'a mut FeSyntaxPackage,
+        ) -> Result<&'a mut FeSyntaxPackage> {
             match (token_pkg, &mut *syntax_pkg) {
                 (FeTokenPackage::File(token_file), FeSyntaxPackage::File(syntax_file)) => {
                     FeTokenSyntaxParser::parse_syntax(
-                        token_file.tokens.lock().unwrap().clone(),
+                        token_file.tokens.try_lock().unwrap().clone(),
                         syntax_file.syntax.clone(),
                     )?;
                 }
                 (FeTokenPackage::Dir(token_dir), FeSyntaxPackage::Dir(syntax_dir)) => {
                     FeTokenSyntaxParser::parse_syntax(
-                        token_dir.entry_file.tokens.lock().unwrap().clone(),
+                        token_dir.entry_file.tokens.try_lock().unwrap().clone(),
                         syntax_dir.entry_file.syntax.clone(),
                     )?;
 
@@ -50,7 +48,10 @@ impl FeSyntaxParser {
                             .get(&SyntaxPackageName::from(name.clone()))
                             .expect("tokens doesn't match syntax structure");
 
-                        _parse(&token_pkg.lock().unwrap(), &mut syntax_pkg.lock().unwrap())?;
+                        _parse(
+                            &token_pkg.try_lock().unwrap(),
+                            &mut syntax_pkg.try_lock().unwrap(),
+                        )?;
                     }
                 }
 
@@ -59,7 +60,7 @@ impl FeSyntaxParser {
 
             return Ok(syntax_pkg);
         }
-        _parse(&*self.token_pkg.lock().unwrap(), &mut self.out)?;
+        _parse(&self.token_pkg.try_lock().unwrap(), &mut self.out)?;
 
         return Ok(self.out);
     }
@@ -110,7 +111,7 @@ impl FeTokenSyntaxParser {
                 Ok(None) => break,
 
                 Ok(Some(use_decl)) => {
-                    self.out.lock().unwrap().uses.push(use_decl);
+                    self.out.try_lock().unwrap().uses.push(use_decl);
 
                     if !self.is_at_end() {
                         self.consume(&TokenType::Newline, "Expect newline after use")?;
@@ -129,7 +130,7 @@ impl FeTokenSyntaxParser {
 
             match self.declaration() {
                 Ok(decl) => {
-                    self.out.lock().unwrap().decls.push(decl);
+                    self.out.try_lock().unwrap().decls.push(decl);
 
                     if !self.is_at_end() {
                         self.consume(&TokenType::Newline, "Expect newline after declaration")?;
@@ -148,13 +149,10 @@ impl FeTokenSyntaxParser {
         let use_mod = self.use_mod();
 
         let Some(use_token) = self.match_any(&[TokenType::Use], WithNewlines::None) else {
-            match use_mod {
-                Some(UseMod::Pub(_)) => {
-                    self.backtrack();
-                },
-
-                None => {}
+            if let Some(UseMod::Pub(_)) = use_mod {
+                self.backtrack();
             }
+
 
             return Ok(None);
         };
@@ -185,10 +183,9 @@ impl FeTokenSyntaxParser {
             Some(UseStaticPathPre::DoubleColon(token))
         } else if let Some(token) = self.match_any(&[TokenType::DotSlash], WithNewlines::None) {
             Some(UseStaticPathPre::CurrentDir(token))
-        } else if let Some(token) = self.match_any(&[TokenType::TildeSlash], WithNewlines::None) {
-            Some(UseStaticPathPre::RootDir(token))
         } else {
-            None
+            self.match_any(&[TokenType::TildeSlash], WithNewlines::None)
+                .map(UseStaticPathPre::RootDir)
         };
 
         let name = self.consume(&TokenType::Ident, "Expect name of import")?;
@@ -479,6 +476,7 @@ impl FeTokenSyntaxParser {
             });
     }
 
+    #[allow(clippy::type_complexity)]
     fn code_block_with_any_end(
         &mut self,
         any_end: &[TokenType],
@@ -696,7 +694,7 @@ impl FeTokenSyntaxParser {
         let mut semicolon_token = Some(end.clone());
 
         let then = if end.token_type == TokenType::Then {
-            if let Some(_) = self.match_any(&[TokenType::Newline], WithNewlines::None) {
+            if self.allow_one_newline() {
                 let (stmts, then_end) =
                     self.code_block_with_any_end(&[TokenType::Semicolon, TokenType::Else])?;
 
@@ -739,7 +737,7 @@ impl FeTokenSyntaxParser {
         };
 
         let else_ = if end.token_type == TokenType::Else {
-            if let Some(_) = self.match_any(&[TokenType::Newline], WithNewlines::None) {
+            if self.allow_one_newline() {
                 let (stmts, else_end) = self.code_block_with_any_end(&[TokenType::Semicolon])?;
 
                 let else_block = CodeBlock {
@@ -749,7 +747,7 @@ impl FeTokenSyntaxParser {
 
                 let else_token = end;
                 end = else_end;
-                semicolon_token = Some(end.clone());
+                semicolon_token = Some(end);
 
                 Some(WhileExprElse::Block(WhileExprElseBlock {
                     else_token,
@@ -757,7 +755,7 @@ impl FeTokenSyntaxParser {
                 }))
             } else {
                 let else_expr = NestedExpr(self.expression()?);
-                let else_token = end.clone();
+                let else_token = end;
 
                 semicolon_token = None;
 
@@ -873,7 +871,7 @@ impl FeTokenSyntaxParser {
             }
 
             if end_token.token_type == TokenType::Else {
-                let _ = self.match_any(&[TokenType::Newline], WithNewlines::None);
+                let _ = self.allow_one_newline();
 
                 let (stmts, end) = self.code_block_with_any_end(&[TokenType::Semicolon])?;
 
@@ -1016,7 +1014,7 @@ impl FeTokenSyntaxParser {
                 if end_token.token_type == TokenType::Else {
                     let label = self.match_any(&[TokenType::Label], WithNewlines::None);
 
-                    if let Some(_) = self.match_any(&[TokenType::Newline], WithNewlines::None) {
+                    if self.allow_one_newline() {
                         let (stmts, end) = self.code_block_with_any_end(&[TokenType::Semicolon])?;
 
                         let block = CodeBlock {
@@ -1026,7 +1024,7 @@ impl FeTokenSyntaxParser {
 
                         let else_token = end_token;
                         end_token = end;
-                        semicolon_token = Some(end_token.clone());
+                        semicolon_token = Some(end_token);
 
                         else_ = Some(IfExprElse::Block(IfExprElseBlock {
                             else_token,
@@ -1180,7 +1178,7 @@ impl FeTokenSyntaxParser {
     }
 
     fn or(&mut self) -> Result<Arc<Mutex<Expr>>> {
-        let mut expr = self.and()?;
+        let expr = self.and()?;
 
         /*
         while let Some(operator) = self.match_any(&[TokenType::Or], WithNewlines::One) {
@@ -1199,7 +1197,7 @@ impl FeTokenSyntaxParser {
     }
 
     fn and(&mut self) -> Result<Arc<Mutex<Expr>>> {
-        let mut expr = self.equality()?;
+        let expr = self.equality()?;
 
         /*
         while let Some(operator) = self.match_any(&[TokenType::And], WithNewlines::One) {
@@ -1218,7 +1216,7 @@ impl FeTokenSyntaxParser {
     }
 
     fn equality(&mut self) -> Result<Arc<Mutex<Expr>>> {
-        let mut expr = self.comparison()?;
+        let expr = self.comparison()?;
 
         /*
         while let Some(op_token) = self.match_any(
@@ -1294,7 +1292,7 @@ impl FeTokenSyntaxParser {
     }
 
     fn range(&mut self) -> Result<Arc<Mutex<Expr>>> {
-        let mut expr = self.term()?;
+        let expr = self.term()?;
 
         /*
         while let Some(op_token) = self.match_any(&[TokenType::DotDot], WithNewlines::One) {
@@ -1357,7 +1355,7 @@ impl FeTokenSyntaxParser {
     }
 
     fn factor(&mut self) -> Result<Arc<Mutex<Expr>>> {
-        let mut expr = self.modulo()?;
+        let expr = self.modulo()?;
 
         /*
         while let Some(op_token) =
@@ -1392,7 +1390,7 @@ impl FeTokenSyntaxParser {
     }
 
     fn modulo(&mut self) -> Result<Arc<Mutex<Expr>>> {
-        let mut expr = self.unary()?;
+        let expr = self.unary()?;
 
         /*
         while let Some(op_token) = self.match_any(&[TokenType::Percent], WithNewlines::One) {
@@ -1558,14 +1556,15 @@ impl FeTokenSyntaxParser {
             || (self.check(&TokenType::Ident) && self.check_offset(1, &TokenType::DoubleColon))
         {
             Some(ConstructTarget::StaticPath(self.static_path()?))
-        } else if let Some(ident) = self.match_any(&[TokenType::Ident], WithNewlines::None) {
-            Some(ConstructTarget::Ident(Arc::new(Mutex::new(IdentExpr {
-                id: NodeId::gen(),
-                ident,
-                resolved_type: (),
-            }))))
         } else {
-            None
+            self.match_any(&[TokenType::Ident], WithNewlines::None)
+                .map(|ident| {
+                    ConstructTarget::Ident(Arc::new(Mutex::new(IdentExpr {
+                        id: NodeId::gen(),
+                        ident,
+                        resolved_type: (),
+                    })))
+                })
         };
 
         if let Some(ident_expr) = ident_expr {
@@ -1866,7 +1865,7 @@ impl FeTokenSyntaxParser {
         return ParserError::Error { message };
     }
 
-    fn error(&mut self, message: String, t: Arc<Token>) -> ParserError {
+    fn error(&mut self, message: String, _t: Arc<Token>) -> ParserError {
         // self.error_ctx.token_error(t, message.clone());
 
         return ParserError::Error { message };

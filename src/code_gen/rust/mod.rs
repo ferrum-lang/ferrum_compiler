@@ -82,7 +82,7 @@ impl RustCodeGen {
         return Ok(self.out);
     }
 
-    fn gen_use_path(&mut self, use_path: &mut ir::RustIRUseStaticPath) -> Result<Arc<str>> {
+    fn gen_use_path(use_path: &mut ir::RustIRUseStaticPath) -> Result<Arc<str>> {
         let mut out = String::new();
 
         match use_path.pre {
@@ -99,11 +99,11 @@ impl RustCodeGen {
             Some(ir::RustIRUseStaticPathNext::Single(single)) => {
                 out.push_str("::");
 
-                let code = self.gen_use_path(&mut single.path)?;
+                let code = Self::gen_use_path(&mut single.path)?;
                 out.push_str(&code);
             }
 
-            Some(ir::RustIRUseStaticPathNext::Many(many)) => {
+            Some(ir::RustIRUseStaticPathNext::Many(_many)) => {
                 todo!()
             }
 
@@ -122,14 +122,14 @@ impl RustCodeGen {
             None => {}
         }
 
-        out.push_str(&self.translate_static_path(&mut static_type.static_path));
+        out.push_str(&Self::translate_static_path(&mut static_type.static_path));
 
         return out.into();
     }
 
-    fn translate_static_path(&mut self, static_path: &mut ir::RustIRStaticPath) -> Arc<str> {
+    fn translate_static_path(static_path: &mut ir::RustIRStaticPath) -> Arc<str> {
         if let Some(root) = &mut static_path.root {
-            let mut out = self.translate_static_path(&mut *root).to_string();
+            let mut out = Self::translate_static_path(&mut *root).to_string();
 
             out.push_str("::");
 
@@ -142,7 +142,7 @@ impl RustCodeGen {
     }
 
     fn new_line(&self) -> String {
-        let mut out = format!("\n");
+        let mut out = String::from("\n");
 
         for _ in 0..self.indent {
             out.push_str("    ");
@@ -164,7 +164,7 @@ impl ir::RustIRUseVisitor<Result<Arc<str>>> for RustCodeGen {
 
         out.push_str("use ");
 
-        let use_path_code = self.gen_use_path(&mut use_decl.path)?;
+        let use_path_code = Self::gen_use_path(&mut use_decl.path)?;
         out.push_str(&use_path_code);
 
         out.push(';');
@@ -178,7 +178,7 @@ impl ir::RustIRStaticVisitor<Result<Arc<str>>> for RustCodeGen {
         let mut out = String::new();
 
         match &static_type.ref_type {
-            Some(RustIRRefType::Shared) => out.push_str("&"),
+            Some(RustIRRefType::Shared) => out.push('&'),
             Some(RustIRRefType::Mut) => out.push_str("&mut "),
 
             None => {}
@@ -296,7 +296,7 @@ impl ir::RustIRDeclVisitor<Result<Arc<str>>> for RustCodeGen {
         self.indent -= 1;
         out.push_str(&self.new_line());
 
-        out.push_str("}");
+        out.push('}');
 
         return Ok(out.into());
     }
@@ -331,7 +331,7 @@ impl ir::RustIRStmtVisitor<Result<Arc<str>>> for RustCodeGen {
         out.push_str(&stmt.name);
         out.push(' ');
 
-        if let Some(_) = stmt.explicit_type {
+        if stmt.explicit_type.is_some() {
             todo!()
         }
 
@@ -649,10 +649,10 @@ impl ir::RustIRExprVisitor<Result<Arc<str>>> for RustCodeGen {
         let mut out = String::new();
 
         match &mut expr.target {
-            ir::RustIRConstructTarget::Ident(ident) => out.push_str(&ident),
+            ir::RustIRConstructTarget::Ident(ident) => out.push_str(ident),
 
             ir::RustIRConstructTarget::StaticPath(path) => {
-                let code = self.translate_static_path(path);
+                let code = Self::translate_static_path(path);
                 out.push_str(&code);
             }
         }

@@ -18,8 +18,8 @@ pub use r#static::*;
 
 use crate::r#type::FeType;
 use crate::result::Result;
-use crate::token::{self, Token};
-use crate::utils::{fe_from, fe_try_from, from, invert, try_from};
+use crate::token;
+use crate::utils::{fe_from, fe_try_from};
 
 use std::collections::HashMap;
 use std::path::PathBuf;
@@ -232,8 +232,8 @@ impl<T: ResolvedType> From<SyntaxTree<()>> for SyntaxTree<Option<T>> {
     fn from(value: SyntaxTree<()>) -> Self {
         return Self {
             mods: value.mods,
-            uses: value.uses.into_iter().map(|u| fe_from(u)).collect(),
-            decls: value.decls.into_iter().map(|d| fe_from(d)).collect(),
+            uses: value.uses.into_iter().map(fe_from).collect(),
+            decls: value.decls.into_iter().map(fe_from).collect(),
         };
     }
 }
@@ -267,12 +267,12 @@ impl<T: ResolvedType> TryFrom<SyntaxTree<Option<T>>> for SyntaxTree<T> {
             uses: value
                 .uses
                 .into_iter()
-                .map(|u| fe_try_from(u))
+                .map(fe_try_from)
                 .collect::<Result<Vec<Arc<Mutex<Use<T>>>>, Self::Error>>()?,
             decls: value
                 .decls
                 .into_iter()
-                .map(|d| fe_try_from(d))
+                .map(fe_try_from)
                 .collect::<Result<Vec<Arc<Mutex<Decl<T>>>>, Self::Error>>()?,
         });
     }

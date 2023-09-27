@@ -10,6 +10,6 @@ impl<T: Deref<Target = str>> StringUtils for T {
             return None;
         }
 
-        return self.chars().skip(index).next();
+        return self.chars().nth(index);
     }
 }
