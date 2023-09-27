@@ -37,7 +37,7 @@ pub fn main()
 
     mut count = 0
 
-    const count = loop
+    const out = loop
         if count >= 5
             break count + count
         ;
@@ -45,6 +45,32 @@ pub fn main()
         count += 1
     ;
 
-    print("Count = {count}")
+    print("Out = {out}")
+
+    // // //
+
+    mut count = 0
+
+    loop
+        if count >= 5
+            break
+        ;
+
+        count += 1
+    ;
+    const out = count + count
+
+    print("Out = {out}")
+
+    // // //
+
+    mut count = 0
+
+    while count < 5
+        count += 1
+    ;
+    const out = count + count
+
+    print("Out = {out}")
 ;
 

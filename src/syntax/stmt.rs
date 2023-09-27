@@ -1022,10 +1022,12 @@ impl<T: ResolvedType> TryFrom<BreakStmt<Option<T>>> for BreakStmt<T> {
             break_token: value.break_token,
             label: value.label,
             value: invert(value.value.map(try_from))?,
-            resolved_type: value.resolved_type.ok_or(FinalizeResolveTypeError {
-                file: file!(),
-                line: line!(),
-            })?,
+            resolved_type: invert(value.resolved_type.map(|resolved_type| {
+                resolved_type.ok_or(FinalizeResolveTypeError {
+                    file: file!(),
+                    line: line!(),
+                })
+            }))?,
             handler: value.handler,
         });
     }

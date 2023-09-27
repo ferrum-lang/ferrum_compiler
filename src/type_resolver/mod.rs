@@ -946,26 +946,77 @@ impl StmtVisitor<Option<FeType>, Result<bool>> for FeTypeResolver {
         &mut self,
         shared_stmt: Arc<Mutex<LoopStmt<Option<FeType>>>>,
     ) -> Result<bool> {
-        let mut stmt = shared_stmt.try_lock().unwrap();
+        {
+            let stmt = &mut *shared_stmt.try_lock().unwrap();
 
-        if stmt.is_resolved() {
-            return Ok(false);
+            if stmt.is_resolved() {
+                return Ok(false);
+            }
         }
 
-        todo!();
+        let mut changed = false;
+
+        let stmts = {
+            let stmt = &mut *shared_stmt.try_lock().unwrap();
+            stmt.block.stmts.clone()
+        };
+
+        self.scope
+            .try_lock()
+            .unwrap()
+            .begin_scope(Some(ScopeCreator::LoopStmt(shared_stmt.clone())));
+
+        self.breakable_count += 1;
+        let (local_changed, _terminal) = self.resolve_stmts(&stmts)?;
+        self.breakable_count -= 1;
+
+        self.scope.try_lock().unwrap().end_scope();
+
+        changed |= local_changed;
+
+        return Ok(changed);
     }
 
     fn visit_while_stmt(
         &mut self,
         shared_stmt: Arc<Mutex<WhileStmt<Option<FeType>>>>,
     ) -> Result<bool> {
-        let mut stmt = shared_stmt.try_lock().unwrap();
+        {
+            let stmt = &mut *shared_stmt.try_lock().unwrap();
 
-        if stmt.is_resolved() {
-            return Ok(false);
+            if stmt.is_resolved() {
+                return Ok(false);
+            }
         }
 
-        todo!();
+        let mut changed = false;
+
+        let condition = {
+            let stmt = &mut *shared_stmt.try_lock().unwrap();
+            stmt.condition.clone()
+        };
+
+        changed |= condition.0.try_lock().unwrap().accept(self)?;
+
+        let stmts = {
+            let stmt = &mut *shared_stmt.try_lock().unwrap();
+            stmt.block.stmts.clone()
+        };
+
+        self.scope
+            .try_lock()
+            .unwrap()
+            .begin_scope(Some(ScopeCreator::WhileStmt(shared_stmt.clone())));
+
+        self.breakable_count += 1;
+        let (local_changed, _terminal) = self.resolve_stmts(&stmts)?;
+        self.breakable_count -= 1;
+
+        self.scope.try_lock().unwrap().end_scope();
+
+        changed |= local_changed;
+
+        return Ok(changed);
     }
 
     fn visit_break_stmt(
@@ -984,43 +1035,54 @@ impl StmtVisitor<Option<FeType>, Result<bool>> for FeTypeResolver {
 
         let mut changed = false;
 
-        if let Some(value) = &stmt.value {
+        let resolved_type = if let Some(value) = &stmt.value {
             changed |= value.0.try_lock().unwrap().accept(self)?;
 
             if let Some(resolved_type) = value.0.try_lock().unwrap().resolved_type() {
                 stmt.resolved_type = Some(resolved_type.clone());
+                resolved_type
+            } else {
+                None
+            }
+        } else {
+            None
+        };
 
-                let Some(break_handler) = self.scope.try_lock().unwrap().handle_break(stmt.label.clone()) else {
-                    dbg!(&stmt, &self.scope);
-                    todo!();
-                };
+        let Some(break_handler) = self.scope.try_lock().unwrap().handle_break(stmt.label.clone()) else {
+            dbg!(&stmt, &self.scope);
+            todo!();
+        };
 
-                stmt.handler = Some(break_handler.clone());
+        stmt.handler = Some(break_handler.clone());
 
-                match break_handler {
-                    BreakHandler::LoopStmt(loop_stmt) => {
-                        todo!()
-                    }
-                    BreakHandler::LoopExpr(loop_expr) => {
-                        let loop_expr = &mut *loop_expr.try_lock().unwrap();
+        match break_handler {
+            BreakHandler::LoopStmt(_loop_stmt) => {
+                if stmt.value.is_some() {
+                    todo!("Can't break a value");
+                }
+            }
+            BreakHandler::LoopExpr(loop_expr) => {
+                if stmt.value.is_none() {
+                    todo!("TODO: ?::None");
+                }
 
-                        if let Some(Some(loop_typ)) = &loop_expr.resolved_type {
-                            let Some(typ) = &resolved_type else {
+                let loop_expr = &mut *loop_expr.try_lock().unwrap();
+
+                if let Some(Some(loop_typ)) = &loop_expr.resolved_type {
+                    let Some(typ) = &resolved_type else {
                             todo!();
                         };
 
-                            if !Self::can_implicit_cast(&typ, loop_typ) {
-                                todo!();
-                            }
-                        }
-
-                        loop_expr.resolved_type = Some(resolved_type);
-                        changed = true;
+                    if !Self::can_implicit_cast(&typ, loop_typ) {
+                        todo!();
                     }
-                    BreakHandler::WhileStmt(while_stmt) => todo!(),
-                    BreakHandler::WhileExpr(while_expr) => todo!(),
                 }
+
+                loop_expr.resolved_type = Some(resolved_type);
+                changed = true;
             }
+            BreakHandler::WhileStmt(while_stmt) => todo!(),
+            BreakHandler::WhileExpr(while_expr) => todo!(),
         }
 
         return Ok(changed);

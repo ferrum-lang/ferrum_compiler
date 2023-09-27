@@ -37,7 +37,7 @@ impl RustSyntaxCompiler {
     }
 
     fn compile(mut self) -> Result<ir::RustIR> {
-        self.compile_package(&mut Arc::clone(&self.entry).lock().unwrap())?;
+        self.compile_package(&mut Arc::clone(&self.entry).try_lock().unwrap())?;
 
         return Ok(self.out);
     }
@@ -460,41 +460,45 @@ impl StmtVisitor<FeType, Result<Vec<ir::RustIRStmt>>> for RustSyntaxCompiler {
         &mut self,
         stmt: Arc<Mutex<LoopStmt<FeType>>>,
     ) -> Result<Vec<ir::RustIRStmt>> {
-        let mut stmt = stmt.lock().unwrap();
+        let mut stmt = stmt.try_lock().unwrap();
 
-        todo!();
+        let label = stmt.label.as_ref().map(|l| l.lexeme.clone());
 
-        // let mut stmts = vec![];
+        let mut stmts = vec![];
+        for stmt in &mut stmt.block.stmts {
+            let ir_stmts = stmt.lock().unwrap().accept(self)?;
+            stmts.extend(ir_stmts);
+        }
 
-        // for stmt in &mut stmt.inner.block.stmts {
-        //     let ir_stmts = stmt.lock().unwrap().accept(self)?;
-        //     stmts.extend(ir_stmts);
-        // }
-
-        // return Ok(vec![ir::RustIRStmt::Loop(ir::RustIRLoopStmt { stmts })]);
+        return Ok(vec![ir::RustIRStmt::ImplicitReturn(
+            ir::RustIRImplicitReturnStmt {
+                expr: ir::RustIRExpr::Loop(ir::RustIRLoopExpr { label, stmts }),
+            },
+        )]);
     }
 
     fn visit_while_stmt(
         &mut self,
         stmt: Arc<Mutex<WhileStmt<FeType>>>,
     ) -> Result<Vec<ir::RustIRStmt>> {
-        let mut stmt = stmt.lock().unwrap();
+        let mut stmt = stmt.try_lock().unwrap();
 
-        todo!();
+        let condition = stmt.condition.0.try_lock().unwrap().accept(self)?;
 
-        // let condition = stmt.inner.condition.0.lock().unwrap().accept(self)?;
+        let mut stmts = vec![];
+        for stmt in &mut stmt.block.stmts {
+            let ir_stmts = stmt.try_lock().unwrap().accept(self)?;
+            stmts.extend(ir_stmts);
+        }
 
-        // let mut stmts = vec![];
+        if stmt.label.is_some() {
+            todo!("how? Maybe outer loop with break after while?");
+        }
 
-        // for stmt in &mut stmt.inner.block.stmts {
-        //     let ir_stmts = stmt.lock().unwrap().accept(self)?;
-        //     stmts.extend(ir_stmts);
-        // }
-
-        // return Ok(vec![ir::RustIRStmt::While(ir::RustIRWhileStmt {
-        //     condition,
-        //     stmts,
-        // })]);
+        return Ok(vec![ir::RustIRStmt::While(ir::RustIRWhileStmt {
+            condition,
+            stmts,
+        })]);
     }
 
     fn visit_break_stmt(
