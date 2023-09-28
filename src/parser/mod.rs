@@ -153,7 +153,6 @@ impl FeTokenSyntaxParser {
                 self.backtrack();
             }
 
-
             return Ok(None);
         };
 

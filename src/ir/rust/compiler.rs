@@ -210,7 +210,9 @@ impl RustSyntaxCompiler {
                     // No need to import print
                     return Ok(None);
                 } else {
-                    let Some(next_path) = Self::translate_use_static_path(&mut single.path)? else { return Ok(None) };
+                    let Some(next_path) = Self::translate_use_static_path(&mut single.path)? else {
+                        return Ok(None);
+                    };
 
                     Some(ir::RustIRUseStaticPathNext::Single(
                         ir::RustIRUseStaticPathNextSingle {

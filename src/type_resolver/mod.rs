@@ -104,7 +104,8 @@ impl FeTypeResolver {
 
         for (name, pkg) in &dir.local_packages {
             let scope = {
-                let ExportsPackage::Dir(dir) = &mut *self.current_pkg_exports.try_lock().unwrap() else {
+                let ExportsPackage::Dir(dir) = &mut *self.current_pkg_exports.try_lock().unwrap()
+                else {
                     todo!("how?")
                 };
 
@@ -575,7 +576,7 @@ impl DeclVisitor<Option<FeType>, Result<bool>> for FeTypeResolver {
         {
             let decl = &mut *shared_decl.try_lock().unwrap();
 
-            for mut param in &mut decl.params {
+            for param in &mut decl.params {
                 if let Some(resolved_type) = &param.resolved_type {
                     params.push((param.name.lexeme.clone(), resolved_type.clone()));
                 } else {
@@ -1067,7 +1068,12 @@ impl StmtVisitor<Option<FeType>, Result<bool>> for FeTypeResolver {
             None
         };
 
-        let Some(break_handler) = self.scope.try_lock().unwrap().handle_break(stmt.label.clone()) else {
+        let Some(break_handler) = self
+            .scope
+            .try_lock()
+            .unwrap()
+            .handle_break(stmt.label.clone())
+        else {
             dbg!(&stmt, &self.scope);
             todo!();
         };
@@ -1095,8 +1101,8 @@ impl StmtVisitor<Option<FeType>, Result<bool>> for FeTypeResolver {
 
                 if let Some(Some(loop_typ)) = &loop_expr.resolved_type {
                     let Some(typ) = &resolved_type else {
-                            todo!();
-                        };
+                        todo!();
+                    };
 
                     if !Self::can_implicit_cast(typ, loop_typ) {
                         todo!();
@@ -1115,8 +1121,8 @@ impl StmtVisitor<Option<FeType>, Result<bool>> for FeTypeResolver {
 
                 if let Some(Some(loop_typ)) = &while_expr.resolved_type {
                     let Some(typ) = &resolved_type else {
-                            todo!();
-                        };
+                        todo!();
+                    };
 
                     if !Self::can_implicit_cast(typ, loop_typ) {
                         todo!();
@@ -1152,7 +1158,12 @@ impl StmtVisitor<Option<FeType>, Result<bool>> for FeTypeResolver {
         if let Some(resolved_type) = stmt.value.0.try_lock().unwrap().resolved_type() {
             stmt.resolved_type = resolved_type.clone();
 
-            let Some(then_handler) = self.scope.try_lock().unwrap().handle_then(stmt.label.clone()) else {
+            let Some(then_handler) = self
+                .scope
+                .try_lock()
+                .unwrap()
+                .handle_then(stmt.label.clone())
+            else {
                 dbg!(&stmt, &self.scope);
                 todo!();
             };
@@ -1312,10 +1323,7 @@ impl ExprVisitor<Option<FeType>, Result<bool>> for FeTypeResolver {
             changed |= callee.accept(self)?;
         }
 
-        let Some(FeType::Callable(callee)) = self
-            .expr_lookup
-            .get(&callee.node_id())
-            .cloned()
+        let Some(FeType::Callable(callee)) = self.expr_lookup.get(&callee.node_id()).cloned()
         else {
             // todo!("Callee not found: {callee:?}");
             return Ok(false);
@@ -1597,7 +1605,11 @@ impl ExprVisitor<Option<FeType>, Result<bool>> for FeTypeResolver {
                         changed |= field.value.0.try_lock().unwrap().accept(self)?;
 
                         let Some(struct_field) = fields_map.get(&field.name.lexeme) else {
-                            todo!("No field found with name {:?} for struct {:?}", field.name.lexeme, target.name);
+                            todo!(
+                                "No field found with name {:?} for struct {:?}",
+                                field.name.lexeme,
+                                target.name
+                            );
                         };
 
                         if seen.contains(&field.name.lexeme) {
@@ -1665,7 +1677,11 @@ impl ExprVisitor<Option<FeType>, Result<bool>> for FeTypeResolver {
             // TODO: methods?
 
             let Some(field) = instance.fields.get(&expr.name.lexeme).cloned() else {
-                todo!("Couldn't find property {:#?} on instance {:#?}", expr.name, instance);
+                todo!(
+                    "Couldn't find property {:#?} on instance {:#?}",
+                    expr.name,
+                    instance
+                );
             };
 
             let resolved = match resolved {
