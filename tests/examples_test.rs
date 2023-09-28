@@ -7,7 +7,7 @@ use std::{env, fs};
 const CARGO_MANIFEST_DIR: &'static str = "CARGO_MANIFEST_DIR";
 
 #[test]
-fn examples_work() -> Result {
+fn test_that_examples_work() -> Result {
     let root_dir = PathBuf::from(env::var(CARGO_MANIFEST_DIR)?);
     let examples_dir = root_dir.join("examples");
 
