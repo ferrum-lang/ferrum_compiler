@@ -1,77 +1,77 @@
 use ::fe::print
 
 pub fn main()
-	then_labels(false, true)
+    then_labels(false, true)
 
-	break_labels()
+    break_labels()
 ;
 
 fn then_labels(is_live: Bool, use_mocks: Bool)
-	const config = if' is_live
+    const config = if' is_live
 
-		if use_mocks
-			print("Warning: Using mocks in a live environment")
+        if use_mocks
+            print("Warning: Using mocks in a live environment")
 
-			then' "LIVE,MOCKS"
-		else
-			then' "LIVE,INTEGRATIONS"
-		;
+            then' "LIVE,MOCKS"
+        else
+            then' "LIVE,INTEGRATIONS"
+        ;
 
-	else'my_custom_label
+    else'my_custom_label
 
-		if use_mocks
-			then'my_custom_label "LOCAL,MOCKS"
-		;
+        if use_mocks
+            then'my_custom_label "LOCAL,MOCKS"
+        ;
 
-		print("Warning: Using real integrations in your local environment")
+        print("Warning: Using real integrations in your local environment")
 
-		then "LOCAL,INTEGRATIONS"
-	;
-	print("Config: {config}")
+        then "LOCAL,INTEGRATIONS"
+    ;
+    print("Config: {config}")
 ;
 
 fn break_labels()
-	loop'a
-		mut i = 0
+    loop'a
+        mut i = 0
 
-		while'b i < 10
-			loop
-				i += 1
+        while'b i < 10
+            loop
+                i += 1
 
-				break
-			;
+                break
+            ;
 
-			i += 1
+            i += 1
 
-			print("i = {i}")
+            print("i = {i}")
 
-			loop
-				loop'c
-					while true
-						while'd true
-							break'b
-						;
+            loop
+                loop'c
+                    while true
+                        while'd true
+                            break'b
+                        ;
 
-						print("SHOULDN'T SEE THIS")
-					;
-				;
-			;
-		;
+                        print("SHOULDN'T SEE THIS")
+                    ;
+                ;
+            ;
+        ;
 
-		while'b true
-			while'a true
-				break'a
-			;
+        while'b true
+            while'a true
+                break'a
+            ;
 
-			print("Should see this")
+            print("Should see this")
 
-			loop'b
-				break'a
-			;
+            loop'b
+                break'a
+            ;
 
-			print("SHOULDN'T SEE THIS")
-		;
+            print("SHOULDN'T SEE THIS")
+        ;
 
-		print("SHOULDN'T SEE THIS")
-	;
+        print("SHOULDN'T SEE THIS")
+    ;
 ;
