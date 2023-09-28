@@ -9,7 +9,7 @@ impl RustExecutor {
     pub fn cargo_run(project_dir: &path::PathBuf) -> Result<process::Output> {
         let out = process::Command::new("cargo")
             .current_dir(project_dir)
-            .arg("run")
+            .args(&["run", "-q"])
             .stdin(process::Stdio::inherit())
             .stdout(process::Stdio::piped())
             .output()?;

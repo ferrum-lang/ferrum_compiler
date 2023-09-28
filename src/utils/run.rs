@@ -19,6 +19,8 @@ use std::process;
 use std::sync::{Arc, Mutex};
 
 pub fn run_full(root_dir: PathBuf) -> Result<process::Output> {
+    let gen_output_dir = root_dir.join(".ferrum/compiled_rust");
+
     // Read source files
     let source = Arc::new(Mutex::new(Reader::read_project_files(root_dir)?));
 
@@ -37,13 +39,11 @@ pub fn run_full(root_dir: PathBuf) -> Result<process::Output> {
     // Generate Rust code
     let rust_code = Arc::new(Mutex::new(RustCodeGen::generate_code(rust_ir)?));
 
-    let dst = PathBuf::from("./.ferrum/compiled_rust");
-
     // Write Rust output source files
-    let _ = RustProjectGen::generate_project_files(rust_code, &dst)?;
+    let _ = RustProjectGen::generate_project_files(rust_code, &gen_output_dir)?;
 
     // Run generated Rust project
-    let out = RustExecutor::cargo_run(&dst)?;
+    let out = RustExecutor::cargo_run(&gen_output_dir)?;
 
     return Ok(out);
 }

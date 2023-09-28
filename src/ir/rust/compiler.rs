@@ -170,6 +170,16 @@ impl RustSyntaxCompiler {
             };
         }
 
+        if path.root.is_none()
+            && path.name.lexeme.as_ref() == "Bool"
+            && matches!(path.resolved_type, FeType::Bool(_))
+        {
+            return ir::RustIRStaticPath {
+                root: None,
+                name: "bool".into(),
+            };
+        }
+
         return ir::RustIRStaticPath {
             root: path
                 .root

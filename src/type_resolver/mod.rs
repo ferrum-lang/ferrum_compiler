@@ -535,6 +535,11 @@ impl StaticVisitor<Option<FeType>, Result<bool>> for FeTypeResolver {
                     changed = true;
                 }
 
+                "Bool" => {
+                    static_path.resolved_type = Some(FeType::Bool(None));
+                    changed = true;
+                }
+
                 "Int" => {
                     static_path.resolved_type =
                         Some(FeType::Number(Some(NumberDetails::Integer(None))));
@@ -567,22 +572,21 @@ impl DeclVisitor<Option<FeType>, Result<bool>> for FeTypeResolver {
         let mut params = vec![];
         let mut all_resolved = true;
 
-        let decl_params = {
+        {
             let decl = &mut *shared_decl.try_lock().unwrap();
-            decl.params.clone()
-        };
 
-        for mut param in decl_params {
-            if let Some(resolved_type) = param.resolved_type {
-                params.push((param.name.lexeme.clone(), resolved_type));
-            } else {
-                changed |= param.static_type_ref.accept(self)?;
-                param.resolved_type = param.static_type_ref.resolved_type.clone();
-
-                if let Some(resolved_type) = param.resolved_type {
-                    params.push((param.name.lexeme.clone(), resolved_type));
+            for mut param in &mut decl.params {
+                if let Some(resolved_type) = &param.resolved_type {
+                    params.push((param.name.lexeme.clone(), resolved_type.clone()));
                 } else {
-                    all_resolved = false;
+                    changed |= param.static_type_ref.accept(self)?;
+                    param.resolved_type = param.static_type_ref.resolved_type.clone();
+
+                    if let Some(resolved_type) = &param.resolved_type {
+                        params.push((param.name.lexeme.clone(), resolved_type.clone()));
+                    } else {
+                        all_resolved = false;
+                    }
                 }
             }
         }
@@ -896,25 +900,42 @@ impl StmtVisitor<Option<FeType>, Result<bool>> for FeTypeResolver {
             self.scope.try_lock().unwrap().end_scope();
         }
 
-        let else_ifs = {
+        {
             let stmt = &mut *shared_stmt.try_lock().unwrap();
-            stmt.else_ifs.clone()
-        };
 
-        for (idx, else_if) in else_ifs.iter().enumerate() {
-            if !else_if.is_resolved() {
-                self.scope
-                    .try_lock()
-                    .unwrap()
-                    .begin_scope(Some(ScopeCreator::IfStmt(
-                        IfBlock::ElseIf(idx),
-                        shared_stmt.clone(),
-                    )));
+            for (idx, else_if) in stmt.else_ifs.iter().enumerate() {
+                if !else_if.is_resolved() {
+                    {
+                        let condition = &mut *else_if.condition.0.try_lock().unwrap();
 
-                let (local_changed, _terminal) = self.resolve_stmts(&else_if.then.stmts)?;
-                changed |= local_changed;
+                        if !condition.is_resolved() {
+                            changed |= condition.accept(self)?;
 
-                self.scope.try_lock().unwrap().end_scope();
+                            let Some(resolved_type) = condition.resolved_type() else {
+                                todo!("Can't check if condition on no type!");
+                            };
+
+                            if let Some(resolved_type) = resolved_type {
+                                if !Self::can_implicit_cast(&resolved_type, &FeType::Bool(None)) {
+                                    todo!("Can't cast to bool!");
+                                }
+                            }
+                        }
+                    }
+
+                    self.scope
+                        .try_lock()
+                        .unwrap()
+                        .begin_scope(Some(ScopeCreator::IfStmt(
+                            IfBlock::ElseIf(idx),
+                            shared_stmt.clone(),
+                        )));
+
+                    let (local_changed, _terminal) = self.resolve_stmts(&else_if.then.stmts)?;
+                    changed |= local_changed;
+
+                    self.scope.try_lock().unwrap().end_scope();
+                }
             }
         }
 

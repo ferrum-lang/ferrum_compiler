@@ -350,11 +350,11 @@ impl FeSourceScanner {
             return TokenType::Char;
         }
 
-        if c.is_ascii_alphabetic() {
+        if self.is_letter(c) {
             self.advance_col();
 
             while let Some(c) = self.peek_next() {
-                if !c.is_ascii_alphanumeric() {
+                if !self.is_letter_or_digit(c) {
                     break;
                 }
 

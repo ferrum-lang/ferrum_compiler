@@ -81,7 +81,7 @@ impl Reader {
 
         let src_dir = self.root_dir.join("src");
         if !src_dir.is_dir() {
-            panic!("Expected the project root to contain a 'src' directory");
+            panic!("Expected the project root to contain a 'src' directory: {src_dir:?}");
         }
 
         let src_dir_entries = src_dir.read_dir()?;

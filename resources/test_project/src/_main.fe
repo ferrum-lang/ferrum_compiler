@@ -1,80 +1,30 @@
 use ::fe::print
 
 pub fn main()
-    const is_live = false
-    const use_mocks = true
+	const is_live = false
+	const use_mocks = true
 
-    const config = if' use_mocks
-        print("Using mocks!")
+	const config = if' is_live
 
-        if is_live
-            print("Warning: Using mocks in live environment")
+		if use_mocks
+			print("Warning: you're using mocks in a live environment")
 
-            then' "LIVE_MOCK"
-        else
-            then' "LOCAL_MOCK"
-        ;
+			then' "Config: LIVE_MOCKS"
+		else
+			then' "Config: LIVE_INTEGRATIONS"
+		;
 
-        // print("Not reachable")
+	else'my_custom_label
 
-    else'outer
-        print("Using real integrations!")
+		if not use_mocks
+			print("Warning: you're using real integrations locally!")
+			
+			then'my_custom_label "Config: LOCAL_INTEGRAIONS"
+		;
 
-        if is_live
-            then'outer "LIVE_INTEGRATIONS"
-        ;
+		then "Config: LOCAL_MOCKS"
+	;
 
-        print("Warning: Using live integrations in local dev environment")
-
-        then "LOCAL_INTEGRATIONS"
-
-        // print("Not reachable")
-    ;
-
-    print("Config = {config}")
-
-    // // //
-
-    mut count = 0
-
-    const out = loop
-        if count >= 5
-            break count + count
-        ;
-
-        count += 1
-    ;
-
-    print("Out = {out}")
-
-    // // //
-
-    mut count = 0
-
-    loop
-        if count >= 5
-            break
-        ;
-
-        count += 1
-    ;
-    const out = count + count
-
-    print("Out = {out}")
-
-    // // //
-
-    mut count = 0
-
-    while' count < 5
-        count += 1
-
-        if count >= 5
-            break'
-        ;
-    ;
-    const out = count + count
-
-    print("Out = {out}")
+	print(config)
 ;
 
