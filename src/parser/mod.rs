@@ -342,6 +342,7 @@ impl FeTokenSyntaxParser {
             close_paren_token,
             return_type,
             body,
+            has_resolved_signature: false,
         });
     }
 

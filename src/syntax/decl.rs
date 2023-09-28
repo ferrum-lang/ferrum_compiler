@@ -87,6 +87,11 @@ pub struct FnDecl<T: ResolvedType = ()> {
     pub close_paren_token: Arc<Token>,
     pub return_type: Option<FnDeclReturnType<T>>,
     pub body: FnDeclBody<T>,
+
+    // useful for functions with no params, no return, no anything
+    // otherwise is_signature_resolved is always true
+    // so fn never gets added to scope
+    pub has_resolved_signature: bool,
 }
 
 impl<T: ResolvedType> Node<Decl> for FnDecl<T> {
@@ -110,6 +115,7 @@ impl<T: ResolvedType> From<FnDecl<()>> for FnDecl<Option<T>> {
             close_paren_token: value.close_paren_token,
             return_type: value.return_type.map(from),
             body: from(value.body),
+            has_resolved_signature: false,
         };
     }
 }
@@ -137,7 +143,7 @@ impl<T: ResolvedType> Resolvable for FnDecl<Option<T>> {
             }
         }
 
-        return true;
+        return self.has_resolved_signature;
     }
 
     fn is_resolved(&self) -> bool {
@@ -176,6 +182,7 @@ impl<T: ResolvedType> TryFrom<FnDecl<Option<T>>> for FnDecl<T> {
             close_paren_token: value.close_paren_token,
             return_type: invert(value.return_type.map(try_from))?,
             body: try_from(value.body)?,
+            has_resolved_signature: value.has_resolved_signature,
         });
     }
 }

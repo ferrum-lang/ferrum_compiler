@@ -205,6 +205,7 @@ impl FeTypeResolver {
     fn evaluate_decl(&mut self, decl: Arc<Mutex<Decl<Option<FeType>>>>) -> Result<bool> {
         match &mut *decl.try_lock().unwrap() {
             Decl::Fn(shared_decl) => {
+                // dbg!(&self.scope);
                 let decl = &mut *shared_decl.try_lock().unwrap();
 
                 if let Some(return_type) = &decl.return_type {
@@ -285,7 +286,7 @@ impl FeTypeResolver {
                 todo!("Unreachable code after {terminal:#?}!");
             }
 
-            let mut s = stmt.try_lock().unwrap();
+            let s = &mut *stmt.try_lock().unwrap();
             changed |= s.accept(self)?;
 
             if s.is_terminal() {
@@ -629,6 +630,8 @@ impl DeclVisitor<Option<FeType>, Result<bool>> for FeTypeResolver {
                     }),
                 },
             );
+
+            decl.has_resolved_signature = true;
         }
 
         return Ok(changed);
