@@ -460,3 +460,63 @@ impl FeSourceScanner {
         return self.cursor >= self.source.len();
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use TokenType::*;
+
+    macro_rules! input_matches_output_tests {
+        ($($name:ident: $value:expr,)*) => {
+        $(
+            #[test]
+            fn $name() -> Result {
+                let (input, expected) = $value;
+
+                let tokens =
+                    FeLexer::scan_package(Arc::new(Mutex::new(FeSourcePackage::File(FeSourceFile {
+                        name: SourcePackageName("".into()),
+                        path: "".into(),
+                        content: input.into(),
+                    }))))?;
+
+                let FeTokenPackage::File(tokens) = tokens else {
+                    panic!();
+                };
+
+                let tokens = tokens.tokens
+                    .try_lock()
+                    .unwrap()
+                    .iter()
+                    .map(|t| t.token_type.clone())
+                    .collect::<Vec<TokenType>>();
+
+                assert_eq!(tokens, expected);
+
+                return Ok(());
+            }
+        )*
+        }
+    }
+
+    input_matches_output_tests! {
+        test_empty: ("", vec![]),
+
+        test_hello_world: (r#"
+use ::fe::print
+
+pub fn main
+    print("Hello, World!")
+;
+        "#, vec![
+            Newline,
+            Use, DoubleColon, Ident, DoubleColon, Ident,
+            Newline,
+            Newline,
+            Pub, Fn, Ident, Newline, Ident, OpenParen, PlainString, CloseParen,
+            Newline,
+            Semicolon,
+            Newline
+        ]),
+    }
+}
