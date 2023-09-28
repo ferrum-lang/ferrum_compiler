@@ -19,7 +19,7 @@ impl<T> NodeId<T> {
 
 impl<T> Clone for NodeId<T> {
     fn clone(&self) -> Self {
-        return *self;
+        *self
     }
 }
 
