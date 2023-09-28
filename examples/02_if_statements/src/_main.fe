@@ -1,22 +1,22 @@
 use ::fe::print
 
 pub fn main()
-	mut is_cool = false
-	const is_funny = true
+    mut is_cool = false
+    const is_funny = true
 
-	print_in_ifs(is_cool, is_funny)
+    print_in_ifs(is_cool, is_funny)
 
-	is_cool = true
-	print_in_ifs(is_cool, is_funny)
+    is_cool = true
+    print_in_ifs(is_cool, is_funny)
 ;
 
 fn print_in_ifs(is_cool: Bool, is_funny: Bool)
-	if is_cool
-		print("cool!")
-	else if is_funny
-		print("funny!")
-	else
-		print("not cool or funny!")
-	;
+    if is_cool
+    print("cool!")
+    else if is_funny
+    print("funny!")
+    else
+    print("not cool or funny!")
+    ;
 ;
 
