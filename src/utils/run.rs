@@ -26,6 +26,7 @@ pub fn run_full(root_dir: PathBuf) -> Result<process::Output> {
 
     // Scan to tokens
     let tokens = Arc::new(Mutex::new(FeLexer::scan_package(source)?));
+    // dbg!(&tokens);
 
     // Parse to AST
     let pkg = FeSyntaxParser::parse_package(tokens)?;

@@ -1114,12 +1114,18 @@ impl FeTokenSyntaxParser {
     fn expr_or_assign_statement(&mut self) -> Result<Arc<Mutex<Stmt>>> {
         let expr = self.expression()?;
 
-        if let Some(op_token) =
-            self.match_any(&[TokenType::Equal, TokenType::PlusEqual], WithNewlines::One)
-        {
+        if let Some(op_token) = self.match_any(
+            &[
+                TokenType::Equal,
+                TokenType::PlusEqual,
+                TokenType::MinusEqual,
+            ],
+            WithNewlines::One,
+        ) {
             let op = match op_token.token_type {
                 TokenType::Equal => AssignOp::Eq(op_token),
                 TokenType::PlusEqual => AssignOp::PlusEq(op_token),
+                TokenType::MinusEqual => AssignOp::MinusEq(op_token),
                 _ => {
                     return Err(self
                         .error(
@@ -1323,10 +1329,10 @@ impl FeTokenSyntaxParser {
         let mut expr = self.factor()?;
 
         while let Some(op_token) =
-            self.match_any(&[/*TokenType::Minus,*/ TokenType::Plus], WithNewlines::One)
+            self.match_any(&[TokenType::Minus, TokenType::Plus], WithNewlines::One)
         {
             let op = match op_token.token_type {
-                // TokenType::Minus => (BinaryOp::Minus, op_token),
+                TokenType::Minus => BinaryOp::Subtract(op_token),
                 TokenType::Plus => BinaryOp::Add(op_token),
 
                 _ => {

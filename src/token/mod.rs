@@ -101,6 +101,9 @@ pub enum TokenType {
     Plus,      // +
     PlusEqual, // +=
 
+    Minus,      // -
+    MinusEqual, // -=
+
     Equal, // =
 
     Amp, // &

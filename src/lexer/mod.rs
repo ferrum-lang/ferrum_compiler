@@ -161,7 +161,7 @@ impl FeSourceScanner {
 
         let token_type = match c {
             '/' if self.peek_next() == Some('/') => {
-                while self.peek_next() != Some('\n') {
+                while self.peek_next() != Some('\n') && !self.is_end() {
                     self.advance_col();
                 }
 
@@ -216,6 +216,15 @@ impl FeSourceScanner {
                     Some(TokenType::PlusEqual)
                 } else {
                     Some(TokenType::Plus)
+                }
+            }
+
+            '-' => {
+                if self.peek_next() == Some('=') {
+                    self.advance_col();
+                    Some(TokenType::MinusEqual)
+                } else {
+                    Some(TokenType::Minus)
                 }
             }
 

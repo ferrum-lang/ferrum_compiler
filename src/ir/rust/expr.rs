@@ -83,6 +83,7 @@ pub struct RustIRBinaryExpr {
 #[derive(Debug, Clone, PartialEq)]
 pub enum RustIRBinaryOp {
     Add,
+    Subtract,
     Less,
     LessEq,
     Greater,
@@ -100,6 +101,7 @@ pub struct RustIRAssignExpr {
 pub enum RustIRAssignOp {
     Eq,
     PlusEq,
+    MinusEq,
 }
 
 #[derive(Debug, Clone, PartialEq)]

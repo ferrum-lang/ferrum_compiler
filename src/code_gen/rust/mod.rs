@@ -525,6 +525,7 @@ impl ir::RustIRExprVisitor<Result<Arc<str>>> for RustCodeGen {
 
         match &expr.op {
             ir::RustIRBinaryOp::Add => out.push('+'),
+            ir::RustIRBinaryOp::Subtract => out.push('-'),
             ir::RustIRBinaryOp::Less => out.push('<'),
             ir::RustIRBinaryOp::LessEq => out.push_str("<="),
             ir::RustIRBinaryOp::Greater => out.push('>'),
@@ -546,6 +547,7 @@ impl ir::RustIRExprVisitor<Result<Arc<str>>> for RustCodeGen {
         match &expr.op {
             ir::RustIRAssignOp::Eq => out.push('='),
             ir::RustIRAssignOp::PlusEq => out.push_str("+="),
+            ir::RustIRAssignOp::MinusEq => out.push_str("-="),
         }
 
         out.push(' ');

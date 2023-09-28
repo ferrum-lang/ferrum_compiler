@@ -394,6 +394,7 @@ impl StmtVisitor<FeType, Result<Vec<ir::RustIRStmt>>> for RustSyntaxCompiler {
         let op = match &stmt.op {
             AssignOp::Eq(_) => ir::RustIRAssignOp::Eq,
             AssignOp::PlusEq(_) => ir::RustIRAssignOp::PlusEq,
+            AssignOp::MinusEq(_) => ir::RustIRAssignOp::MinusEq,
         };
 
         return Ok(vec![ir::RustIRStmt::Expr(ir::RustIRExprStmt {
@@ -808,6 +809,13 @@ impl ExprVisitor<FeType, Result<ir::RustIRExpr>> for RustSyntaxCompiler {
                 return Ok(ir::RustIRExpr::Binary(ir::RustIRBinaryExpr {
                     lhs,
                     op: ir::RustIRBinaryOp::Add,
+                    rhs,
+                }));
+            }
+            BinaryOp::Subtract(_) => {
+                return Ok(ir::RustIRExpr::Binary(ir::RustIRBinaryExpr {
+                    lhs,
+                    op: ir::RustIRBinaryOp::Subtract,
                     rhs,
                 }));
             }

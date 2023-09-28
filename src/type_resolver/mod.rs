@@ -594,22 +594,21 @@ impl DeclVisitor<Option<FeType>, Result<bool>> for FeTypeResolver {
 
         let mut fn_return_type = None;
 
-        let return_type = {
+        {
             let decl = &mut *shared_decl.try_lock().unwrap();
-            decl.return_type.clone()
-        };
 
-        if let Some(mut return_type) = return_type {
-            if let Some(resolved_type) = &return_type.resolved_type {
-                fn_return_type = Some(Box::new(resolved_type.clone()));
-            } else {
-                changed |= return_type.static_type.accept(self)?;
-                return_type.resolved_type = return_type.static_type.resolved_type.clone();
-
-                if let Some(resolved_type) = return_type.resolved_type {
-                    fn_return_type = Some(Box::new(resolved_type));
+            if let Some(return_type) = &mut decl.return_type {
+                if let Some(resolved_type) = &return_type.resolved_type {
+                    fn_return_type = Some(Box::new(resolved_type.clone()));
                 } else {
-                    all_resolved = false;
+                    changed |= return_type.static_type.accept(self)?;
+                    return_type.resolved_type = return_type.static_type.resolved_type.clone();
+
+                    if let Some(resolved_type) = &mut return_type.resolved_type {
+                        fn_return_type = Some(Box::new(resolved_type.clone()));
+                    } else {
+                        all_resolved = false;
+                    }
                 }
             }
         }
@@ -1515,6 +1514,76 @@ impl ExprVisitor<Option<FeType>, Result<bool>> for FeTypeResolver {
                                     // TODO: we know this is greater-than lhs val
                                     NumberDetails::Decimal(None),
                                 )));
+                            }
+                            (_, Some(NumberDetails::Decimal(_))) => {
+                                expr.resolved_type =
+                                    Some(FeType::Number(Some(NumberDetails::Decimal(None))))
+                            }
+
+                            // other
+                            (_, None) | (None, _) => {
+                                expr.resolved_type = Some(FeType::Number(None));
+                            }
+                        },
+                        _ => todo!("unsure how to add {resolved_lhs:#?} to {resolved_rhs:#?}"),
+                    }
+                }
+
+                BinaryOp::Subtract(_) => {
+                    let resolved_lhs = resolved_lhs.actual_type();
+                    let resolved_rhs = resolved_rhs.actual_type();
+
+                    match (resolved_lhs, resolved_rhs) {
+                        (FeType::Number(lhs), FeType::Number(rhs)) => match (lhs, rhs) {
+                            // known values at compile time
+                            (
+                                Some(NumberDetails::Integer(Some(lhs))),
+                                Some(NumberDetails::Integer(Some(rhs))),
+                            ) => {
+                                expr.resolved_type = Some(FeType::Number(Some(
+                                    NumberDetails::Integer(Some(*lhs - *rhs)),
+                                )));
+                            }
+                            (
+                                Some(NumberDetails::Decimal(Some(lhs))),
+                                Some(NumberDetails::Integer(Some(rhs))),
+                            ) => {
+                                expr.resolved_type = Some(FeType::Number(Some(
+                                    NumberDetails::Decimal(Some(*lhs - *rhs as f64)),
+                                )));
+                            }
+                            (
+                                Some(NumberDetails::Integer(Some(lhs))),
+                                Some(NumberDetails::Decimal(Some(rhs))),
+                            ) => {
+                                expr.resolved_type = Some(FeType::Number(Some(
+                                    NumberDetails::Decimal(Some(*lhs as f64 - *rhs)),
+                                )));
+                            }
+                            (
+                                Some(NumberDetails::Decimal(Some(lhs))),
+                                Some(NumberDetails::Decimal(Some(rhs))),
+                            ) => {
+                                expr.resolved_type = Some(FeType::Number(Some(
+                                    NumberDetails::Decimal(Some(*lhs - *rhs)),
+                                )));
+                            }
+
+                            // unknown values, known types
+                            (
+                                Some(NumberDetails::Integer(_)),
+                                Some(NumberDetails::Integer(None)),
+                            )
+                            | (
+                                Some(NumberDetails::Integer(None)),
+                                Some(NumberDetails::Integer(_)),
+                            ) => {
+                                expr.resolved_type =
+                                    Some(FeType::Number(Some(NumberDetails::Integer(None))));
+                            }
+                            (Some(NumberDetails::Decimal(_)), _) => {
+                                expr.resolved_type =
+                                    Some(FeType::Number(Some(NumberDetails::Decimal(None))));
                             }
                             (_, Some(NumberDetails::Decimal(_))) => {
                                 expr.resolved_type =
