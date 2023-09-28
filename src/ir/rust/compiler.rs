@@ -238,10 +238,10 @@ impl RustSyntaxCompiler {
         return Ok(Some(path_ir));
     }
 
-    fn map_label(&self, label: &Option<Arc<Token>>) -> Option<Arc<str>> {
+    fn map_label(&self, id: String, label: &Option<Arc<Token>>) -> Option<Arc<str>> {
         return label
             .as_ref()
-            .map(|l| format!("'label_{}", &l.lexeme[1..]).into());
+            .map(|l| format!("'label_{}_{}", id, &l.lexeme[1..]).into());
     }
 }
 
@@ -480,7 +480,7 @@ impl StmtVisitor<FeType, Result<Vec<ir::RustIRStmt>>> for RustSyntaxCompiler {
     ) -> Result<Vec<ir::RustIRStmt>> {
         let mut stmt = stmt.try_lock().unwrap();
 
-        let label = self.map_label(&stmt.label);
+        let label = self.map_label(stmt.node_id().to_string(), &stmt.label);
 
         let mut stmts = vec![];
         for stmt in &mut stmt.block.stmts {
@@ -501,7 +501,7 @@ impl StmtVisitor<FeType, Result<Vec<ir::RustIRStmt>>> for RustSyntaxCompiler {
     ) -> Result<Vec<ir::RustIRStmt>> {
         let mut stmt = stmt.try_lock().unwrap();
 
-        let label = self.map_label(&stmt.label);
+        let label = self.map_label(stmt.node_id().to_string(), &stmt.label);
 
         let condition = stmt.condition.0.try_lock().unwrap().accept(self)?;
 
@@ -537,7 +537,13 @@ impl StmtVisitor<FeType, Result<Vec<ir::RustIRStmt>>> for RustSyntaxCompiler {
     ) -> Result<Vec<ir::RustIRStmt>> {
         let stmt = &mut *stmt.try_lock().unwrap();
 
-        let label = self.map_label(&stmt.label);
+        let label = self.map_label(
+            stmt.handler
+                .as_ref()
+                .map(|h| h.node_id().to_string())
+                .unwrap_or(String::new()),
+            &stmt.label,
+        );
 
         let expr = if let Some(value) = &mut stmt.value {
             Some(value.0.try_lock().unwrap().accept(self)?)
@@ -559,7 +565,13 @@ impl StmtVisitor<FeType, Result<Vec<ir::RustIRStmt>>> for RustSyntaxCompiler {
 
         let expr = stmt.value.0.try_lock().unwrap().accept(self)?;
 
-        let label = self.map_label(&stmt.label);
+        let label = self.map_label(
+            stmt.handler
+                .as_ref()
+                .map(|h| h.node_id().to_string())
+                .unwrap_or(String::new()),
+            &stmt.label,
+        );
 
         if label.is_some() {
             return Ok(vec![ir::RustIRStmt::Break(ir::RustIRBreakStmt {
@@ -570,18 +582,19 @@ impl StmtVisitor<FeType, Result<Vec<ir::RustIRStmt>>> for RustSyntaxCompiler {
 
         if let Some(ThenHandler::IfExpr(block, if_expr)) = &stmt.handler {
             let if_expr = &mut *if_expr.try_lock().unwrap();
+            let node_id = if_expr.node_id().to_string();
 
             let label = match block {
                 IfBlock::Then => match &if_expr.then {
-                    IfExprThen::Block(if_expr) => self.map_label(&if_expr.label),
+                    IfExprThen::Block(if_expr) => self.map_label(node_id, &if_expr.label),
                     _ => None,
                 },
                 IfBlock::ElseIf(idx) => match &if_expr.else_ifs.get(*idx) {
-                    Some(IfExprElseIf::Block(if_expr)) => self.map_label(&if_expr.label),
+                    Some(IfExprElseIf::Block(if_expr)) => self.map_label(node_id, &if_expr.label),
                     _ => None,
                 },
                 IfBlock::Else => match &if_expr.else_ {
-                    Some(IfExprElse::Block(if_expr)) => self.map_label(&if_expr.label),
+                    Some(IfExprElse::Block(if_expr)) => self.map_label(node_id, &if_expr.label),
                     _ => None,
                 },
             };
@@ -911,6 +924,7 @@ impl ExprVisitor<FeType, Result<ir::RustIRExpr>> for RustSyntaxCompiler {
 
     fn visit_if_expr(&mut self, expr: Arc<Mutex<IfExpr<FeType>>>) -> Result<ir::RustIRExpr> {
         let expr = expr.try_lock().unwrap();
+        let node_id = expr.node_id().to_string();
 
         let condition = Box::new(expr.condition.0.try_lock().unwrap().accept(self)?);
 
@@ -931,7 +945,7 @@ impl ExprVisitor<FeType, Result<ir::RustIRExpr>> for RustSyntaxCompiler {
                 }
 
                 if then.label.is_some() {
-                    let label = self.map_label(&then.label);
+                    let label = self.map_label(node_id.clone(), &then.label);
 
                     vec![ir::RustIRStmt::ImplicitReturn(
                         ir::RustIRImplicitReturnStmt {
@@ -972,7 +986,7 @@ impl ExprVisitor<FeType, Result<ir::RustIRExpr>> for RustSyntaxCompiler {
                     }
 
                     then = if else_if.label.is_some() {
-                        let label = self.map_label(&else_if.label);
+                        let label = self.map_label(node_id.clone(), &else_if.label);
 
                         vec![ir::RustIRStmt::ImplicitReturn(
                             ir::RustIRImplicitReturnStmt {
@@ -1011,7 +1025,7 @@ impl ExprVisitor<FeType, Result<ir::RustIRExpr>> for RustSyntaxCompiler {
                     }
 
                     then = if else_.label.is_some() {
-                        let label = self.map_label(&else_.label);
+                        let label = self.map_label(node_id, &else_.label);
 
                         vec![ir::RustIRStmt::ImplicitReturn(
                             ir::RustIRImplicitReturnStmt {
@@ -1043,7 +1057,7 @@ impl ExprVisitor<FeType, Result<ir::RustIRExpr>> for RustSyntaxCompiler {
     fn visit_loop_expr(&mut self, expr: Arc<Mutex<LoopExpr<FeType>>>) -> Result<ir::RustIRExpr> {
         let expr = &mut *expr.try_lock().unwrap();
 
-        let label = self.map_label(&expr.label);
+        let label = self.map_label(expr.node_id().to_string(), &expr.label);
 
         let mut stmts = vec![];
         for stmt in &expr.block.stmts {
@@ -1057,7 +1071,7 @@ impl ExprVisitor<FeType, Result<ir::RustIRExpr>> for RustSyntaxCompiler {
     fn visit_while_expr(&mut self, expr: Arc<Mutex<WhileExpr<FeType>>>) -> Result<ir::RustIRExpr> {
         let expr = &mut *expr.try_lock().unwrap();
 
-        let _label = self.map_label(&expr.label);
+        let _label = self.map_label(expr.node_id().to_string(), &expr.label);
 
         todo!()
     }

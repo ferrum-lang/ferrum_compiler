@@ -1,4 +1,6 @@
-use std::{hash::Hash, marker::PhantomData};
+use std::fmt;
+use std::hash::Hash;
+use std::marker::PhantomData;
 
 #[derive(Debug)]
 pub struct NodeId<T>(usize, PhantomData<T>);
@@ -14,6 +16,10 @@ impl<T> NodeId<T> {
         };
 
         return Self(id, PhantomData);
+    }
+
+    pub fn into<R>(self) -> NodeId<R> {
+        return NodeId(self.0, PhantomData);
     }
 }
 
@@ -36,6 +42,12 @@ impl<T> Eq for NodeId<T> {}
 impl<T> Hash for NodeId<T> {
     fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
         return Hash::hash(&self.0, state);
+    }
+}
+
+impl<T> fmt::Display for NodeId<T> {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        return write!(f, "{}", self.0);
     }
 }
 

@@ -14,8 +14,8 @@ fn main() -> Result {
 
     let _ = process::Command::new("clear").status()?;
 
-    // println!("{}", String::from_utf8(out.stderr)?);
-    // println!("Output:\n------\n");
+    println!("{}", String::from_utf8(out.stderr)?);
+    println!("Output:\n------\n");
 
     println!("{}", String::from_utf8(out.stdout)?);
 

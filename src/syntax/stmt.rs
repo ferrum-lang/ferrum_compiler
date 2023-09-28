@@ -1043,6 +1043,17 @@ pub enum BreakHandler {
     WhileExpr(Arc<Mutex<WhileExpr<Option<FeType>>>>),
 }
 
+impl Node<Self> for BreakHandler {
+    fn node_id(&self) -> NodeId<Self> {
+        match self {
+            Self::LoopStmt(h) => h.try_lock().unwrap().node_id().into(),
+            Self::LoopExpr(h) => h.try_lock().unwrap().node_id().into(),
+            Self::WhileStmt(h) => h.try_lock().unwrap().node_id().into(),
+            Self::WhileExpr(h) => h.try_lock().unwrap().node_id().into(),
+        }
+    }
+}
+
 impl PartialEq for BreakHandler {
     fn eq(&self, other: &Self) -> bool {
         match self {
@@ -1157,6 +1168,15 @@ impl<T: ResolvedType> TryFrom<ThenStmt<Option<T>>> for ThenStmt<T> {
 pub enum ThenHandler {
     IfExpr(IfBlock, Arc<Mutex<IfExpr<Option<FeType>>>>),
     IfStmt(IfBlock, Arc<Mutex<IfStmt<Option<FeType>>>>),
+}
+
+impl Node<Self> for ThenHandler {
+    fn node_id(&self) -> NodeId<Self> {
+        match self {
+            Self::IfExpr(_, h) => h.try_lock().unwrap().node_id().into(),
+            Self::IfStmt(_, h) => h.try_lock().unwrap().node_id().into(),
+        }
+    }
 }
 
 impl PartialEq for ThenHandler {

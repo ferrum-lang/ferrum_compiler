@@ -50,7 +50,8 @@ impl RustCodeGen {
         let entry = self.entry.clone();
 
         for file in &mut entry.lock().unwrap().files {
-            let mut content = String::new();
+            let mut content =
+                "#![allow(unreachable_code, while_true, unused_labels)]\n\n".to_string();
 
             for mod_decl in &mut file.mods {
                 let code = format!("mod {};", mod_decl);
