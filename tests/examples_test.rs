@@ -1,5 +1,5 @@
+use ferrum_compiler::helpers;
 use ferrum_compiler::result::Result;
-use ferrum_compiler::utils;
 
 use std::path::PathBuf;
 use std::{env, fs};
@@ -19,7 +19,7 @@ fn test_that_examples_work() -> Result {
             let example_dir = example_dir.path();
 
             // Run
-            let out = utils::run_full(example_dir.clone())?;
+            let out = helpers::run_full(example_dir.clone())?;
 
             // Build expectation
             let actual_stdout = String::from_utf8(out.stdout)?;

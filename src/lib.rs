@@ -2,6 +2,7 @@
 
 pub mod code_gen;
 pub mod executor;
+pub mod helpers;
 pub mod ir;
 pub mod lexer;
 pub mod parser;

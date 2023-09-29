@@ -1,7 +1,7 @@
 #![allow(clippy::needless_return)]
 
+use ferrum_compiler::helpers;
 use ferrum_compiler::result::Result;
-use ferrum_compiler::utils;
 
 use std::env;
 use std::path;
@@ -10,7 +10,7 @@ use std::process;
 fn main() -> Result {
     let root_dir = get_root_dir();
 
-    let out = utils::run_full(root_dir)?;
+    let out = helpers::run_full(root_dir)?;
 
     let _ = process::Command::new("clear").status()?;
 
