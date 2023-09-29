@@ -1,1 +1,0 @@
-clear && RUST_BACKTRACE=1 cargo run -q --release -- ./resources/test_project
