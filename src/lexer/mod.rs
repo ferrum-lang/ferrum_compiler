@@ -514,20 +514,20 @@ mod tests {
         test_hello_world: (r#"
 use ::fe::print
 
-pub fn main
+pub fn main()
     print("Hello, World!")
 ;
         "#, vec![
             Newline,
             Use, DoubleColon, Ident, DoubleColon, Ident, Newline,
             Newline,
-            Pub, Fn, Ident, Newline,
+            Pub, Fn, Ident, OpenParen, CloseParen, Newline,
             Ident, OpenParen, PlainString, CloseParen, Newline,
             Semicolon, Newline,
         ]),
 
         test_labels: (r#"
-pub fn main
+pub fn main()
     if'my_label true
         return
     else if'my_label true
@@ -538,7 +538,7 @@ pub fn main
 ;
         "#, vec![
             Newline,
-            Pub, Fn, Ident, Newline,
+            Pub, Fn, Ident, OpenParen, CloseParen, Newline,
             If, Label, True, Newline,
             Return, Newline,
             Else, If, Label, True, Newline,

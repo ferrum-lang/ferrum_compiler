@@ -1,21 +1,18 @@
 use std::fmt;
 use std::hash::Hash;
 use std::marker::PhantomData;
+use std::sync::{Arc, Mutex};
 
 #[derive(Debug)]
 pub struct NodeId<T>(usize, PhantomData<T>);
 
 impl<T> NodeId<T> {
-    pub fn gen() -> Self {
-        static mut NEXT_ID: usize = 0;
+    pub fn new(value: usize) -> Self {
+        return Self(value, PhantomData);
+    }
 
-        let id = unsafe {
-            let id = NEXT_ID;
-            NEXT_ID += 1;
-            id
-        };
-
-        return Self(id, PhantomData);
+    pub fn zero() -> Self {
+        return Self::new(0);
     }
 
     pub fn into<R>(self) -> NodeId<R> {
@@ -48,6 +45,57 @@ impl<T> Hash for NodeId<T> {
 impl<T> fmt::Display for NodeId<T> {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         return write!(f, "{}", self.0);
+    }
+}
+
+#[derive(Debug, Clone)]
+pub enum NodeIdGen {
+    Default(DefaultNodeIdGen),
+    Zero(ZeroNodeIdGen),
+}
+
+impl NodeIdGen {
+    pub fn next<T>(&self) -> NodeId<T> {
+        match self {
+            Self::Default(gen) => return gen.next(),
+            Self::Zero(gen) => return gen.next(),
+        }
+    }
+}
+
+#[derive(Debug, Clone)]
+struct DefaultNodeIdGenInstance {
+    next_id: usize,
+}
+
+#[derive(Debug, Clone)]
+pub struct DefaultNodeIdGen {
+    instance: Arc<Mutex<DefaultNodeIdGenInstance>>,
+}
+
+impl DefaultNodeIdGen {
+    pub fn new() -> Self {
+        return Self {
+            instance: Arc::new(Mutex::new(DefaultNodeIdGenInstance { next_id: 0 })),
+        };
+    }
+
+    fn next<T>(&self) -> NodeId<T> {
+        let instance = &mut *self.instance.try_lock().unwrap();
+
+        let id = instance.next_id;
+        instance.next_id += 1;
+
+        return NodeId::new(id);
+    }
+}
+
+#[derive(Debug, Clone)]
+pub struct ZeroNodeIdGen {}
+
+impl ZeroNodeIdGen {
+    fn next<T>(&self) -> NodeId<T> {
+        return NodeId::zero();
     }
 }
 

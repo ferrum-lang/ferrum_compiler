@@ -83,6 +83,16 @@ pub struct Token {
     pub span: Span,
 }
 
+impl Token {
+    pub fn zero(token_type: TokenType, lexeme: impl Into<Arc<str>>) -> Arc<Self> {
+        return Arc::new(Self {
+            token_type,
+            lexeme: lexeme.into(),
+            span: Span::zero(),
+        });
+    }
+}
+
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub enum TokenType {
     // Symbols

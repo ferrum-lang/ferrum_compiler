@@ -9,37 +9,47 @@ use thiserror::Error;
 #[derive(Debug, Clone)]
 pub struct FeSyntaxParser {
     token_pkg: Arc<Mutex<FeTokenPackage>>,
+    node_id_gen: NodeIdGen,
 
     out: FeSyntaxPackage,
 }
 
 impl FeSyntaxParser {
     pub fn parse_package(token_pkg: Arc<Mutex<FeTokenPackage>>) -> Result<FeSyntaxPackage> {
-        return Self::new(token_pkg).parse();
+        let node_id_gen = NodeIdGen::Default(DefaultNodeIdGen::new());
+
+        return Self::new(token_pkg, node_id_gen).parse();
     }
 
-    pub fn new(token_pkg: Arc<Mutex<FeTokenPackage>>) -> Self {
+    pub fn new(token_pkg: Arc<Mutex<FeTokenPackage>>, node_id_gen: NodeIdGen) -> Self {
         let out = token_pkg.try_lock().unwrap().clone().into();
 
-        return Self { token_pkg, out };
+        return Self {
+            token_pkg,
+            node_id_gen,
+            out,
+        };
     }
 
     pub fn parse(mut self) -> Result<FeSyntaxPackage> {
         fn _parse<'a>(
             token_pkg: &FeTokenPackage,
             syntax_pkg: &'a mut FeSyntaxPackage,
+            node_id_gen: NodeIdGen,
         ) -> Result<&'a mut FeSyntaxPackage> {
             match (token_pkg, &mut *syntax_pkg) {
                 (FeTokenPackage::File(token_file), FeSyntaxPackage::File(syntax_file)) => {
                     FeTokenSyntaxParser::parse_syntax(
                         token_file.tokens.try_lock().unwrap().clone(),
                         syntax_file.syntax.clone(),
+                        node_id_gen,
                     )?;
                 }
                 (FeTokenPackage::Dir(token_dir), FeSyntaxPackage::Dir(syntax_dir)) => {
                     FeTokenSyntaxParser::parse_syntax(
                         token_dir.entry_file.tokens.try_lock().unwrap().clone(),
                         syntax_dir.entry_file.syntax.clone(),
+                        node_id_gen.clone(),
                     )?;
 
                     for (name, token_pkg) in token_dir.local_packages.iter() {
@@ -51,6 +61,7 @@ impl FeSyntaxParser {
                         _parse(
                             &token_pkg.try_lock().unwrap(),
                             &mut syntax_pkg.try_lock().unwrap(),
+                            node_id_gen.clone(),
                         )?;
                     }
                 }
@@ -60,7 +71,12 @@ impl FeSyntaxParser {
 
             return Ok(syntax_pkg);
         }
-        _parse(&self.token_pkg.try_lock().unwrap(), &mut self.out)?;
+
+        _parse(
+            &self.token_pkg.try_lock().unwrap(),
+            &mut self.out,
+            self.node_id_gen.clone(),
+        )?;
 
         return Ok(self.out);
     }
@@ -69,6 +85,7 @@ impl FeSyntaxParser {
 struct FeTokenSyntaxParser {
     tokens: Vec<Arc<Token>>,
     out: Arc<Mutex<SyntaxTree>>,
+    node_id_gen: NodeIdGen,
 
     current_idx: usize,
 }
@@ -88,14 +105,23 @@ pub enum WithNewlines {
 }
 
 impl FeTokenSyntaxParser {
-    fn parse_syntax(tokens: Vec<Arc<Token>>, syntax_tree: Arc<Mutex<SyntaxTree>>) -> Result {
-        return Self::new(tokens, syntax_tree).parse();
+    fn parse_syntax(
+        tokens: Vec<Arc<Token>>,
+        syntax_tree: Arc<Mutex<SyntaxTree>>,
+        node_id_gen: NodeIdGen,
+    ) -> Result {
+        return Self::new(tokens, syntax_tree, node_id_gen).parse();
     }
 
-    fn new(tokens: Vec<Arc<Token>>, syntax_tree: Arc<Mutex<SyntaxTree>>) -> Self {
+    fn new(
+        tokens: Vec<Arc<Token>>,
+        syntax_tree: Arc<Mutex<SyntaxTree>>,
+        node_id_gen: NodeIdGen,
+    ) -> Self {
         return Self {
             tokens,
             out: syntax_tree,
+            node_id_gen,
 
             current_idx: 0,
         };
@@ -159,7 +185,7 @@ impl FeTokenSyntaxParser {
         let path = self.use_static_path()?;
 
         let use_decl = Use {
-            id: NodeId::gen(),
+            id: self.node_id_gen.next(),
             use_mod,
             use_token,
             path,
@@ -308,7 +334,8 @@ impl FeTokenSyntaxParser {
 
         self.allow_many_newlines();
 
-        self.consume(&TokenType::CloseParen, "Expect ')' after parameters")?;
+        let close_paren_token =
+            self.consume(&TokenType::CloseParen, "Expect ')' after parameters")?;
 
         let return_type =
             if let Some(colon_token) = self.match_any(&[TokenType::Colon], WithNewlines::One) {
@@ -321,7 +348,7 @@ impl FeTokenSyntaxParser {
                 None
             };
 
-        let close_paren_token = self.consume(
+        let _ = self.consume(
             &TokenType::Newline,
             "Expect newline after function signature",
         )?;
@@ -330,7 +357,7 @@ impl FeTokenSyntaxParser {
         let body = FnDeclBody::Block(self.code_block()?);
 
         return Ok(FnDecl {
-            id: NodeId::gen(),
+            id: self.node_id_gen.next(),
             decl_mod,
             fn_mod,
             fn_token,
@@ -399,7 +426,7 @@ impl FeTokenSyntaxParser {
         };
 
         return Ok(StructDecl {
-            id: NodeId::gen(),
+            id: self.node_id_gen.next(),
             decl_mod,
             struct_token,
             name,
@@ -586,7 +613,7 @@ impl FeTokenSyntaxParser {
         let block = self.code_block()?;
 
         return Ok(LoopStmt {
-            id: NodeId::gen(),
+            id: self.node_id_gen.next(),
             loop_token,
             label,
             block,
@@ -602,7 +629,7 @@ impl FeTokenSyntaxParser {
         let block = self.code_block()?;
 
         return Ok(LoopExpr {
-            id: NodeId::gen(),
+            id: self.node_id_gen.next(),
             loop_token,
             label,
             block,
@@ -631,7 +658,7 @@ impl FeTokenSyntaxParser {
 
         if end.token_type == TokenType::Semicolon {
             return Ok(WhileStmt {
-                id: NodeId::gen(),
+                id: self.node_id_gen.next(),
                 while_token,
                 label,
                 condition,
@@ -660,7 +687,7 @@ impl FeTokenSyntaxParser {
         });
 
         return Ok(WhileStmt {
-            id: NodeId::gen(),
+            id: self.node_id_gen.next(),
             while_token,
             label,
             condition,
@@ -769,7 +796,7 @@ impl FeTokenSyntaxParser {
         };
 
         return Ok(WhileExpr {
-            id: NodeId::gen(),
+            id: self.node_id_gen.next(),
             while_token,
             label,
             condition,
@@ -797,7 +824,7 @@ impl FeTokenSyntaxParser {
         };
 
         return Ok(VarDeclStmt {
-            id: NodeId::gen(),
+            id: self.node_id_gen.next(),
             var_mut,
             target,
             explicit_type: None,
@@ -809,7 +836,7 @@ impl FeTokenSyntaxParser {
         // TODO
 
         return Ok(VarDeclTarget::Ident(Arc::new(Mutex::new(IdentExpr {
-            id: NodeId::gen(),
+            id: self.node_id_gen.next(),
             ident: self.consume(
                 &TokenType::Ident,
                 "TODO: Handle more complicated assignment patterns",
@@ -888,7 +915,7 @@ impl FeTokenSyntaxParser {
         }
 
         return Ok(IfStmt {
-            id: NodeId::gen(),
+            id: self.node_id_gen.next(),
             if_token,
             condition,
             then,
@@ -1052,7 +1079,7 @@ impl FeTokenSyntaxParser {
         }
 
         return Ok(IfExpr {
-            id: NodeId::gen(),
+            id: self.node_id_gen.next(),
             if_token,
             condition,
             then,
@@ -1072,7 +1099,7 @@ impl FeTokenSyntaxParser {
         };
 
         return Ok(ReturnStmt {
-            id: NodeId::gen(),
+            id: self.node_id_gen.next(),
             return_token,
             value,
         });
@@ -1088,7 +1115,7 @@ impl FeTokenSyntaxParser {
         };
 
         return Ok(BreakStmt {
-            id: NodeId::gen(),
+            id: self.node_id_gen.next(),
             break_token,
             label,
             value,
@@ -1103,7 +1130,7 @@ impl FeTokenSyntaxParser {
         let value = NestedExpr(self.expression()?);
 
         return Ok(ThenStmt {
-            id: NodeId::gen(),
+            id: self.node_id_gen.next(),
             then_token,
             label,
             value,
@@ -1141,7 +1168,7 @@ impl FeTokenSyntaxParser {
 
             return Ok(Arc::new(Mutex::new(Stmt::Assign(Arc::new(Mutex::new(
                 AssignStmt {
-                    id: NodeId::gen(),
+                    id: self.node_id_gen.next(),
                     target: NestedExpr(expr),
                     op,
                     value: NestedExpr(value),
@@ -1150,7 +1177,7 @@ impl FeTokenSyntaxParser {
         } else {
             return Ok(Arc::new(Mutex::new(Stmt::Expr(Arc::new(Mutex::new(
                 ExprStmt {
-                    id: NodeId::gen(),
+                    id: self.node_id_gen.next(),
                     expr,
                 },
             ))))));
@@ -1191,7 +1218,7 @@ impl FeTokenSyntaxParser {
             let right = self.and()?;
 
             expr = Expr::Logical(LogicalExpr {
-                id: NodeId::gen(),
+                id: self.node_id_gen.next(),
                 left: Box::new(expr),
                 operator,
                 right: Box::new(right),
@@ -1210,7 +1237,7 @@ impl FeTokenSyntaxParser {
             let right = self.equality()?;
 
             expr = Expr::Logical(LogicalExpr {
-                id: NodeId::gen(),
+                id: self.node_id_gen.next(),
                 left: Box::new(expr),
                 operator,
                 right: Box::new(right),
@@ -1244,7 +1271,7 @@ impl FeTokenSyntaxParser {
             let right = self.comparison()?;
 
             expr = Expr::Binary(BinaryExpr {
-                id: NodeId::gen(),
+                id: self.node_id_gen.next(),
                 left: Box::new(expr),
                 op,
                 right: Box::new(right),
@@ -1286,7 +1313,7 @@ impl FeTokenSyntaxParser {
             let right = self.range()?;
 
             expr = Arc::new(Mutex::new(Expr::Binary(Arc::new(Mutex::new(BinaryExpr {
-                id: NodeId::gen(),
+                id: self.node_id_gen.next(),
                 lhs: NestedExpr(expr),
                 op,
                 rhs: NestedExpr(right),
@@ -1315,7 +1342,7 @@ impl FeTokenSyntaxParser {
             let right = self.term()?;
 
             expr = Expr::Binary(BinaryExpr {
-                id: NodeId::gen(),
+                id: self.node_id_gen.next(),
                 left: Box::new(expr),
                 op,
                 right: Box::new(right),
@@ -1349,7 +1376,7 @@ impl FeTokenSyntaxParser {
             let right = self.factor()?;
 
             expr = Arc::new(Mutex::new(Expr::Binary(Arc::new(Mutex::new(BinaryExpr {
-                id: NodeId::gen(),
+                id: self.node_id_gen.next(),
                 lhs: NestedExpr(expr),
                 op,
                 rhs: NestedExpr(right),
@@ -1384,7 +1411,7 @@ impl FeTokenSyntaxParser {
             let right = self.modulo()?;
 
             expr = Expr::Binary(BinaryExpr {
-                id: NodeId::gen(),
+                id: self.node_id_gen.next(),
                 left: Box::new(expr),
                 op,
                 right: Box::new(right),
@@ -1413,7 +1440,7 @@ impl FeTokenSyntaxParser {
             let right = self.unary()?;
 
             expr = Expr::Binary(BinaryExpr {
-                id: NodeId::gen(),
+                id: self.node_id_gen.next(),
                 left: Box::new(expr),
                 op,
                 right: Box::new(right),
@@ -1464,7 +1491,7 @@ impl FeTokenSyntaxParser {
 
             return Ok(Arc::new(Mutex::new(Expr::Unary(Arc::new(Mutex::new(
                 UnaryExpr {
-                    id: NodeId::gen(),
+                    id: self.node_id_gen.next(),
                     op,
                     value: NestedExpr(value),
                     resolved_type: (),
@@ -1487,7 +1514,7 @@ impl FeTokenSyntaxParser {
                 let name = self.consume(&TokenType::Ident, "Expect property name '.'")?;
 
                 expr = Arc::new(Mutex::new(Expr::Get(Arc::new(Mutex::new(GetExpr {
-                    id: NodeId::gen(),
+                    id: self.node_id_gen.next(),
                     target: NestedExpr(expr),
                     dot_token,
                     name,
@@ -1546,7 +1573,7 @@ impl FeTokenSyntaxParser {
 
         return Ok(Arc::new(Mutex::new(Expr::Call(Arc::new(Mutex::new(
             CallExpr {
-                id: NodeId::gen(),
+                id: self.node_id_gen.next(),
                 callee: NestedExpr(callee),
                 open_paren_token,
                 pre_comma_token,
@@ -1566,7 +1593,7 @@ impl FeTokenSyntaxParser {
             self.match_any(&[TokenType::Ident], WithNewlines::None)
                 .map(|ident| {
                     ConstructTarget::Ident(Arc::new(Mutex::new(IdentExpr {
-                        id: NodeId::gen(),
+                        id: self.node_id_gen.next(),
                         ident,
                         resolved_type: (),
                     })))
@@ -1611,7 +1638,7 @@ impl FeTokenSyntaxParser {
 
                 return Ok(Arc::new(Mutex::new(Expr::Construct(Arc::new(Mutex::new(
                     ConstructExpr {
-                        id: NodeId::gen(),
+                        id: self.node_id_gen.next(),
                         target: ident_expr,
                         open_squirly_brace,
                         args,
@@ -1625,7 +1652,7 @@ impl FeTokenSyntaxParser {
                 ConstructTarget::Ident(ident) => Expr::Ident(ident),
                 ConstructTarget::StaticPath(static_path) => {
                     Expr::StaticRef(Arc::new(Mutex::new(StaticRefExpr {
-                        id: NodeId::gen(),
+                        id: self.node_id_gen.next(),
                         static_path,
                         resolved_type: (),
                     })))
@@ -1643,7 +1670,7 @@ impl FeTokenSyntaxParser {
             Some((t, TokenType::PlainString)) => {
                 return Ok(Arc::new(Mutex::new(Expr::PlainStringLiteral(Arc::new(
                     Mutex::new(PlainStringLiteralExpr {
-                        id: NodeId::gen(),
+                        id: self.node_id_gen.next(),
                         literal: t,
                         resolved_type: (),
                     }),
@@ -1680,7 +1707,7 @@ impl FeTokenSyntaxParser {
 
                 return Ok(Arc::new(Mutex::new(Expr::FmtStringLiteral(Arc::new(
                     Mutex::new(FmtStringLiteralExpr {
-                        id: NodeId::gen(),
+                        id: self.node_id_gen.next(),
                         first: t,
                         rest,
                         resolved_type: (),
@@ -1691,7 +1718,7 @@ impl FeTokenSyntaxParser {
             Some((t, TokenType::IntegerNumber)) => {
                 return Ok(Arc::new(Mutex::new(Expr::NumberLiteral(Arc::new(
                     Mutex::new(NumberLiteralExpr {
-                        id: NodeId::gen(),
+                        id: self.node_id_gen.next(),
                         details: NumberLiteralDetails::Integer(t.lexeme.parse()?),
                         literal: t,
                         resolved_type: (),
@@ -1701,7 +1728,7 @@ impl FeTokenSyntaxParser {
             Some((t, TokenType::DecimalNumber)) => {
                 return Ok(Arc::new(Mutex::new(Expr::NumberLiteral(Arc::new(
                     Mutex::new(NumberLiteralExpr {
-                        id: NodeId::gen(),
+                        id: self.node_id_gen.next(),
                         details: NumberLiteralDetails::Decimal(t.lexeme.parse()?),
                         literal: t,
                         resolved_type: (),
@@ -1712,7 +1739,7 @@ impl FeTokenSyntaxParser {
             Some((t, TokenType::True | TokenType::False)) => {
                 return Ok(Arc::new(Mutex::new(Expr::BoolLiteral(Arc::new(
                     Mutex::new(BoolLiteralExpr {
-                        id: NodeId::gen(),
+                        id: self.node_id_gen.next(),
                         literal: t,
                         resolved_type: (),
                     }),
@@ -1735,7 +1762,7 @@ impl FeTokenSyntaxParser {
                 };
 
                 return Ok(Arc::new(Mutex::new(Expr::PlainLiteral(PlainLiteralExpr {
-                    id: NodeId::gen(),
+                    id: self.node_id_gen.next(),
                     literal_type,
                     token: t,
                 }))));
@@ -1787,7 +1814,7 @@ impl FeTokenSyntaxParser {
                 }
 
                 return Ok(Expr::FormatString(FormatStringExpr {
-                    id: NodeId::gen(),
+                    id: self.node_id_gen.next(),
                     open: open_token,
                     parts,
                 }));
@@ -1800,7 +1827,7 @@ impl FeTokenSyntaxParser {
                 },
             ) => {
                 return Ok(Expr::SelfVal(SelfValExpr {
-                    id: NodeId::gen(),
+                    id: self.node_id_gen.next(),
                     keyword: t,
                 }));
             }
@@ -1827,7 +1854,7 @@ impl FeTokenSyntaxParser {
                 };
 
                 return Ok(Expr::Crash(CrashExpr {
-                    id: NodeId::gen(),
+                    id: self.node_id_gen.next(),
                     error,
                     span,
                 }));
@@ -1973,101 +2000,166 @@ impl FeTokenSyntaxParser {
 
 #[cfg(test)]
 mod tests {
-    use std::assert_matches::assert_matches;
-
     use super::*;
 
-    #[test]
-    fn test_() -> Result {
-        let expected: SyntaxTree<()> = SyntaxTree {
-            mods: vec![],
-            uses: vec![],
-            decls: vec![],
-        };
+    macro_rules! input_matches_output_tests {
+        ($($name:ident: $value:expr,)*) => {
+        $(
+            #[test]
+            fn $name() -> Result {
+                let (input, expected) = $value;
 
-        let ast = FeSyntaxParser::parse_package(Arc::new(Mutex::new(FeTokenPackage::File(
-            FeTokenFile {
-                name: TokenPackageName("".into()),
-                path: "".into(),
-                tokens: Arc::new(Mutex::new(vec![])),
-            },
-        ))))?;
+                let parser = FeSyntaxParser::new(
+                    Arc::new(Mutex::new(FeTokenPackage::File(FeTokenFile {
+                        name: TokenPackageName("".into()),
+                        path: "".into(),
+                        tokens: Arc::new(Mutex::new(input)),
+                    }))),
+                    NodeIdGen::Zero(ZeroNodeIdGen {}),
+                );
 
-        let FeSyntaxPackage::File(ast) = ast else {
-            panic!();
-        };
+                let ast = parser.parse()?;
 
-        let ast = &*ast.syntax.try_lock().unwrap();
+                let FeSyntaxPackage::File(ast) = ast else {
+                    panic!();
+                };
 
-        assert_eq!(ast.mods.len(), expected.mods.len());
-        assert_eq!(ast.uses.len(), expected.uses.len());
-        assert_eq!(ast.decls.len(), expected.decls.len());
+                let ast = &*ast.syntax.try_lock().unwrap();
 
-        for idx in 0..ast.mods.len() {
-            let actual = &ast.mods[idx];
-            let expected = &expected.mods[idx];
+                assert_eq!(ast.mods.len(), expected.mods.len());
+                assert_eq!(ast.uses.len(), expected.uses.len());
+                assert_eq!(ast.decls.len(), expected.decls.len());
 
-            assert_eq!(actual.0.as_ref(), expected.0.as_ref());
-        }
+                for idx in 0..ast.mods.len() {
+                    let actual = &ast.mods[idx];
+                    let expected = &expected.mods[idx];
 
-        for idx in 0..ast.uses.len() {
-            let actual = &mut *ast.uses[idx].try_lock().unwrap();
-            let expected = &mut *expected.uses[idx].try_lock().unwrap();
+                    assert_eq!(actual.0.as_ref(), expected.0.as_ref());
+                }
 
-            actual.set_node_id(expected.node_id());
-            assert_eq!(actual, expected);
-        }
+                for idx in 0..ast.uses.len() {
+                    let actual = &mut *ast.uses[idx].try_lock().unwrap();
+                    let expected = &mut *expected.uses[idx].try_lock().unwrap();
 
-        for idx in 0..ast.decls.len() {
-            let actual = &mut *ast.decls[idx].try_lock().unwrap();
-            let expected = &mut *expected.decls[idx].try_lock().unwrap();
+                    assert_eq!(actual, expected);
+                }
 
-            actual.set_node_id(expected.node_id());
+                for idx in 0..ast.decls.len() {
+                    let actual = &mut *ast.decls[idx].try_lock().unwrap();
+                    let expected = &mut *expected.decls[idx].try_lock().unwrap();
 
-            match (&mut actual, &expected) {
-                (Decl::Fn(actual), Decl::Fn(expected)) => {}
-                (Decl::Struct(actual), Decl::Struct(expected)) => {}
+                    assert_eq!(actual, expected);
+                }
 
-                // Should fail
-                (actual, expected) => assert_eq!(actual, expected),
+                return Ok(());
             }
-
-            assert_eq!(actual, expected);
+        )*
         }
-
-        return Ok(());
     }
 
-    // macro_rules! input_matches_output_tests {
-    //     ($($name:ident: $value:expr,)*) => {
-    //     $(
-    //         #[test]
-    //         fn $name() -> Result {
-    //             let (input, expected) = $value;
+    input_matches_output_tests! {
+        test_empty: (
+            vec![],
+            SyntaxTree {
+                mods: vec![],
+                uses: vec![],
+                decls: vec![],
+            }
+        ),
 
-    //             let ast =
-    //                 FeSyntax::scan_package(Arc::new(Mutex::new(FeSourcePackage::File(FeSourceFile {
-    //                     name: SourcePackageName("".into()),
-    //                     path: "".into(),
-    //                     content: input.into(),
-    //                 }))))?;
+        test_hello_world: (
+            vec![
+                Token::zero(TokenType::Newline, "\n"),
 
-    //             let FeTokenPackage::File(tokens) = tokens else {
-    //                 panic!();
-    //             };
+                Token::zero(TokenType::Use, "use"),
+                Token::zero(TokenType::DoubleColon, "::"),
+                Token::zero(TokenType::Ident, "fe"),
+                Token::zero(TokenType::DoubleColon, "::"),
+                Token::zero(TokenType::Ident, "print"),
+                Token::zero(TokenType::Newline, "\n"),
 
-    //             let tokens = tokens.tokens
-    //                 .try_lock()
-    //                 .unwrap()
-    //                 .iter()
-    //                 .map(|t| t.token_type.clone())
-    //                 .collect::<Vec<TokenType>>();
+                Token::zero(TokenType::Newline, "\n"),
 
-    //             assert_eq!(tokens, expected);
+                Token::zero(TokenType::Pub, "pub"),
+                Token::zero(TokenType::Fn, "fn"),
+                Token::zero(TokenType::Ident, "main"),
+                Token::zero(TokenType::OpenParen, "("),
+                Token::zero(TokenType::CloseParen, ")"),
+                Token::zero(TokenType::Newline, "\n"),
 
-    //             return Ok(());
-    //         }
-    //     )*
-    //     }
-    // }
+                Token::zero(TokenType::Ident, "print"),
+                Token::zero(TokenType::OpenParen, "("),
+                Token::zero(TokenType::PlainString, "\"Hello, world!\""),
+                Token::zero(TokenType::CloseParen, ")"),
+                Token::zero(TokenType::Newline, "\n"),
+
+                Token::zero(TokenType::Semicolon, ";"),
+                Token::zero(TokenType::Newline, "\n"),
+            ],
+            SyntaxTree {
+                mods: vec![],
+                uses: vec![Arc::new(Mutex::new(Use {
+                    id: NodeId::zero(),
+                    use_token: Token::zero(TokenType::Use, "use"),
+                    use_mod: None,
+                    path: UseStaticPath {
+                        pre: Some(UseStaticPathPre::DoubleColon(Token::zero(TokenType::DoubleColon, "::"))),
+                        name: Token::zero(TokenType::Ident, "fe"),
+                        details: Either::A(UseStaticPathNext::Single(UseStaticPathNextSingle {
+                            double_colon_token: Token::zero(TokenType::DoubleColon, "::"),
+                            path: Box::new(UseStaticPath {
+                                pre: None,
+                                name: Token::zero(TokenType::Ident, "print"),
+                                details: Either::B(()),
+                            }),
+                        })),
+                    },
+                }))],
+                decls: vec![Arc::new(Mutex::new(Decl::Fn(Arc::new(Mutex::new(FnDecl {
+                    id: NodeId::zero(),
+                    decl_mod: Some(DeclMod::Pub(Token::zero(TokenType::Pub, "pub"))),
+                    fn_mod: None,
+                    fn_token: Token::zero(TokenType::Fn, "fn"),
+                    name: Token::zero(TokenType::Ident, "main"),
+                    generics: None,
+                    open_paren_token: Token::zero(TokenType::OpenParen, "("),
+                    pre_comma_token: None,
+                    params: vec![],
+                    close_paren_token: Token::zero(TokenType::CloseParen, ")"),
+                    return_type: None,
+                    body: FnDeclBody::Block(CodeBlock {
+                        stmts: vec![
+                            Arc::new(Mutex::new(Stmt::Expr(Arc::new(Mutex::new(ExprStmt {
+                                id: NodeId::zero(),
+                                expr: Arc::new(Mutex::new(Expr::Call(Arc::new(Mutex::new(CallExpr {
+                                    id: NodeId::zero(),
+                                    callee: NestedExpr(Arc::new(Mutex::new(Expr::Ident(Arc::new(Mutex::new(IdentExpr {
+                                        id: NodeId::zero(),
+                                        ident: Token::zero(TokenType::Ident, "print"),
+                                        resolved_type: (),
+                                    })))))),
+                                    open_paren_token: Token::zero(TokenType::OpenParen, "("),
+                                    pre_comma_token: None,
+                                    args: vec![CallArg {
+                                        param_name: None,
+                                        value: NestedExpr(Arc::new(Mutex::new(Expr::PlainStringLiteral(Arc::new(Mutex::new(PlainStringLiteralExpr {
+                                            id: NodeId::zero(),
+                                            literal: Token::zero(TokenType::PlainString, "\"Hello, world!\""),
+                                            resolved_type: (),
+                                        })))))),
+                                        post_comma_token: None,
+                                        resolved_type: (),
+                                    }],
+                                    close_paren_token: Token::zero(TokenType::CloseParen, ")"),
+                                    resolved_type: None,
+                                }))))),
+                            }))))),
+                        ],
+                        end_semicolon_token: Token::zero(TokenType::Semicolon, ";"),
+                    }),
+                    has_resolved_signature: false,
+                })))))],
+            }
+        ),
+    }
 }
