@@ -135,21 +135,21 @@ impl<T: ResolvedType> Resolvable for FnDecl<Option<T>> {
     fn is_signature_resolved(&self) -> bool {
         if let Some(generics) = &self.generics {
             if !generics.is_resolved() {
-                dbg!("false");
+                // dbg!("false");
                 return false;
             }
         }
 
         for param in &self.params {
             if !param.is_resolved() {
-                dbg!("false");
+                // dbg!("false");
                 return false;
             }
         }
 
         if let Some(return_type) = &self.return_type {
             if !return_type.is_resolved() {
-                dbg!("false");
+                // dbg!("false");
                 return false;
             }
         }
@@ -159,12 +159,12 @@ impl<T: ResolvedType> Resolvable for FnDecl<Option<T>> {
 
     fn is_resolved(&self) -> bool {
         if !self.is_signature_resolved() {
-            dbg!("false");
+            // dbg!("false");
             return false;
         }
 
         if !self.body.is_resolved() {
-            dbg!("false");
+            // dbg!("false");
             return false;
         }
 
@@ -433,7 +433,7 @@ impl<T: ResolvedType, S: PartialEq> Resolvable for CodeBlock<Option<T>, S> {
     fn is_resolved(&self) -> bool {
         for stmt in &self.stmts {
             if !stmt.try_lock().unwrap().is_resolved() {
-                dbg!("false");
+                // dbg!("false");
                 return false;
             }
         }
@@ -500,7 +500,7 @@ impl<T: ResolvedType> Resolvable for StructDecl<Option<T>> {
     fn is_signature_resolved(&self) -> bool {
         if let Some(generics) = &self.generics {
             if !generics.is_resolved() {
-                dbg!("false");
+                // dbg!("false");
                 return false;
             }
         }
@@ -508,7 +508,7 @@ impl<T: ResolvedType> Resolvable for StructDecl<Option<T>> {
         for field in &self.fields {
             if let Some(StructFieldMod::Pub(_)) = field.field_mod {
                 if !field.is_resolved() {
-                    dbg!("false");
+                    // dbg!("false");
                     return false;
                 }
             }
@@ -520,14 +520,14 @@ impl<T: ResolvedType> Resolvable for StructDecl<Option<T>> {
     fn is_resolved(&self) -> bool {
         if let Some(generics) = &self.generics {
             if !generics.is_resolved() {
-                dbg!("false");
+                // dbg!("false");
                 return false;
             }
         }
 
         for field in &self.fields {
             if !field.is_resolved() {
-                dbg!("false");
+                // dbg!("false");
                 return false;
             }
         }
@@ -614,7 +614,7 @@ impl<T: ResolvedType> From<StructDeclField<()>> for StructDeclField<Option<T>> {
 impl<T: ResolvedType> Resolvable for StructDeclField<Option<T>> {
     fn is_resolved(&self) -> bool {
         if !self.static_type_ref.is_resolved() {
-            dbg!("false");
+            // dbg!("false");
             return false;
         }
 

@@ -155,14 +155,14 @@ impl<T: ResolvedType> Resolvable for UseStaticPath<Option<T>> {
     fn is_resolved(&self) -> bool {
         if let Either::B(b) = &self.details {
             if b.is_none() {
-                dbg!("false");
+                // dbg!("false");
                 return false;
             }
         }
 
         if let Either::A(next) = &self.details {
             if !next.is_resolved() {
-                dbg!("false");
+                // dbg!("false");
                 return false;
             }
         }
@@ -281,7 +281,7 @@ impl<T: ResolvedType> Resolvable for UseStaticPathNextMany<Option<T>> {
     fn is_resolved(&self) -> bool {
         for next in &self.nexts {
             if !next.is_resolved() {
-                dbg!("false");
+                // dbg!("false");
                 return false;
             }
         }

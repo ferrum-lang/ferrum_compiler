@@ -58,12 +58,12 @@ impl FeTypeResolver {
         };
 
         while !pkg.try_lock().unwrap().is_resolved() {
-            println!("1");
+            // dbg!("1");
             let changed = match &mut *pkg.try_lock().unwrap() {
                 FeSyntaxPackage::File(file) => this.resolve_file(file)?,
                 FeSyntaxPackage::Dir(dir) => this.resolve_dir(dir)?,
             };
-            dbg!("2");
+            // dbg!("2");
 
             if !changed {
                 todo!("Can't resolve!");

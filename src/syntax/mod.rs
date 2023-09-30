@@ -175,13 +175,13 @@ impl<T: ResolvedType> From<FeSyntaxDir<()>> for FeSyntaxDir<Option<T>> {
 impl<T: ResolvedType> Resolvable for FeSyntaxDir<Option<T>> {
     fn is_resolved(&self) -> bool {
         if !self.entry_file.is_resolved() {
-            dbg!("false");
+            // dbg!("false");
             return false;
         }
 
         for pkg in self.local_packages.values() {
             if !pkg.lock().unwrap().is_resolved() {
-                dbg!("false");
+                // dbg!("false");
                 return false;
             }
         }
@@ -242,14 +242,14 @@ impl<T: ResolvedType> Resolvable for SyntaxTree<Option<T>> {
     fn is_resolved(&self) -> bool {
         for u in &self.uses {
             if !u.lock().unwrap().is_resolved() {
-                dbg!("false");
+                // dbg!("false");
                 return false;
             }
         }
 
         for d in &self.decls {
             if !d.lock().unwrap().is_resolved() {
-                dbg!("false");
+                // dbg!("false");
                 return false;
             }
         }
