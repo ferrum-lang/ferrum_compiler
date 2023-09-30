@@ -100,6 +100,20 @@ impl<T: ResolvedType> Node<Stmt> for Stmt<T> {
             Self::Then(stmt) => return stmt.try_lock().unwrap().node_id(),
         }
     }
+
+    fn set_node_id(&mut self, id: NodeId<Stmt>) {
+        match self {
+            Self::Expr(stmt) => return stmt.try_lock().unwrap().set_node_id(id),
+            Self::VarDecl(stmt) => return stmt.try_lock().unwrap().set_node_id(id),
+            Self::Assign(stmt) => return stmt.try_lock().unwrap().set_node_id(id),
+            Self::Return(stmt) => return stmt.try_lock().unwrap().set_node_id(id),
+            Self::If(stmt) => return stmt.try_lock().unwrap().set_node_id(id),
+            Self::Loop(stmt) => return stmt.try_lock().unwrap().set_node_id(id),
+            Self::While(stmt) => return stmt.try_lock().unwrap().set_node_id(id),
+            Self::Break(stmt) => return stmt.try_lock().unwrap().set_node_id(id),
+            Self::Then(stmt) => return stmt.try_lock().unwrap().set_node_id(id),
+        }
+    }
 }
 
 impl<T: ResolvedType> IsTerminal<T> for Stmt<T> {
@@ -178,6 +192,10 @@ impl<T: ResolvedType> Node<Stmt> for ExprStmt<T> {
     fn node_id(&self) -> NodeId<Stmt> {
         return self.id;
     }
+
+    fn set_node_id(&mut self, id: NodeId<Stmt>) {
+        self.id = id;
+    }
 }
 
 impl<T: ResolvedType> IsTerminal<T> for ExprStmt<T> {}
@@ -241,6 +259,10 @@ pub struct VarDeclStmt<T: ResolvedType = ()> {
 impl<T: ResolvedType> Node<Stmt> for VarDeclStmt<T> {
     fn node_id(&self) -> NodeId<Stmt> {
         return self.id;
+    }
+
+    fn set_node_id(&mut self, id: NodeId<Stmt>) {
+        self.id = id;
     }
 }
 
@@ -429,6 +451,10 @@ impl<T: ResolvedType> Node<Stmt> for AssignStmt<T> {
     fn node_id(&self) -> NodeId<Stmt> {
         return self.id;
     }
+
+    fn set_node_id(&mut self, id: NodeId<Stmt>) {
+        self.id = id;
+    }
 }
 
 impl<T: ResolvedType> From<AssignStmt<()>> for AssignStmt<Option<T>> {
@@ -493,6 +519,10 @@ impl<T: ResolvedType> Node<Stmt> for ReturnStmt<T> {
     fn node_id(&self) -> NodeId<Stmt> {
         return self.id;
     }
+
+    fn set_node_id(&mut self, id: NodeId<Stmt>) {
+        self.id = id;
+    }
 }
 
 impl<T: ResolvedType> IsTerminal<T> for ReturnStmt<T> {
@@ -550,6 +580,10 @@ pub struct IfStmt<T: ResolvedType = ()> {
 impl<T: ResolvedType> Node<Stmt> for IfStmt<T> {
     fn node_id(&self) -> NodeId<Stmt> {
         return self.id;
+    }
+
+    fn set_node_id(&mut self, id: NodeId<Stmt>) {
+        self.id = id;
     }
 }
 
@@ -757,6 +791,10 @@ impl<T: ResolvedType> Node<Stmt> for LoopStmt<T> {
     fn node_id(&self) -> NodeId<Stmt> {
         return self.id;
     }
+
+    fn set_node_id(&mut self, id: NodeId<Stmt>) {
+        self.id = id;
+    }
 }
 
 impl<T: ResolvedType> IsTerminal<T> for LoopStmt<T> {
@@ -840,6 +878,10 @@ pub struct WhileStmt<T: ResolvedType = ()> {
 impl<T: ResolvedType> Node<Stmt> for WhileStmt<T> {
     fn node_id(&self) -> NodeId<Stmt> {
         return self.id;
+    }
+
+    fn set_node_id(&mut self, id: NodeId<Stmt>) {
+        self.id = id;
     }
 }
 
@@ -968,6 +1010,10 @@ impl<T: ResolvedType> Node<Stmt> for BreakStmt<T> {
     fn node_id(&self) -> NodeId<Stmt> {
         return self.id;
     }
+
+    fn set_node_id(&mut self, id: NodeId<Stmt>) {
+        self.id = id;
+    }
 }
 
 impl<T: ResolvedType> IsTerminal<T> for BreakStmt<T> {
@@ -1052,6 +1098,15 @@ impl Node<Self> for BreakHandler {
             Self::WhileExpr(h) => h.try_lock().unwrap().node_id().into(),
         }
     }
+
+    fn set_node_id(&mut self, id: NodeId<Self>) {
+        match self {
+            Self::LoopStmt(h) => h.try_lock().unwrap().set_node_id(id.into()),
+            Self::LoopExpr(h) => h.try_lock().unwrap().set_node_id(id.into()),
+            Self::WhileStmt(h) => h.try_lock().unwrap().set_node_id(id.into()),
+            Self::WhileExpr(h) => h.try_lock().unwrap().set_node_id(id.into()),
+        }
+    }
 }
 
 impl PartialEq for BreakHandler {
@@ -1102,6 +1157,10 @@ pub struct ThenStmt<T: ResolvedType = ()> {
 impl<T: ResolvedType> Node<Stmt> for ThenStmt<T> {
     fn node_id(&self) -> NodeId<Stmt> {
         return self.id;
+    }
+
+    fn set_node_id(&mut self, id: NodeId<Stmt>) {
+        self.id = id;
     }
 }
 
@@ -1175,6 +1234,13 @@ impl Node<Self> for ThenHandler {
         match self {
             Self::IfExpr(_, h) => h.try_lock().unwrap().node_id().into(),
             Self::IfStmt(_, h) => h.try_lock().unwrap().node_id().into(),
+        }
+    }
+
+    fn set_node_id(&mut self, id: NodeId<Self>) {
+        match self {
+            Self::IfExpr(_, h) => h.try_lock().unwrap().set_node_id(id.into()),
+            Self::IfStmt(_, h) => h.try_lock().unwrap().set_node_id(id.into()),
         }
     }
 }

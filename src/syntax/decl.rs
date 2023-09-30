@@ -37,6 +37,13 @@ impl<T: ResolvedType> Node<Decl> for Decl<T> {
             Self::Struct(decl) => return decl.try_lock().unwrap().node_id(),
         }
     }
+
+    fn set_node_id(&mut self, id: NodeId<Decl>) {
+        match self {
+            Self::Fn(decl) => return decl.try_lock().unwrap().set_node_id(id),
+            Self::Struct(decl) => return decl.try_lock().unwrap().set_node_id(id),
+        }
+    }
 }
 
 impl<T: ResolvedType> From<Decl<()>> for Decl<Option<T>> {
@@ -97,6 +104,10 @@ pub struct FnDecl<T: ResolvedType = ()> {
 impl<T: ResolvedType> Node<Decl> for FnDecl<T> {
     fn node_id(&self) -> NodeId<Decl> {
         return self.id;
+    }
+
+    fn set_node_id(&mut self, id: NodeId<Decl>) {
+        self.id = id;
     }
 }
 
@@ -462,6 +473,10 @@ pub struct StructDecl<T: ResolvedType = ()> {
 impl<T: ResolvedType> Node<Decl> for StructDecl<T> {
     fn node_id(&self) -> NodeId<Decl> {
         return self.id;
+    }
+
+    fn set_node_id(&mut self, id: NodeId<Decl>) {
+        self.id = id;
     }
 }
 

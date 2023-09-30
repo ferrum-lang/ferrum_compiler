@@ -169,6 +169,25 @@ impl<T: ResolvedType> Node<Expr> for Expr<T> {
             Self::While(expr) => return expr.try_lock().unwrap().node_id(),
         }
     }
+
+    fn set_node_id(&mut self, id: NodeId<Expr>) {
+        match self {
+            Self::BoolLiteral(expr) => return expr.try_lock().unwrap().set_node_id(id),
+            Self::NumberLiteral(expr) => return expr.try_lock().unwrap().set_node_id(id),
+            Self::PlainStringLiteral(expr) => return expr.try_lock().unwrap().set_node_id(id),
+            Self::FmtStringLiteral(expr) => return expr.try_lock().unwrap().set_node_id(id),
+            Self::Ident(expr) => return expr.try_lock().unwrap().set_node_id(id),
+            Self::Call(expr) => return expr.try_lock().unwrap().set_node_id(id),
+            Self::Unary(expr) => return expr.try_lock().unwrap().set_node_id(id),
+            Self::Binary(expr) => return expr.try_lock().unwrap().set_node_id(id),
+            Self::StaticRef(expr) => return expr.try_lock().unwrap().set_node_id(id),
+            Self::Construct(expr) => return expr.try_lock().unwrap().set_node_id(id),
+            Self::Get(expr) => return expr.try_lock().unwrap().set_node_id(id),
+            Self::If(expr) => return expr.try_lock().unwrap().set_node_id(id),
+            Self::Loop(expr) => return expr.try_lock().unwrap().set_node_id(id),
+            Self::While(expr) => return expr.try_lock().unwrap().set_node_id(id),
+        }
+    }
 }
 
 impl<T: ResolvedType> From<Expr<()>> for Expr<Option<T>> {
@@ -284,6 +303,10 @@ impl<T: ResolvedType> Node<Expr> for BoolLiteralExpr<T> {
     fn node_id(&self) -> NodeId<Expr> {
         return self.id;
     }
+
+    fn set_node_id(&mut self, id: NodeId<Expr>) {
+        self.id = id;
+    }
 }
 
 impl<T: ResolvedType> From<BoolLiteralExpr<()>> for BoolLiteralExpr<Option<T>> {
@@ -328,6 +351,10 @@ pub struct NumberLiteralExpr<T: ResolvedType = ()> {
 impl<T: ResolvedType> Node<Expr> for NumberLiteralExpr<T> {
     fn node_id(&self) -> NodeId<Expr> {
         return self.id;
+    }
+
+    fn set_node_id(&mut self, id: NodeId<Expr>) {
+        self.id = id;
     }
 }
 
@@ -382,6 +409,10 @@ impl<T: ResolvedType> Node<Expr> for PlainStringLiteralExpr<T> {
     fn node_id(&self) -> NodeId<Expr> {
         return self.id;
     }
+
+    fn set_node_id(&mut self, id: NodeId<Expr>) {
+        self.id = id;
+    }
 }
 
 impl<T: ResolvedType> From<PlainStringLiteralExpr<()>> for PlainStringLiteralExpr<Option<T>> {
@@ -426,6 +457,10 @@ pub struct FmtStringLiteralExpr<T: ResolvedType = ()> {
 impl<T: ResolvedType> Node<Expr> for FmtStringLiteralExpr<T> {
     fn node_id(&self) -> NodeId<Expr> {
         return self.id;
+    }
+
+    fn set_node_id(&mut self, id: NodeId<Expr>) {
+        self.id = id;
     }
 }
 
@@ -520,6 +555,10 @@ impl<T: ResolvedType> Node<Expr> for IdentExpr<T> {
     fn node_id(&self) -> NodeId<Expr> {
         return self.id;
     }
+
+    fn set_node_id(&mut self, id: NodeId<Expr>) {
+        self.id = id;
+    }
 }
 
 impl<T: ResolvedType> From<IdentExpr<()>> for IdentExpr<Option<T>> {
@@ -567,6 +606,10 @@ pub struct CallExpr<T: ResolvedType = ()> {
 impl<T: ResolvedType> Node<Expr> for CallExpr<T> {
     fn node_id(&self) -> NodeId<Expr> {
         return self.id;
+    }
+
+    fn set_node_id(&mut self, id: NodeId<Expr>) {
+        self.id = id;
     }
 }
 
@@ -707,6 +750,10 @@ impl<T: ResolvedType> Node<Expr> for UnaryExpr<T> {
     fn node_id(&self) -> NodeId<Expr> {
         return self.id;
     }
+
+    fn set_node_id(&mut self, id: NodeId<Expr>) {
+        self.id = id;
+    }
 }
 
 impl<T: ResolvedType> From<UnaryExpr<()>> for UnaryExpr<Option<T>> {
@@ -764,6 +811,10 @@ pub struct BinaryExpr<T: ResolvedType = ()> {
 impl<T: ResolvedType> Node<Expr> for BinaryExpr<T> {
     fn node_id(&self) -> NodeId<Expr> {
         return self.id;
+    }
+
+    fn set_node_id(&mut self, id: NodeId<Expr>) {
+        self.id = id;
     }
 }
 
@@ -830,6 +881,10 @@ pub struct StaticRefExpr<T: ResolvedType = ()> {
 impl<T: ResolvedType> Node<Expr> for StaticRefExpr<T> {
     fn node_id(&self) -> NodeId<Expr> {
         return self.id;
+    }
+
+    fn set_node_id(&mut self, id: NodeId<Expr>) {
+        self.id = id;
     }
 }
 
@@ -936,6 +991,10 @@ pub struct ConstructExpr<T: ResolvedType = ()> {
 impl<T: ResolvedType> Node<Expr> for ConstructExpr<T> {
     fn node_id(&self) -> NodeId<Expr> {
         return self.id;
+    }
+
+    fn set_node_id(&mut self, id: NodeId<Expr>) {
+        self.id = id;
     }
 }
 
@@ -1079,6 +1138,10 @@ impl<T: ResolvedType> Node<Expr> for GetExpr<T> {
     fn node_id(&self) -> NodeId<Expr> {
         return self.id;
     }
+
+    fn set_node_id(&mut self, id: NodeId<Expr>) {
+        self.id = id;
+    }
 }
 
 impl<T: ResolvedType> From<GetExpr<()>> for GetExpr<Option<T>> {
@@ -1137,6 +1200,10 @@ pub struct IfExpr<T: ResolvedType = ()> {
 impl<T: ResolvedType> Node<Expr> for IfExpr<T> {
     fn node_id(&self) -> NodeId<Expr> {
         return self.id;
+    }
+
+    fn set_node_id(&mut self, id: NodeId<Expr>) {
+        self.id = id;
     }
 }
 
@@ -1633,6 +1700,10 @@ impl<T: ResolvedType> Node<Expr> for LoopExpr<T> {
     fn node_id(&self) -> NodeId<Expr> {
         return self.id;
     }
+
+    fn set_node_id(&mut self, id: NodeId<Expr>) {
+        self.id = id;
+    }
 }
 
 impl<T: ResolvedType> IsTerminal<T> for LoopExpr<T> {
@@ -1710,6 +1781,10 @@ pub struct WhileExpr<T: ResolvedType = ()> {
 impl<T: ResolvedType> Node<Expr> for WhileExpr<T> {
     fn node_id(&self) -> NodeId<Expr> {
         return self.id;
+    }
+
+    fn set_node_id(&mut self, id: NodeId<Expr>) {
+        self.id = id;
     }
 }
 

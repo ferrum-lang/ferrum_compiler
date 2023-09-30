@@ -1,20 +1,8 @@
-mod decl;
-pub use decl::*;
-
-mod stmt;
-pub use stmt::*;
-
-mod expr;
-pub use expr::*;
-
-mod r#use;
-pub use r#use::*;
-
-mod r#static;
-pub use r#static::*;
-
 mod compiler;
 pub use compiler::*;
+
+mod syntax;
+pub use syntax::*;
 
 use std::path::PathBuf;
 use std::sync::Arc;

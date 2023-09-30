@@ -53,4 +53,5 @@ impl<T> fmt::Display for NodeId<T> {
 
 pub trait Node<T> {
     fn node_id(&self) -> NodeId<T>;
+    fn set_node_id(&mut self, id: NodeId<T>);
 }

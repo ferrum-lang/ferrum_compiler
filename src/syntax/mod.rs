@@ -278,7 +278,7 @@ impl<T: ResolvedType> TryFrom<SyntaxTree<Option<T>>> for SyntaxTree<T> {
     }
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct Mod(pub Arc<str>);
 
 #[derive(Debug, Clone)]

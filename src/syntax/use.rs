@@ -15,6 +15,10 @@ impl<T: ResolvedType> Node<Use> for Use<T> {
     fn node_id(&self) -> NodeId<Use> {
         return self.id;
     }
+
+    fn set_node_id(&mut self, id: NodeId<Use>) {
+        self.id = id;
+    }
 }
 
 impl<T: ResolvedType> From<Use<()>> for Use<Option<T>> {

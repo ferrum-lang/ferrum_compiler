@@ -1970,3 +1970,104 @@ impl FeTokenSyntaxParser {
         return self.tokens.get(self.current_idx - 1).cloned();
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use std::assert_matches::assert_matches;
+
+    use super::*;
+
+    #[test]
+    fn test_() -> Result {
+        let expected: SyntaxTree<()> = SyntaxTree {
+            mods: vec![],
+            uses: vec![],
+            decls: vec![],
+        };
+
+        let ast = FeSyntaxParser::parse_package(Arc::new(Mutex::new(FeTokenPackage::File(
+            FeTokenFile {
+                name: TokenPackageName("".into()),
+                path: "".into(),
+                tokens: Arc::new(Mutex::new(vec![])),
+            },
+        ))))?;
+
+        let FeSyntaxPackage::File(ast) = ast else {
+            panic!();
+        };
+
+        let ast = &*ast.syntax.try_lock().unwrap();
+
+        assert_eq!(ast.mods.len(), expected.mods.len());
+        assert_eq!(ast.uses.len(), expected.uses.len());
+        assert_eq!(ast.decls.len(), expected.decls.len());
+
+        for idx in 0..ast.mods.len() {
+            let actual = &ast.mods[idx];
+            let expected = &expected.mods[idx];
+
+            assert_eq!(actual.0.as_ref(), expected.0.as_ref());
+        }
+
+        for idx in 0..ast.uses.len() {
+            let actual = &mut *ast.uses[idx].try_lock().unwrap();
+            let expected = &mut *expected.uses[idx].try_lock().unwrap();
+
+            actual.set_node_id(expected.node_id());
+            assert_eq!(actual, expected);
+        }
+
+        for idx in 0..ast.decls.len() {
+            let actual = &mut *ast.decls[idx].try_lock().unwrap();
+            let expected = &mut *expected.decls[idx].try_lock().unwrap();
+
+            actual.set_node_id(expected.node_id());
+
+            match (&mut actual, &expected) {
+                (Decl::Fn(actual), Decl::Fn(expected)) => {}
+                (Decl::Struct(actual), Decl::Struct(expected)) => {}
+
+                // Should fail
+                (actual, expected) => assert_eq!(actual, expected),
+            }
+
+            assert_eq!(actual, expected);
+        }
+
+        return Ok(());
+    }
+
+    // macro_rules! input_matches_output_tests {
+    //     ($($name:ident: $value:expr,)*) => {
+    //     $(
+    //         #[test]
+    //         fn $name() -> Result {
+    //             let (input, expected) = $value;
+
+    //             let ast =
+    //                 FeSyntax::scan_package(Arc::new(Mutex::new(FeSourcePackage::File(FeSourceFile {
+    //                     name: SourcePackageName("".into()),
+    //                     path: "".into(),
+    //                     content: input.into(),
+    //                 }))))?;
+
+    //             let FeTokenPackage::File(tokens) = tokens else {
+    //                 panic!();
+    //             };
+
+    //             let tokens = tokens.tokens
+    //                 .try_lock()
+    //                 .unwrap()
+    //                 .iter()
+    //                 .map(|t| t.token_type.clone())
+    //                 .collect::<Vec<TokenType>>();
+
+    //             assert_eq!(tokens, expected);
+
+    //             return Ok(());
+    //         }
+    //     )*
+    //     }
+    // }
+}
