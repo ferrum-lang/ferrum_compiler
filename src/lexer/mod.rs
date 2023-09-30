@@ -519,13 +519,34 @@ pub fn main
 ;
         "#, vec![
             Newline,
-            Use, DoubleColon, Ident, DoubleColon, Ident,
+            Use, DoubleColon, Ident, DoubleColon, Ident, Newline,
             Newline,
+            Pub, Fn, Ident, Newline,
+            Ident, OpenParen, PlainString, CloseParen, Newline,
+            Semicolon, Newline,
+        ]),
+
+        test_labels: (r#"
+pub fn main
+    if'my_label true
+        return
+    else if'my_label true
+        return
+    else'my_label
+        return
+    ;
+;
+        "#, vec![
             Newline,
-            Pub, Fn, Ident, Newline, Ident, OpenParen, PlainString, CloseParen,
-            Newline,
-            Semicolon,
-            Newline
+            Pub, Fn, Ident, Newline,
+            If, Label, True, Newline,
+            Return, Newline,
+            Else, If, Label, True, Newline,
+            Return, Newline,
+            Else, Label, Newline,
+            Return, Newline,
+            Semicolon, Newline,
+            Semicolon, Newline,
         ]),
     }
 }
