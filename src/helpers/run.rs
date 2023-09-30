@@ -9,7 +9,6 @@ use crate::type_resolver::FeTypeResolver;
 
 use crate::result::Result;
 
-// Traits
 use crate::code_gen::CodeGen;
 use crate::project_gen::ProjectGen;
 use crate::syntax::SyntaxCompiler;
