@@ -1,4 +1,4 @@
-use ferrum_compiler::helpers;
+use ferrum_compiler::helpers::run_full;
 use ferrum_compiler::result::Result;
 
 use std::path::PathBuf;
@@ -7,26 +7,26 @@ use std::{env, fs};
 const CARGO_MANIFEST_DIR: &'static str = "CARGO_MANIFEST_DIR";
 
 #[test]
-fn test_that_examples_work() -> Result {
+fn test_examples() -> Result {
     let root_dir = PathBuf::from(env::var(CARGO_MANIFEST_DIR)?);
-    let examples_dir = root_dir.join("examples");
+    let projects_dir = root_dir.join("tests/integration/projects");
 
-    for example_dir in examples_dir.read_dir()? {
-        let example_dir = example_dir?;
+    for project_dir in projects_dir.read_dir()? {
+        let project_dir = project_dir?;
 
-        if example_dir.file_type()?.is_dir() {
+        if project_dir.file_type()?.is_dir() {
             // Setup
-            let example_dir = example_dir.path();
+            let project_dir = project_dir.path();
 
             // Run
-            let out = helpers::run_full(example_dir.clone())?;
+            let out = run_full(project_dir.clone())?;
 
-            // Build expectation
             let actual_stdout = String::from_utf8(out.stdout)?;
             let actual_stderr = String::from_utf8(out.stderr)?;
 
-            let expected_stdout_path = example_dir.join("stdout.txt");
-            let expected_stderr_path = example_dir.join("stderr.txt");
+            // Build expectation
+            let expected_stdout_path = project_dir.join("stdout.txt");
+            let expected_stderr_path = project_dir.join("stderr.txt");
 
             let expected_stdout = if expected_stdout_path.is_file() {
                 fs::read_to_string(expected_stdout_path)?
@@ -41,8 +41,8 @@ fn test_that_examples_work() -> Result {
             };
 
             // Assertions
-            assert_eq!(actual_stdout, expected_stdout, "example: {:?}", example_dir);
-            assert_eq!(actual_stderr, expected_stderr, "example: {:?}", example_dir);
+            assert_eq!(actual_stdout, expected_stdout, "test: {:?}", project_dir);
+            assert_eq!(actual_stderr, expected_stderr, "test: {:?}", project_dir);
         }
     }
 
