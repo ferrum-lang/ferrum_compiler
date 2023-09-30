@@ -2,6 +2,7 @@
 name = "ferrum_compiler"
 version = "0.0.1"
 description = "Compiler library for the Ferrum programming language."
+license = "MIT"
 
 edition = "2021"
 
