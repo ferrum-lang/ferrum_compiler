@@ -3,5 +3,4 @@
 
 Compiler library for the Ferrum programming language.
 
-- See [https://github.com/ferrum-lang/ferrum](https://github.com/ferrum-lang/ferrum) for the language build tool.
-- See [/examples](https://github.com/ferrum-lang/ferrum_compiler/tree/main/examples) for code examples.
+- See [https://github.com/ferrum-lang/ferrum](https://github.com/ferrum-lang/ferrum) for more details on the language.
