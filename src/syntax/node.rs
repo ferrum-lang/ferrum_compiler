@@ -63,12 +63,12 @@ impl NodeIdGen {
     }
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Default)]
 struct DefaultNodeIdGenInstance {
     next_id: usize,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Default)]
 pub struct DefaultNodeIdGen {
     instance: Arc<Mutex<DefaultNodeIdGenInstance>>,
 }
