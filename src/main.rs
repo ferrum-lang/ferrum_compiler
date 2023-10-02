@@ -5,14 +5,11 @@ use ferrum_compiler::result::Result;
 
 use std::env;
 use std::path;
-use std::process;
 
 fn main() -> Result {
     let root_dir = get_root_dir();
 
     let out = helpers::run_full(root_dir)?;
-
-    let _ = process::Command::new("clear").status()?;
 
     println!("{}", String::from_utf8(out.stderr)?);
     println!("Output:\n------\n");

@@ -5,6 +5,7 @@ pub mod executor;
 pub mod helpers;
 pub mod ir;
 pub mod lexer;
+pub mod log;
 pub mod parser;
 pub mod project_gen;
 pub mod reader;

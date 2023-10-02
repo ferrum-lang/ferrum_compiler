@@ -1,3 +1,4 @@
+use crate::log;
 use crate::result::Result;
 use crate::syntax::*;
 use crate::token::*;
@@ -1060,7 +1061,7 @@ impl FeTokenSyntaxParser {
                         }));
                     } else {
                         if label.is_some() {
-                            dbg!(&label);
+                            log::error!(&label);
                             todo!("Unexpected label!");
                         }
 

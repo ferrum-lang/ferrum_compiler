@@ -6,17 +6,17 @@ use std::collections::HashMap;
 use std::path::PathBuf;
 use std::sync::{Arc, Mutex};
 
-pub struct Reader {
-    root_dir: PathBuf,
+pub struct SourceReader {
+    src_root_dir: PathBuf,
 }
 
-impl Reader {
-    pub fn read_project_files(root_dir: PathBuf) -> Result<FeSourcePackage> {
-        return Self::new(root_dir).read();
+impl SourceReader {
+    pub fn read_src_files(src_root_dir: PathBuf) -> Result<FeSourcePackage> {
+        return Self::new(src_root_dir).read();
     }
 
-    pub fn new(root_dir: PathBuf) -> Self {
-        return Self { root_dir };
+    pub fn new(src_root_dir: PathBuf) -> Self {
+        return Self { src_root_dir };
     }
 
     pub fn read(&self) -> Result<FeSourcePackage> {
@@ -79,12 +79,14 @@ impl Reader {
             }));
         }
 
-        let src_dir = self.root_dir.join("src");
-        if !src_dir.is_dir() {
-            panic!("Expected the project root to contain a 'src' directory: {src_dir:?}");
+        if !self.src_root_dir.is_dir() {
+            panic!(
+                "Expected the project root to contain a 'src' directory: {:?}",
+                self.src_root_dir
+            );
         }
 
-        let src_dir_entries = src_dir.read_dir()?;
+        let src_dir_entries = self.src_root_dir.read_dir()?;
         let mut local_packages = HashMap::new();
 
         for pkg in src_dir_entries {
@@ -122,7 +124,7 @@ impl Reader {
             }
         }
 
-        let main = src_dir.join("_main.fe");
+        let main = self.src_root_dir.join("_main.fe");
         if !main.is_file() {
             panic!("Expected project root to contain a '_main.fe' file");
         }

@@ -10,6 +10,7 @@ use scope::*;
 use crate::r#type::*;
 use crate::syntax::*;
 
+use crate::log;
 use crate::result::Result;
 
 use crate::token::Token;
@@ -58,12 +59,12 @@ impl FeTypeResolver {
         };
 
         while !pkg.try_lock().unwrap().is_resolved() {
-            // dbg!("1");
+            log::trace!(1);
             let changed = match &mut *pkg.try_lock().unwrap() {
                 FeSyntaxPackage::File(file) => this.resolve_file(file)?,
                 FeSyntaxPackage::Dir(dir) => this.resolve_dir(dir)?,
             };
-            // dbg!("2");
+            log::trace!(2);
 
             if !changed {
                 todo!("Can't resolve!");
@@ -214,7 +215,8 @@ impl FeTypeResolver {
     fn evaluate_decl(&mut self, decl: Arc<Mutex<Decl<Option<FeType>>>>) -> Result<bool> {
         match &mut *decl.try_lock().unwrap() {
             Decl::Fn(shared_decl) => {
-                // dbg!(&self.scope);
+                log::trace!(&self.scope);
+
                 let decl = &mut *shared_decl.try_lock().unwrap();
 
                 if let Some(return_type) = &decl.return_type {

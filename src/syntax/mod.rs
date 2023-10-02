@@ -16,6 +16,7 @@ pub use r#use::*;
 mod r#static;
 pub use r#static::*;
 
+use crate::log;
 use crate::r#type::FeType;
 use crate::result::Result;
 use crate::token;
@@ -175,14 +176,12 @@ impl<T: ResolvedType> From<FeSyntaxDir<()>> for FeSyntaxDir<Option<T>> {
 impl<T: ResolvedType> Resolvable for FeSyntaxDir<Option<T>> {
     fn is_resolved(&self) -> bool {
         if !self.entry_file.is_resolved() {
-            // dbg!("false");
-            return false;
+            return log::trace!(false);
         }
 
         for pkg in self.local_packages.values() {
             if !pkg.lock().unwrap().is_resolved() {
-                // dbg!("false");
-                return false;
+                return log::trace!(false);
             }
         }
 
@@ -242,15 +241,13 @@ impl<T: ResolvedType> Resolvable for SyntaxTree<Option<T>> {
     fn is_resolved(&self) -> bool {
         for u in &self.uses {
             if !u.lock().unwrap().is_resolved() {
-                // dbg!("false");
-                return false;
+                return log::trace!(false);
             }
         }
 
         for d in &self.decls {
             if !d.lock().unwrap().is_resolved() {
-                // dbg!("false");
-                return false;
+                return log::trace!(false);
             }
         }
 

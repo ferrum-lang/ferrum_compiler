@@ -1,5 +1,7 @@
 use super::*;
 
+use crate::log;
+
 impl StmtVisitor<Option<FeType>, Result<bool>> for FeTypeResolver {
     fn visit_expr_stmt(&mut self, stmt: Arc<Mutex<ExprStmt<Option<FeType>>>>) -> Result<bool> {
         return stmt
@@ -390,7 +392,7 @@ impl StmtVisitor<Option<FeType>, Result<bool>> for FeTypeResolver {
             .unwrap()
             .handle_break(stmt.label.clone())
         else {
-            dbg!(&stmt, &self.scope);
+            log::error!(&stmt, &self.scope);
             todo!();
         };
 
@@ -480,7 +482,7 @@ impl StmtVisitor<Option<FeType>, Result<bool>> for FeTypeResolver {
                 .unwrap()
                 .handle_then(stmt.label.clone())
             else {
-                dbg!(&stmt, &self.scope);
+                log::error!(&stmt, &self.scope);
                 todo!();
             };
 

@@ -1,5 +1,6 @@
 use super::*;
 
+use crate::log;
 use crate::token::Token;
 use crate::utils::{from, try_from};
 
@@ -155,15 +156,13 @@ impl<T: ResolvedType> Resolvable for UseStaticPath<Option<T>> {
     fn is_resolved(&self) -> bool {
         if let Either::B(b) = &self.details {
             if b.is_none() {
-                // dbg!("false");
-                return false;
+                return log::trace!(false);
             }
         }
 
         if let Either::A(next) = &self.details {
             if !next.is_resolved() {
-                // dbg!("false");
-                return false;
+                return log::trace!(false);
             }
         }
 
@@ -281,8 +280,7 @@ impl<T: ResolvedType> Resolvable for UseStaticPathNextMany<Option<T>> {
     fn is_resolved(&self) -> bool {
         for next in &self.nexts {
             if !next.is_resolved() {
-                // dbg!("false");
-                return false;
+                return log::trace!(false);
             }
         }
 
