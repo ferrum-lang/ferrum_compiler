@@ -6,7 +6,18 @@ use ferrum_compiler::result::Result;
 use std::env;
 use std::path;
 
+use env_logger;
+use log;
+
 fn main() -> Result {
+    if env::var("RUST_LOG").is_ok() {
+        env_logger::builder().init();
+    } else {
+        env_logger::builder()
+            .filter_level(log::LevelFilter::Info)
+            .init();
+    }
+
     let root_dir = get_root_dir();
 
     let out = helpers::run_full(root_dir)?;

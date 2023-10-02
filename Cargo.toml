@@ -6,11 +6,21 @@ license = "MIT"
 
 edition = "2021"
 
+[lib]
+name = "ferrum_compiler"
 
-# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+[[bin]]
+name = "manual_test"
+required-features = ["build-binary"]
+
+[features]
+build-binary = ["env_logger"]
 
 [dependencies]
 anyhow = "1.0.71"
 lazy_static = "1.4.0"
 log = "0.4.20"
 thiserror = "1.0.41"
+
+env_logger = { version = "0.10.0", optional = true }
+
