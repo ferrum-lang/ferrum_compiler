@@ -19,7 +19,7 @@ fn test_examples() -> Result {
             let project_dir = project_dir.path();
 
             // Run
-            let out = run_full(project_dir.clone())?;
+            let out = run_full((&project_dir).into())?;
 
             let actual_stdout = String::from_utf8(out.stdout)?;
             let actual_stderr = String::from_utf8(out.stderr)?;

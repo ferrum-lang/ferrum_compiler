@@ -5,6 +5,7 @@ mod r#use;
 
 use super::*;
 
+use crate::config::Config;
 use crate::r#type::*;
 use crate::syntax::*;
 
@@ -17,19 +18,26 @@ use crate::result::Result;
 use std::sync::{Arc, Mutex};
 
 pub struct RustSyntaxCompiler {
+    #[allow(unused)]
+    cfg: Arc<Config>,
+
     entry: Arc<Mutex<FeSyntaxPackage<FeType>>>,
     out: ir::RustIR,
 }
 
 impl SyntaxCompiler<ir::RustIR> for RustSyntaxCompiler {
-    fn compile_package(entry: Arc<Mutex<FeSyntaxPackage<FeType>>>) -> Result<ir::RustIR> {
-        return Self::new(entry).compile();
+    fn compile_package(
+        cfg: Arc<Config>,
+        entry: Arc<Mutex<FeSyntaxPackage<FeType>>>,
+    ) -> Result<ir::RustIR> {
+        return Self::new(cfg, entry).compile();
     }
 }
 
 impl RustSyntaxCompiler {
-    fn new(entry: Arc<Mutex<FeSyntaxPackage<FeType>>>) -> Self {
+    fn new(cfg: Arc<Config>, entry: Arc<Mutex<FeSyntaxPackage<FeType>>>) -> Self {
         return Self {
+            cfg,
             entry,
             out: ir::RustIR {
                 files: vec![ir::RustIRFile {

@@ -1,5 +1,6 @@
 use super::*;
 
+use crate::log;
 use crate::result::Result;
 use crate::token::Token;
 use crate::utils::{fe_from, fe_try_from, from, try_from};
@@ -632,20 +633,17 @@ impl<T: ResolvedType> Resolvable for CallExpr<Option<T>> {
     fn is_resolved(&self) -> bool {
         if let Some(resolved_type) = &self.resolved_type {
             if !resolved_type.is_some() {
-                //     dbg!("false");
-                return false;
+                return log::trace!(false);
             }
         }
 
         if !self.callee.is_resolved() {
-            // dbg!("false");
-            return false;
+            return log::trace!(false);
         }
 
         for arg in &self.args {
             if !arg.is_resolved() {
-                //     dbg!("false");
-                return false;
+                return log::trace!(false);
             }
         }
 
@@ -703,13 +701,11 @@ impl<T: ResolvedType> Resolvable for CallArg<Option<T>> {
     #[allow(clippy::nonminimal_bool)]
     fn is_resolved(&self) -> bool {
         if !self.resolved_type.is_some() {
-            // dbg!("false");
-            return false;
+            return log::trace!(false);
         }
 
         if !self.value.is_resolved() {
-            // dbg!("false");
-            return false;
+            return log::trace!(false);
         }
 
         return true;
@@ -1014,14 +1010,12 @@ impl<T: ResolvedType> From<ConstructExpr<()>> for ConstructExpr<Option<T>> {
 impl<T: ResolvedType> Resolvable for ConstructExpr<Option<T>> {
     fn is_resolved(&self) -> bool {
         if !self.target.is_resolved() {
-            // dbg!("false");
-            return false;
+            return log::trace!(false);
         }
 
         for arg in &self.args {
             if !arg.is_resolved() {
-                //     dbg!("false");
-                return false;
+                return log::trace!(false);
             }
         }
 
@@ -1104,8 +1098,7 @@ impl<T: ResolvedType> From<ConstructField<()>> for ConstructField<Option<T>> {
 impl<T: ResolvedType> Resolvable for ConstructField<Option<T>> {
     fn is_resolved(&self) -> bool {
         if !self.value.0.try_lock().unwrap().is_resolved() {
-            // dbg!("false");
-            return false;
+            return log::trace!(false);
         }
 
         return true;
@@ -1159,8 +1152,7 @@ impl<T: ResolvedType> From<GetExpr<()>> for GetExpr<Option<T>> {
 impl<T: ResolvedType> Resolvable for GetExpr<Option<T>> {
     fn is_resolved(&self) -> bool {
         if !self.target.is_resolved() {
-            // dbg!("false");
-            return false;
+            return log::trace!(false);
         }
 
         return self.resolved_type.is_some();
@@ -1300,13 +1292,11 @@ impl<T: ResolvedType> From<IfExpr<()>> for IfExpr<Option<T>> {
 impl<T: ResolvedType> Resolvable for IfExpr<Option<T>> {
     fn is_resolved(&self) -> bool {
         if !self.condition.is_resolved() {
-            // dbg!("false");
-            return false;
+            return log::trace!(false);
         }
 
         if !self.then.is_resolved() {
-            // dbg!("false", &self);
-            return false;
+            return log::trace!(false);
         }
 
         return self.resolved_type.is_some();
@@ -1423,8 +1413,7 @@ impl<T: ResolvedType> From<IfExprThenBlock<()>> for IfExprThenBlock<Option<T>> {
 impl<T: ResolvedType> Resolvable for IfExprThenBlock<Option<T>> {
     fn is_resolved(&self) -> bool {
         if !self.block.is_resolved() {
-            // dbg!("false");
-            return false;
+            return log::trace!(false);
         }
 
         return true;
@@ -1501,13 +1490,11 @@ impl<T: ResolvedType> From<IfExprElseIfTernary<()>> for IfExprElseIfTernary<Opti
 impl<T: ResolvedType> Resolvable for IfExprElseIfTernary<Option<T>> {
     fn is_resolved(&self) -> bool {
         if !self.condition.is_resolved() {
-            // dbg!("false");
-            return false;
+            return log::trace!(false);
         }
 
         if !self.expr.is_resolved() {
-            // dbg!("false");
-            return false;
+            return log::trace!(false);
         }
 
         return true;
@@ -1552,8 +1539,7 @@ impl<T: ResolvedType> From<IfExprElseIfBlock<()>> for IfExprElseIfBlock<Option<T
 impl<T: ResolvedType> Resolvable for IfExprElseIfBlock<Option<T>> {
     fn is_resolved(&self) -> bool {
         if !self.condition.is_resolved() {
-            // dbg!("false");
-            return false;
+            return log::trace!(false);
         }
 
         return true;
@@ -1627,8 +1613,7 @@ impl<T: ResolvedType> From<IfExprElseTernary<()>> for IfExprElseTernary<Option<T
 impl<T: ResolvedType> Resolvable for IfExprElseTernary<Option<T>> {
     fn is_resolved(&self) -> bool {
         if !self.else_expr.is_resolved() {
-            // dbg!("false");
-            return false;
+            return log::trace!(false);
         }
 
         return true;
@@ -1666,8 +1651,7 @@ impl<T: ResolvedType> From<IfExprElseBlock<()>> for IfExprElseBlock<Option<T>> {
 impl<T: ResolvedType> Resolvable for IfExprElseBlock<Option<T>> {
     fn is_resolved(&self) -> bool {
         if !self.block.is_resolved() {
-            // dbg!("false");
-            return false;
+            return log::trace!(false);
         }
 
         return true;
@@ -1738,8 +1722,7 @@ impl<T: ResolvedType> From<LoopExpr<()>> for LoopExpr<Option<T>> {
 impl<T: ResolvedType> Resolvable for LoopExpr<Option<T>> {
     fn is_resolved(&self) -> bool {
         if !self.block.is_resolved() {
-            // dbg!("false");
-            return false;
+            return log::trace!(false);
         }
 
         return true;
@@ -1824,13 +1807,11 @@ impl<T: ResolvedType> From<WhileExpr<()>> for WhileExpr<Option<T>> {
 impl<T: ResolvedType> Resolvable for WhileExpr<Option<T>> {
     fn is_resolved(&self) -> bool {
         if !self.condition.is_resolved() {
-            // dbg!("false");
-            return false;
+            return log::trace!(false);
         }
 
         if !self.block.is_resolved() {
-            // dbg!("false");
-            return false;
+            return log::trace!(false);
         }
 
         return self.resolved_type.is_some();
@@ -1948,8 +1929,7 @@ impl<T: ResolvedType> From<WhileExprThenBlock<()>> for WhileExprThenBlock<Option
 impl<T: ResolvedType> Resolvable for WhileExprThenBlock<Option<T>> {
     fn is_resolved(&self) -> bool {
         if !self.block.is_resolved() {
-            // dbg!("false");
-            return false;
+            return log::trace!(false);
         }
 
         return true;
@@ -2020,8 +2000,7 @@ impl<T: ResolvedType> From<WhileExprElseTernary<()>> for WhileExprElseTernary<Op
 impl<T: ResolvedType> Resolvable for WhileExprElseTernary<Option<T>> {
     fn is_resolved(&self) -> bool {
         if !self.else_expr.is_resolved() {
-            // dbg!("false");
-            return false;
+            return log::trace!(false);
         }
 
         return true;
@@ -2057,8 +2036,7 @@ impl<T: ResolvedType> From<WhileExprElseBlock<()>> for WhileExprElseBlock<Option
 impl<T: ResolvedType> Resolvable for WhileExprElseBlock<Option<T>> {
     fn is_resolved(&self) -> bool {
         if !self.block.is_resolved() {
-            // dbg!("false");
-            return false;
+            return log::trace!(false);
         }
 
         return true;

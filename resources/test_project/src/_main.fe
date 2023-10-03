@@ -1,30 +1,6 @@
 use ::fe::print
 
 pub fn main()
-	const is_live = false
-	const use_mocks = true
-
-	const config = if' is_live
-
-		if use_mocks
-			print("Warning: you're using mocks in a live environment")
-
-			then' "Config: LIVE_MOCKS"
-		else
-			then' "Config: LIVE_INTEGRATIONS"
-		;
-
-	else'my_custom_label
-
-		if not use_mocks
-			print("Warning: you're using real integrations locally!")
-			
-			then'my_custom_label "Config: LOCAL_INTEGRAIONS"
-		;
-
-		then "Config: LOCAL_MOCKS"
-	;
-
-	print(config)
+	print("Hello world")
 ;
 

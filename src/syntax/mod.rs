@@ -16,6 +16,8 @@ pub use r#use::*;
 mod r#static;
 pub use r#static::*;
 
+use crate::config::Config;
+use crate::log;
 use crate::r#type::FeType;
 use crate::result::Result;
 use crate::token;
@@ -26,7 +28,7 @@ use std::path::PathBuf;
 use std::sync::{Arc, Mutex};
 
 pub trait SyntaxCompiler<IR> {
-    fn compile_package(entry: Arc<Mutex<FeSyntaxPackage<FeType>>>) -> Result<IR>;
+    fn compile_package(cfg: Arc<Config>, entry: Arc<Mutex<FeSyntaxPackage<FeType>>>) -> Result<IR>;
 }
 
 pub trait Resolvable {
@@ -175,14 +177,12 @@ impl<T: ResolvedType> From<FeSyntaxDir<()>> for FeSyntaxDir<Option<T>> {
 impl<T: ResolvedType> Resolvable for FeSyntaxDir<Option<T>> {
     fn is_resolved(&self) -> bool {
         if !self.entry_file.is_resolved() {
-            // dbg!("false");
-            return false;
+            return log::trace!(false);
         }
 
         for pkg in self.local_packages.values() {
             if !pkg.lock().unwrap().is_resolved() {
-                // dbg!("false");
-                return false;
+                return log::trace!(false);
             }
         }
 
@@ -242,15 +242,13 @@ impl<T: ResolvedType> Resolvable for SyntaxTree<Option<T>> {
     fn is_resolved(&self) -> bool {
         for u in &self.uses {
             if !u.lock().unwrap().is_resolved() {
-                // dbg!("false");
-                return false;
+                return log::trace!(false);
             }
         }
 
         for d in &self.decls {
             if !d.lock().unwrap().is_resolved() {
-                // dbg!("false");
-                return false;
+                return log::trace!(false);
             }
         }
 

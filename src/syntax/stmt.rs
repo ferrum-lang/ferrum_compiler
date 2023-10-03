@@ -1,5 +1,6 @@
 use super::*;
 
+use crate::log;
 use crate::token::Token;
 use crate::utils::{fe_from, fe_try_from, from, invert, try_from};
 
@@ -649,26 +650,22 @@ impl<T: ResolvedType> From<IfStmt<()>> for IfStmt<Option<T>> {
 impl<T: ResolvedType> Resolvable for IfStmt<Option<T>> {
     fn is_resolved(&self) -> bool {
         if !self.condition.is_resolved() {
-            // dbg!("false");
-            return false;
+            return log::trace!(false);
         }
 
         if !self.then.is_resolved() {
-            // dbg!("false");
-            return false;
+            return log::trace!(false);
         }
 
         for else_if in &self.else_ifs {
             if !else_if.is_resolved() {
-                //     dbg!("false");
-                return false;
+                return log::trace!(false);
             }
         }
 
         if let Some(else_) = &self.else_ {
             if !else_.is_resolved() {
-                //     dbg!("false");
-                return false;
+                return log::trace!(false);
             }
         }
 
@@ -715,13 +712,11 @@ impl<T: ResolvedType> From<IfStmtElseIf<()>> for IfStmtElseIf<Option<T>> {
 impl<T: ResolvedType> Resolvable for IfStmtElseIf<Option<T>> {
     fn is_resolved(&self) -> bool {
         if !self.condition.is_resolved() {
-            // dbg!("false");
-            return false;
+            return log::trace!(false);
         }
 
         if !self.then.is_resolved() {
-            // dbg!("false");
-            return false;
+            return log::trace!(false);
         }
 
         return true;
@@ -759,8 +754,7 @@ impl<T: ResolvedType> From<IfStmtElse<()>> for IfStmtElse<Option<T>> {
 impl<T: ResolvedType> Resolvable for IfStmtElse<Option<T>> {
     fn is_resolved(&self) -> bool {
         if !self.then.is_resolved() {
-            // dbg!("false");
-            return false;
+            return log::trace!(false);
         }
 
         return true;
@@ -841,8 +835,7 @@ impl<T: ResolvedType> From<LoopStmt<()>> for LoopStmt<Option<T>> {
 impl<T: ResolvedType> Resolvable for LoopStmt<Option<T>> {
     fn is_resolved(&self) -> bool {
         if !self.block.is_resolved() {
-            // dbg!("false");
-            return false;
+            return log::trace!(false);
         }
 
         return true;
@@ -922,19 +915,16 @@ impl<T: ResolvedType> From<WhileStmt<()>> for WhileStmt<Option<T>> {
 impl<T: ResolvedType> Resolvable for WhileStmt<Option<T>> {
     fn is_resolved(&self) -> bool {
         if !self.condition.is_resolved() {
-            // dbg!("false");
-            return false;
+            return log::trace!(false);
         }
 
         if !self.block.is_resolved() {
-            // dbg!("false");
-            return false;
+            return log::trace!(false);
         }
 
         if let Some(else_) = &self.else_ {
             if !else_.is_resolved() {
-                //     dbg!("false");
-                return false;
+                return log::trace!(false);
             }
         }
 
@@ -977,8 +967,7 @@ impl<T: ResolvedType> From<WhileStmtElse<()>> for WhileStmtElse<Option<T>> {
 impl<T: ResolvedType> Resolvable for WhileStmtElse<Option<T>> {
     fn is_resolved(&self) -> bool {
         if !self.block.is_resolved() {
-            // dbg!("false");
-            return false;
+            return log::trace!(false);
         }
 
         return true;
@@ -1040,21 +1029,18 @@ impl<T: ResolvedType> Resolvable for BreakStmt<Option<T>> {
     fn is_resolved(&self) -> bool {
         if let Some(value) = &self.value {
             if !value.is_resolved() {
-                //     dbg!("false");
-                return false;
+                return log::trace!(false);
             }
         }
 
         if let Some(res) = &self.resolved_type {
             if !res.is_some() {
-                //     dbg!("false");
-                return false;
+                return log::trace!(false);
             }
         }
 
         if !self.handler.is_some() {
-            // dbg!("false");
-            return false;
+            return log::trace!(false);
         }
 
         return true;
@@ -1187,18 +1173,15 @@ impl<T: ResolvedType> Resolvable for ThenStmt<Option<T>> {
     #[allow(clippy::nonminimal_bool)]
     fn is_resolved(&self) -> bool {
         if !self.value.is_resolved() {
-            // dbg!("false");
-            return false;
+            return log::trace!(false);
         }
 
         if !self.resolved_type.is_some() {
-            // dbg!("false");
-            return false;
+            return log::trace!(false);
         }
 
         if !self.handler.is_some() {
-            // dbg!("false");
-            return false;
+            return log::trace!(false);
         }
 
         return true;

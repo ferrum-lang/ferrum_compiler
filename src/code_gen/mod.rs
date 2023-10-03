@@ -1,7 +1,7 @@
 mod rust;
 pub use rust::*;
 
-use crate::result::Result;
+use crate::{config::Config, result::Result};
 
 use std::sync::{Arc, Mutex};
 
@@ -10,5 +10,5 @@ pub trait IRToCode {
 }
 
 pub trait CodeGen<IR: IRToCode> {
-    fn generate_code(ir: Arc<Mutex<IR>>) -> Result<IR::Code>;
+    fn generate_code(cfg: Arc<Config>, ir: Arc<Mutex<IR>>) -> Result<IR::Code>;
 }

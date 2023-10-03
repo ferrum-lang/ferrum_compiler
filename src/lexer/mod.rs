@@ -1,3 +1,4 @@
+use crate::config::Config;
 use crate::result::Result;
 use crate::source::*;
 use crate::token::*;
@@ -51,20 +52,30 @@ lazy_static::lazy_static! {
 
 #[derive(Debug, Clone)]
 pub struct FeLexer {
+    #[allow(unused)]
+    config: Arc<Config>,
+
     source_pkg: Arc<Mutex<FeSourcePackage>>,
 
     out: FeTokenPackage,
 }
 
 impl FeLexer {
-    pub fn scan_package(source_pkg: Arc<Mutex<FeSourcePackage>>) -> Result<FeTokenPackage> {
-        return Self::new(source_pkg).scan();
+    pub fn scan_package(
+        config: Arc<Config>,
+        source_pkg: Arc<Mutex<FeSourcePackage>>,
+    ) -> Result<FeTokenPackage> {
+        return Self::new(config, source_pkg).scan();
     }
 
-    pub fn new(source_pkg: Arc<Mutex<FeSourcePackage>>) -> Self {
+    pub fn new(config: Arc<Config>, source_pkg: Arc<Mutex<FeSourcePackage>>) -> Self {
         let out = source_pkg.try_lock().unwrap().clone().into();
 
-        return Self { source_pkg, out };
+        return Self {
+            config,
+            source_pkg,
+            out,
+        };
     }
 
     pub fn scan(mut self) -> Result<FeTokenPackage> {
@@ -483,7 +494,7 @@ mod tests {
                 let (input, expected) = $value;
 
                 let tokens =
-                    FeLexer::scan_package(Arc::new(Mutex::new(FeSourcePackage::File(FeSourceFile {
+                    FeLexer::scan_package(Default::default(), Arc::new(Mutex::new(FeSourcePackage::File(FeSourceFile {
                         name: SourcePackageName("".into()),
                         path: "".into(),
                         content: input.into(),

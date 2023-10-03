@@ -1,9 +1,14 @@
 use std::{fs, path, process};
 
+use crate::config::Config;
+
 use super::*;
 
 #[derive(Debug, Clone)]
 pub struct RustProjectGen {
+    #[allow(unused)]
+    cfg: Arc<Config>,
+
     entry: Arc<Mutex<code_gen::RustCode>>,
     out: RustProjectFiles,
 }
@@ -29,18 +34,20 @@ impl CodeToProjectFiles for code_gen::RustCode {
 
 impl ProjectGen<code_gen::RustCode> for RustProjectGen {
     fn generate_project_files(
+        cfg: Arc<Config>,
         rust_code: Arc<Mutex<code_gen::RustCode>>,
-        dst: impl Into<path::PathBuf>,
     ) -> Result<RustProjectFiles> {
-        return Self::new(rust_code, dst).generate();
+        return Self::new(cfg, rust_code).generate();
     }
 }
 
 impl RustProjectGen {
-    fn new(entry: Arc<Mutex<code_gen::RustCode>>, dst: impl Into<path::PathBuf>) -> Self {
+    fn new(cfg: Arc<Config>, entry: Arc<Mutex<code_gen::RustCode>>) -> Self {
         return Self {
+            out: RustProjectFiles::new(cfg.rust_gen_dir.clone()),
+
+            cfg,
             entry,
-            out: RustProjectFiles::new(dst.into()),
         };
     }
 
