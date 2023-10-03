@@ -55,13 +55,26 @@ impl StaticVisitor<Option<FeType>, Result<bool>> for FeTypeResolver {
 
         let mut changed = false;
 
-        if let Some(root) = &mut static_path.root {
+        let scope = if let Some(root) = &mut static_path.root {
             changed |= root.accept(self)?;
 
-            // TODO: Handle package types and navigating scope
+            if let Some(root_type) = &root.resolved_type {
+                let FeType::Package(pkg) = root_type else {
+                    todo!("Cannot path on root type: {root_type:#?}");
+                };
+
+                Some(pkg.try_lock().unwrap().scope())
+            } else {
+                None
+            }
         } else {
+            Some(self.scope.clone())
+        };
+
+        if let Some(scope) = scope {
+            let scope = &mut *scope.try_lock().unwrap();
+
             let name = &static_path.name.lexeme;
-            let scope = &mut *self.scope.try_lock().unwrap();
 
             if let Some(typ) = scope.search(name) {
                 static_path.resolved_type = Some(typ.typ.clone());

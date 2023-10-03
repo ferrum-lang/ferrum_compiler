@@ -643,6 +643,7 @@ impl<T: ResolvedType> Resolvable for CallExpr<Option<T>> {
 
         for arg in &self.args {
             if !arg.is_resolved() {
+                log::trace!(&arg);
                 return log::trace!(false);
             }
         }
@@ -701,6 +702,7 @@ impl<T: ResolvedType> Resolvable for CallArg<Option<T>> {
     #[allow(clippy::nonminimal_bool)]
     fn is_resolved(&self) -> bool {
         if !self.resolved_type.is_some() {
+            log::trace!(&self);
             return log::trace!(false);
         }
 

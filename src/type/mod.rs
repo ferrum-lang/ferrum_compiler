@@ -1,11 +1,20 @@
-use std::{collections::HashMap, sync::Arc};
+use crate::type_resolver::ExportsPackage;
+
+use std::{
+    collections::HashMap,
+    sync::{Arc, Mutex},
+};
 
 pub const BOOL_TYPE_NAME: &str = "Bool";
 pub const INT_TYPE_NAME: &str = "Int";
 pub const STRING_TYPE_NAME: &str = "String";
 
-#[derive(Debug, Clone, PartialEq)]
+pub const STD_LIB_PKG_NAME: &str = "fe";
+pub const STD_PRINT_FN_NAME: &str = "print";
+
+#[derive(Debug, Clone)]
 pub enum FeType {
+    Package(Arc<Mutex<ExportsPackage>>),
     Callable(Callable),
     Struct(FeStruct),
     Instance(FeInstance),
@@ -14,6 +23,28 @@ pub enum FeType {
     Number(Option<NumberDetails>),
     Ref(FeRefOf),
     Owned(FeOwnedOf),
+}
+
+impl PartialEq for FeType {
+    fn eq(&self, other: &Self) -> bool {
+        match (self, other) {
+            (Self::Package(pkg), Self::Package(other)) => {
+                let pkg = { pkg.try_lock().unwrap().clone() };
+                let other = other.try_lock().unwrap();
+                return PartialEq::eq(&pkg, &other);
+            }
+            (Self::Callable(this), Self::Callable(other)) => return this == other,
+            (Self::Struct(this), Self::Struct(other)) => return this == other,
+            (Self::Instance(this), Self::Instance(other)) => return this == other,
+            (Self::String(this), Self::String(other)) => return this == other,
+            (Self::Bool(this), Self::Bool(other)) => return this == other,
+            (Self::Number(this), Self::Number(other)) => return this == other,
+            (Self::Ref(this), Self::Ref(other)) => return this == other,
+            (Self::Owned(this), Self::Owned(other)) => return this == other,
+
+            _ => return false,
+        }
+    }
 }
 
 impl FeType {

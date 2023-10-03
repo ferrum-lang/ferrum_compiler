@@ -1,22 +1,22 @@
 use super::*;
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq)]
 pub enum ExportsPackage {
     File(ExportsFile),
     Dir(ExportsDir),
 }
 
 impl ExportsPackage {
-    pub fn new_file() -> Self {
+    pub fn new_file(id: NodeId<Scope>) -> Self {
         return Self::File(ExportsFile {
-            scope: Arc::new(Mutex::new(Scope::new())),
+            scope: Arc::new(Mutex::new(Scope::new(id))),
         });
     }
 
-    pub fn new_dir() -> Self {
+    pub fn new_dir(id: NodeId<Scope>) -> Self {
         return Self::Dir(ExportsDir {
             entry: ExportsFile {
-                scope: Arc::new(Mutex::new(Scope::new())),
+                scope: Arc::new(Mutex::new(Scope::new(id))),
             },
             local_packages: HashMap::new(),
         });
@@ -31,19 +31,60 @@ impl ExportsPackage {
 }
 
 #[derive(Debug, Clone)]
-pub struct ExportsFile {
-    scope: Arc<Mutex<Scope>>,
-}
-
-#[derive(Debug, Clone)]
 pub struct ExportsDir {
     entry: ExportsFile,
     pub local_packages: HashMap<SyntaxPackageName, Arc<Mutex<ExportsPackage>>>,
 }
 
+impl PartialEq for ExportsDir {
+    fn eq(&self, other: &Self) -> bool {
+        {
+            if self.local_packages.len() != other.local_packages.len() {
+                return false;
+            }
+
+            for (name, pkg) in &self.local_packages {
+                let Some(other_pkg) = other.local_packages.get(name) else {
+                    return false;
+                };
+
+                let pkg = { pkg.try_lock().unwrap().clone() };
+
+                if PartialEq::ne(&pkg, &other_pkg.try_lock().unwrap()) {
+                    return false;
+                }
+            }
+        }
+
+        return PartialEq::eq(&self.entry, &other.entry);
+    }
+}
+
+#[derive(Debug, Clone)]
+pub struct ExportsFile {
+    pub scope: Arc<Mutex<Scope>>,
+}
+
+impl PartialEq for ExportsFile {
+    fn eq(&self, other: &Self) -> bool {
+        let scope = { self.scope.try_lock().unwrap().clone() };
+
+        let other = &*other.scope.try_lock().unwrap();
+
+        return PartialEq::eq(&scope, other);
+    }
+}
+
 #[derive(Debug, Clone)]
 pub struct Scope {
+    id: NodeId<Scope>,
     stack: Vec<FlatScope>,
+}
+
+impl PartialEq for Scope {
+    fn eq(&self, other: &Self) -> bool {
+        return self.id == other.id;
+    }
 }
 
 #[derive(Debug, Clone)]
@@ -70,8 +111,9 @@ pub struct ScopedType {
 }
 
 impl Scope {
-    pub fn new() -> Self {
+    pub fn new(id: NodeId<Self>) -> Self {
         return Self {
+            id,
             stack: vec![FlatScope {
                 creator: None,
                 name_lookup: HashMap::new(),
