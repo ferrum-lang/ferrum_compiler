@@ -1,6 +1,6 @@
 [package]
 name = "ferrum_compiler"
-version = "0.0.2"
+version = "0.0.3"
 description = "Compiler library for the Ferrum programming language."
 license = "MIT"
 readme = "README.md"
