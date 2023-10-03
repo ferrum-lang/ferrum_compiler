@@ -174,7 +174,7 @@ impl RustSyntaxCompiler {
 
     fn translate_static_path(path: &mut StaticPath<FeType>) -> ir::RustIRStaticPath {
         if path.root.is_none()
-            && path.name.lexeme.as_ref() == "Int"
+            && path.name.lexeme.as_ref() == INT_TYPE_NAME
             && matches!(path.resolved_type, FeType::Number(_))
         {
             return ir::RustIRStaticPath {
@@ -184,7 +184,7 @@ impl RustSyntaxCompiler {
         }
 
         if path.root.is_none()
-            && path.name.lexeme.as_ref() == "Bool"
+            && path.name.lexeme.as_ref() == BOOL_TYPE_NAME
             && matches!(path.resolved_type, FeType::Bool(_))
         {
             return ir::RustIRStaticPath {

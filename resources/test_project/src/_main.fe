@@ -1,6 +1,33 @@
 use ::fe::print
 
 pub fn main()
-	print("Hello world")
+	mut cfg = Config {
+		is_cool: false,
+		len: 0,
+		chars: ""
+	}
+
+	if cfg.is_cool
+		print("is cool before")
+	;
+
+	while cfg.len < 10
+		cfg.chars = "{cfg.chars}{cfg.len}"
+		cfg.len += 1
+
+		cfg.is_cool = true
+	;
+
+	if cfg.is_cool
+		print("is cool after")
+	;
+
+	print(cfg.chars)
 ;
+
+struct Config {
+	is_cool: Bool,
+	len: Int,
+	chars: String,
+}
 

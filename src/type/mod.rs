@@ -1,5 +1,9 @@
 use std::{collections::HashMap, sync::Arc};
 
+pub const BOOL_TYPE_NAME: &str = "Bool";
+pub const INT_TYPE_NAME: &str = "Int";
+pub const STRING_TYPE_NAME: &str = "String";
+
 #[derive(Debug, Clone, PartialEq)]
 pub enum FeType {
     Callable(Callable),

@@ -172,6 +172,8 @@ impl FeTypeResolver {
     }
 
     fn resolve_file(&mut self, file: &mut FeSyntaxFile<Option<FeType>>) -> Result<bool> {
+        self.fill_scope_with_global_imports()?;
+
         let mut changed = None;
 
         let syntax = file.syntax.try_lock().unwrap();
@@ -221,6 +223,36 @@ impl FeTypeResolver {
         }
 
         return Ok(changed.unwrap_or(false));
+    }
+
+    fn fill_scope_with_global_imports(&mut self) -> Result {
+        let scope = &mut *self.scope.try_lock().unwrap();
+
+        scope.insert(
+            INT_TYPE_NAME.into(),
+            ScopedType {
+                is_pub: false,
+                typ: FeType::Number(Some(NumberDetails::Integer(None))),
+            },
+        );
+
+        scope.insert(
+            STRING_TYPE_NAME.into(),
+            ScopedType {
+                is_pub: false,
+                typ: FeType::String(None),
+            },
+        );
+
+        scope.insert(
+            BOOL_TYPE_NAME.into(),
+            ScopedType {
+                is_pub: false,
+                typ: FeType::Bool(None),
+            },
+        );
+
+        return Ok(());
     }
 
     fn evaluate_decl(&mut self, decl: Arc<Mutex<Decl<Option<FeType>>>>) -> Result<bool> {

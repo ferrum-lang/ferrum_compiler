@@ -60,24 +60,14 @@ impl StaticVisitor<Option<FeType>, Result<bool>> for FeTypeResolver {
 
             // TODO: Handle package types and navigating scope
         } else {
-            match static_path.name.lexeme.as_ref() {
-                "String" => {
-                    static_path.resolved_type = Some(FeType::String(None));
-                    changed = true;
-                }
+            let name = &static_path.name.lexeme;
+            let scope = &mut *self.scope.try_lock().unwrap();
 
-                "Bool" => {
-                    static_path.resolved_type = Some(FeType::Bool(None));
-                    changed = true;
-                }
-
-                "Int" => {
-                    static_path.resolved_type =
-                        Some(FeType::Number(Some(NumberDetails::Integer(None))));
-                    changed = true;
-                }
-
-                other => todo!("Check scope for imported type: {other}"),
+            if let Some(typ) = scope.search(name) {
+                static_path.resolved_type = Some(typ.typ.clone());
+                changed = true;
+            } else {
+                todo!("Check scope for imported type: {name}");
             }
         }
 
