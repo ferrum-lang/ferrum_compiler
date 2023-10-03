@@ -1,0 +1,4 @@
+Hello from ::fe::print
+Hello from fe::print
+Hello from ::print
+Hello from print

@@ -34,7 +34,7 @@ impl ExprVisitor<FeType, Result<ir::RustIRExpr>> for RustSyntaxCompiler {
                 static_ref: ir::RustIRStaticPath {
                     root: Some(Box::new(ir::RustIRStaticPath {
                         root: None,
-                        name: "String".into(),
+                        name: STRING_TYPE_NAME.into(),
                     })),
                     name: "from".into(),
                 },

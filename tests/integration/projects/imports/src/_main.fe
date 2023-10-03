@@ -1,0 +1,12 @@
+use ::fe
+use ::fe::print
+
+pub fn main()
+	::fe::print("Hello from ::fe::print")
+
+	fe::print("Hello from fe::print")
+
+	::print("Hello from ::print")
+
+	print("Hello from print")
+;

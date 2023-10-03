@@ -174,7 +174,7 @@ impl RustSyntaxCompiler {
 
     fn translate_static_path(path: &mut StaticPath<FeType>) -> ir::RustIRStaticPath {
         if path.root.is_none()
-            && path.name.lexeme.as_ref() == "Int"
+            && path.name.lexeme.as_ref() == INT_TYPE_NAME
             && matches!(path.resolved_type, FeType::Number(_))
         {
             return ir::RustIRStaticPath {
@@ -184,7 +184,7 @@ impl RustSyntaxCompiler {
         }
 
         if path.root.is_none()
-            && path.name.lexeme.as_ref() == "Bool"
+            && path.name.lexeme.as_ref() == BOOL_TYPE_NAME
             && matches!(path.resolved_type, FeType::Bool(_))
         {
             return ir::RustIRStaticPath {
@@ -211,19 +211,22 @@ impl RustSyntaxCompiler {
     fn translate_use_static_path(
         path: &mut UseStaticPath<FeType>,
     ) -> Result<Option<ir::RustIRUseStaticPath>> {
-        let next = match &mut path.details {
-            Either::B(_) => None,
+        match &path.pre {
+            None | Some(UseStaticPathPre::DoubleColon(_)) if path.name.lexeme.as_ref() == "fe" => {
+                return Ok(None);
+            }
 
-            Either::A(UseStaticPathNext::Single(ref mut single)) => {
-                if let Either::B(FeType::Callable(Callable {
-                    special: Some(SpecialCallable::Print),
-                    ..
-                })) = &single.path.details
-                {
-                    // No need to import print
-                    return Ok(None);
-                } else {
-                    let Some(next_path) = Self::translate_use_static_path(&mut single.path)? else {
+            _ => {}
+        }
+
+        fn _translate_use_static_path(
+            path: &mut UseStaticPath<FeType>,
+        ) -> Result<Option<ir::RustIRUseStaticPath>> {
+            let next = match &mut path.details {
+                Either::B(_) => None,
+
+                Either::A(UseStaticPathNext::Single(ref mut single)) => {
+                    let Some(next_path) = _translate_use_static_path(&mut single.path)? else {
                         return Ok(None);
                     };
 
@@ -233,22 +236,24 @@ impl RustSyntaxCompiler {
                         },
                     ))
                 }
-            }
 
-            Either::A(UseStaticPathNext::Many(_many)) => todo!(),
-        };
+                Either::A(UseStaticPathNext::Many(_many)) => todo!(),
+            };
 
-        let path_ir = ir::RustIRUseStaticPath {
-            pre: path.pre.as_ref().map(|pre| match pre {
-                UseStaticPathPre::DoubleColon(_) => ir::RustIRUseStaticPathPre::DoubleColon,
-                UseStaticPathPre::CurrentDir(_) => ir::RustIRUseStaticPathPre::CurrentDir,
-                UseStaticPathPre::RootDir(_) => ir::RustIRUseStaticPathPre::RootDir,
-            }),
-            name: path.name.lexeme.clone(),
-            next,
-        };
+            let path_ir = ir::RustIRUseStaticPath {
+                pre: path.pre.as_ref().map(|pre| match pre {
+                    UseStaticPathPre::DoubleColon(_) => ir::RustIRUseStaticPathPre::DoubleColon,
+                    UseStaticPathPre::CurrentDir(_) => ir::RustIRUseStaticPathPre::CurrentDir,
+                    UseStaticPathPre::RootDir(_) => ir::RustIRUseStaticPathPre::RootDir,
+                }),
+                name: path.name.lexeme.clone(),
+                next,
+            };
 
-        return Ok(Some(path_ir));
+            return Ok(Some(path_ir));
+        }
+
+        return _translate_use_static_path(path);
     }
 
     fn map_label(&self, id: String, label: &Option<Arc<Token>>) -> Option<Arc<str>> {

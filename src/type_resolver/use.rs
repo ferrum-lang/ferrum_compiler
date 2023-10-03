@@ -1,5 +1,7 @@
 use super::*;
 
+use crate::log;
+
 impl UseVisitor<Option<FeType>, Result<bool>> for FeTypeResolver {
     fn visit_use(&mut self, shared_use_decl: Arc<Mutex<Use<Option<FeType>>>>) -> Result<bool> {
         let use_decl = &mut *shared_use_decl.try_lock().unwrap();
@@ -8,91 +10,97 @@ impl UseVisitor<Option<FeType>, Result<bool>> for FeTypeResolver {
             return Ok(false);
         }
 
-        if use_decl.path.name.lexeme.as_ref() == "fe" {
-            if let Either::A(UseStaticPathNext::Single(next)) = &mut use_decl.path.details {
-                if next.path.name.lexeme.as_ref() == "print" && next.path.details.is_b() {
-                    self.scope.try_lock().unwrap().insert(
-                        "print".into(),
-                        ScopedType {
-                            is_pub: matches!(use_decl.use_mod, Some(UseMod::Pub(_))),
+        let mut changed = false;
+        let is_pub = matches!(use_decl.use_mod, Some(UseMod::Pub(_)));
 
-                            typ: FeType::Callable(Callable {
-                                special: Some(SpecialCallable::Print),
-                                name: "print".into(),
-                                params: vec![("text".into(), FeType::String(None))],
-                                return_type: None,
-                            }),
-                        },
-                    );
-                    next.path.details = Either::B(Some(FeType::Callable(Callable {
-                        special: Some(SpecialCallable::Print),
-                        name: "print".into(),
-                        params: vec![("text".into(), FeType::String(None))],
-                        return_type: None,
-                    })));
-                }
-            }
-        } else {
-            let exports = match use_decl.path.pre {
-                Some(UseStaticPathPre::RootDir(_)) => self.root_pkg_exports.clone(),
-                Some(UseStaticPathPre::CurrentDir(_)) => self.current_pkg_exports.clone(),
+        let types = recursive_resolve(self, self.scope.clone(), &mut use_decl.path)?;
 
-                None | Some(UseStaticPathPre::DoubleColon(_)) => {
-                    todo!("TODO: import dependencies and std lib")
-                }
-            };
+        let scope = &mut *self.scope.try_lock().unwrap();
 
-            let found = match &*exports.try_lock().unwrap() {
-                ExportsPackage::File(f) => todo!("{f:#?}"),
-                ExportsPackage::Dir(d) => d
-                    .local_packages
-                    .get(&SyntaxPackageName(use_decl.path.name.lexeme.clone()))
-                    .cloned(),
-            };
-
-            let Either::A(next) = &mut use_decl.path.details else {
-                todo!()
-            };
-
-            let UseStaticPathNext::Single(next) = next else {
-                todo!()
-            };
-
-            if let Some(found) = found {
-                let typ = found
-                    .try_lock()
-                    .unwrap()
-                    .scope()
-                    .try_lock()
-                    .unwrap()
-                    .search(&next.path.name.lexeme)
-                    .cloned();
-
-                if let Some(typ) = typ {
-                    if !typ.is_pub {
-                        todo!("Not public!");
-                    }
-
-                    let Either::B(use_typ) = &mut next.path.details else {
-                        todo!()
-                    };
-                    *use_typ = Some(typ.typ.clone());
-
-                    self.scope.try_lock().unwrap().insert(
-                        next.path.name.lexeme.clone(),
-                        ScopedType {
-                            is_pub: matches!(use_decl.use_mod, Some(UseMod::Pub(_))),
-                            typ: typ.typ,
-                        },
-                    );
-                } else {
-                    return Ok(false);
-                }
-            } else {
-                return Ok(false);
-            }
+        for (name, typ) in types {
+            scope.insert(name, ScopedType { is_pub, typ });
+            changed = true;
         }
 
-        return Ok(true);
+        return Ok(changed);
     }
+}
+
+fn recursive_resolve(
+    resolver: &mut FeTypeResolver,
+    search_scope: Arc<Mutex<Scope>>,
+    path: &mut UseStaticPath<Option<FeType>>,
+) -> Result<Vec<(Arc<str>, FeType)>> {
+    let pre_exports = match &path.pre {
+        Some(UseStaticPathPre::RootDir(_)) => Some(resolver.root_pkg_exports.clone()),
+        Some(UseStaticPathPre::CurrentDir(_)) => Some(resolver.current_pkg_exports.clone()),
+        None | Some(UseStaticPathPre::DoubleColon(_)) => None,
+    };
+
+    let found = if let Some(pre_exports) = pre_exports {
+        match &*pre_exports.try_lock().unwrap() {
+            ExportsPackage::Dir(d) => d
+                .local_packages
+                .get(&SyntaxPackageName(path.name.lexeme.clone()))
+                .cloned(),
+            ExportsPackage::File(_f) => todo!("How is pre export a file??"),
+        }
+    } else if let Either::B(_) = &path.details {
+        None
+    } else {
+        let search_scope = search_scope.try_lock().unwrap();
+
+        let found = search_scope.search(&path.name.lexeme);
+
+        match found {
+            Some(ScopedType {
+                typ: FeType::Package(pkg),
+                ..
+            }) => Some(pkg.clone()),
+
+            _ => None,
+        }
+    };
+
+    let search_scope = found
+        .map(|found| found.try_lock().unwrap().scope())
+        .unwrap_or(search_scope);
+
+    let mut types = vec![];
+
+    match &mut path.details {
+        Either::A(UseStaticPathNext::Single(next)) => {
+            types.extend(recursive_resolve(resolver, search_scope, &mut next.path)?);
+        }
+        Either::A(UseStaticPathNext::Many(nexts)) => {
+            for next in &mut nexts.nexts {
+                types.extend(recursive_resolve(
+                    resolver,
+                    search_scope.clone(),
+                    &mut next.path,
+                )?);
+            }
+        }
+        Either::B(typ) => {
+            let typ = if let Some(typ) = typ {
+                Some(typ.clone())
+            } else {
+                search_scope
+                    .try_lock()
+                    .unwrap()
+                    .search(&path.name.lexeme)
+                    .map(|s| s.typ.clone())
+            };
+
+            if let Some(typ) = typ {
+                path.details = Either::B(Some(typ.clone()));
+                types.push((path.name.lexeme.clone(), typ));
+            } else {
+                log::trace!(&search_scope);
+                todo!("type not found: {:#?}", path.name);
+            }
+        }
+    }
+
+    return Ok(types);
 }

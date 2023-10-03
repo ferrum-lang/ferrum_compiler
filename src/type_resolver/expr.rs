@@ -124,10 +124,12 @@ impl ExprVisitor<Option<FeType>, Result<bool>> for FeTypeResolver {
             changed |= callee.accept(self)?;
         }
 
-        let Some(FeType::Callable(callee)) = self.expr_lookup.get(&callee.node_id()).cloned()
-        else {
-            // todo!("Callee not found: {callee:?}");
+        let Some(resolved_type) = callee.resolved_type().flatten() else {
             return Ok(false);
+        };
+
+        let FeType::Callable(callee) = resolved_type else {
+            todo!("How to call on ?? {callee:#?}");
         };
 
         if expr.args.len() > callee.params.len() {
@@ -420,10 +422,15 @@ impl ExprVisitor<Option<FeType>, Result<bool>> for FeTypeResolver {
             return Ok(false);
         }
 
-        // let mut changed = false;
-        // return Ok(changed);
+        let mut changed = false;
 
-        todo!();
+        changed |= expr.static_path.accept(self)?;
+
+        if let Some(resolved_type) = &expr.static_path.resolved_type {
+            expr.resolved_type = Some(resolved_type.clone());
+        }
+
+        return Ok(changed);
     }
 
     fn visit_construct_expr(
