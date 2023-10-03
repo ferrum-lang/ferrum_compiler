@@ -8,13 +8,19 @@ use std::path::PathBuf;
 
 use super::*;
 
-use crate::ir::{
-    self, RustIRDeclAccept, RustIRExprAccept, RustIRRefType, RustIRStaticAccept, RustIRStmtAccept,
-    RustIRUseAccept,
+use crate::{
+    config::Config,
+    ir::{
+        self, RustIRDeclAccept, RustIRExprAccept, RustIRRefType, RustIRStaticAccept,
+        RustIRStmtAccept, RustIRUseAccept,
+    },
 };
 
 #[derive(Debug, Clone)]
 pub struct RustCodeGen {
+    #[allow(unused)]
+    cfg: Arc<Config>,
+
     entry: Arc<Mutex<ir::RustIR>>,
     out: RustCode,
 
@@ -37,14 +43,15 @@ impl IRToCode for ir::RustIR {
 }
 
 impl CodeGen<ir::RustIR> for RustCodeGen {
-    fn generate_code(rust_ir: Arc<Mutex<ir::RustIR>>) -> Result<RustCode> {
-        return Self::new(rust_ir).generate();
+    fn generate_code(cfg: Arc<Config>, rust_ir: Arc<Mutex<ir::RustIR>>) -> Result<RustCode> {
+        return Self::new(cfg, rust_ir).generate();
     }
 }
 
 impl RustCodeGen {
-    fn new(entry: Arc<Mutex<ir::RustIR>>) -> Self {
+    fn new(cfg: Arc<Config>, entry: Arc<Mutex<ir::RustIR>>) -> Self {
         return Self {
+            cfg,
             entry,
             out: RustCode { files: vec![] },
 

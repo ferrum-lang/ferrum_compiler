@@ -16,6 +16,7 @@ pub use r#use::*;
 mod r#static;
 pub use r#static::*;
 
+use crate::config::Config;
 use crate::log;
 use crate::r#type::FeType;
 use crate::result::Result;
@@ -27,7 +28,7 @@ use std::path::PathBuf;
 use std::sync::{Arc, Mutex};
 
 pub trait SyntaxCompiler<IR> {
-    fn compile_package(entry: Arc<Mutex<FeSyntaxPackage<FeType>>>) -> Result<IR>;
+    fn compile_package(cfg: Arc<Config>, entry: Arc<Mutex<FeSyntaxPackage<FeType>>>) -> Result<IR>;
 }
 
 pub trait Resolvable {

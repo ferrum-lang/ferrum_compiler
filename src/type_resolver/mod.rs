@@ -7,6 +7,7 @@ mod r#use;
 
 use scope::*;
 
+use crate::config::Config;
 use crate::r#type::*;
 use crate::syntax::*;
 
@@ -23,6 +24,8 @@ use std::sync::{Arc, Mutex};
 type SharedDecl = Arc<Mutex<Decl<Option<FeType>>>>;
 
 pub struct FeTypeResolver {
+    cfg: Arc<Config>,
+
     expr_lookup: HashMap<NodeId<Expr>, FeType>,
     decls_to_eval: HashMap<NodeId<Decl>, SharedDecl>,
 
@@ -37,7 +40,10 @@ pub struct FeTypeResolver {
 }
 
 impl FeTypeResolver {
-    pub fn resolve_package(pkg: FeSyntaxPackage) -> Result<FeSyntaxPackage<FeType>> {
+    pub fn resolve_package(
+        cfg: Arc<Config>,
+        pkg: FeSyntaxPackage,
+    ) -> Result<FeSyntaxPackage<FeType>> {
         let exports = Arc::new(Mutex::new(match pkg {
             FeSyntaxPackage::File(_) => ExportsPackage::new_file(),
             FeSyntaxPackage::Dir(_) => ExportsPackage::new_dir(),
@@ -46,6 +52,7 @@ impl FeTypeResolver {
         let pkg: Arc<Mutex<FeSyntaxPackage<Option<FeType>>>> = Arc::new(Mutex::new(pkg.into()));
 
         let mut this = Self {
+            cfg,
             expr_lookup: HashMap::new(),
             decls_to_eval: HashMap::new(),
             scope: Arc::new(Mutex::new(Scope::new())),
@@ -80,12 +87,14 @@ impl FeTypeResolver {
     }
 
     fn internal_resolve_package(
+        cfg: Arc<Config>,
         root_pkg_exports: Arc<Mutex<ExportsPackage>>,
         current_pkg_exports: Arc<Mutex<ExportsPackage>>,
         scope: Arc<Mutex<Scope>>,
         pkg: Arc<Mutex<FeSyntaxPackage<Option<FeType>>>>,
     ) -> Result<bool> {
         let mut this = Self {
+            cfg,
             expr_lookup: HashMap::new(),
             decls_to_eval: HashMap::new(),
             scope,
@@ -133,6 +142,7 @@ impl FeTypeResolver {
             };
 
             changed = Self::internal_resolve_package(
+                self.cfg.clone(),
                 self.root_pkg_exports.clone(),
                 self.current_pkg_exports.clone(),
                 scope.clone(),
@@ -142,6 +152,7 @@ impl FeTypeResolver {
 
             while changed {
                 changed = Self::internal_resolve_package(
+                    self.cfg.clone(),
                     self.root_pkg_exports.clone(),
                     self.current_pkg_exports.clone(),
                     scope.clone(),

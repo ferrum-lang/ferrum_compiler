@@ -1,3 +1,4 @@
+use crate::config::Config;
 use crate::result::Result;
 
 use crate::source::*;
@@ -7,16 +8,16 @@ use std::path::PathBuf;
 use std::sync::{Arc, Mutex};
 
 pub struct SourceReader {
-    src_root_dir: PathBuf,
+    cfg: Arc<Config>,
 }
 
 impl SourceReader {
-    pub fn read_src_files(src_root_dir: PathBuf) -> Result<FeSourcePackage> {
-        return Self::new(src_root_dir).read();
+    pub fn read_src_files(cfg: Arc<Config>) -> Result<FeSourcePackage> {
+        return Self::new(cfg).read();
     }
 
-    pub fn new(src_root_dir: PathBuf) -> Self {
-        return Self { src_root_dir };
+    pub fn new(cfg: Arc<Config>) -> Self {
+        return Self { cfg };
     }
 
     pub fn read(&self) -> Result<FeSourcePackage> {
@@ -79,14 +80,14 @@ impl SourceReader {
             }));
         }
 
-        if !self.src_root_dir.is_dir() {
+        if !self.cfg.src_dir.is_dir() {
             panic!(
                 "Expected the project root to contain a 'src' directory: {:?}",
-                self.src_root_dir
+                self.cfg.src_dir
             );
         }
 
-        let src_dir_entries = self.src_root_dir.read_dir()?;
+        let src_dir_entries = self.cfg.src_dir.read_dir()?;
         let mut local_packages = HashMap::new();
 
         for pkg in src_dir_entries {
@@ -124,7 +125,7 @@ impl SourceReader {
             }
         }
 
-        let main = self.src_root_dir.join("_main.fe");
+        let main = self.cfg.src_dir.join("_main.fe");
         if !main.is_file() {
             panic!("Expected project root to contain a '_main.fe' file");
         }

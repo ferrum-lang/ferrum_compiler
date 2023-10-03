@@ -1,6 +1,7 @@
 #![allow(clippy::needless_return)]
 
 pub mod code_gen;
+pub mod config;
 pub mod executor;
 pub mod helpers;
 pub mod ir;

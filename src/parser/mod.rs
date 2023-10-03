@@ -1,3 +1,4 @@
+use crate::config::Config;
 use crate::log;
 use crate::result::Result;
 use crate::syntax::*;
@@ -9,6 +10,9 @@ use thiserror::Error;
 
 #[derive(Debug, Clone)]
 pub struct FeSyntaxParser {
+    #[allow(unused)]
+    cfg: Arc<Config>,
+
     token_pkg: Arc<Mutex<FeTokenPackage>>,
     node_id_gen: NodeIdGen,
 
@@ -16,16 +20,24 @@ pub struct FeSyntaxParser {
 }
 
 impl FeSyntaxParser {
-    pub fn parse_package(token_pkg: Arc<Mutex<FeTokenPackage>>) -> Result<FeSyntaxPackage> {
+    pub fn parse_package(
+        cfg: Arc<Config>,
+        token_pkg: Arc<Mutex<FeTokenPackage>>,
+    ) -> Result<FeSyntaxPackage> {
         let node_id_gen = NodeIdGen::Default(DefaultNodeIdGen::new());
 
-        return Self::new(token_pkg, node_id_gen).parse();
+        return Self::new(cfg, token_pkg, node_id_gen).parse();
     }
 
-    pub fn new(token_pkg: Arc<Mutex<FeTokenPackage>>, node_id_gen: NodeIdGen) -> Self {
+    pub fn new(
+        cfg: Arc<Config>,
+        token_pkg: Arc<Mutex<FeTokenPackage>>,
+        node_id_gen: NodeIdGen,
+    ) -> Self {
         let out = token_pkg.try_lock().unwrap().clone().into();
 
         return Self {
+            cfg,
             token_pkg,
             node_id_gen,
             out,
@@ -2011,6 +2023,7 @@ mod tests {
                 let (input, expected) = $value;
 
                 let parser = FeSyntaxParser::new(
+                    Default::default(),
                     Arc::new(Mutex::new(FeTokenPackage::File(FeTokenFile {
                         name: TokenPackageName("".into()),
                         path: "".into(),
