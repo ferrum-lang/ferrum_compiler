@@ -15,10 +15,16 @@ pub struct RustIR {
 #[derive(Debug, Clone, PartialEq)]
 pub struct RustIRFile {
     pub path: PathBuf,
-    pub mods: Vec<Arc<str>>,
+    pub mods: Vec<RustIRMod>,
     pub uses: Vec<RustIRUse>,
     pub decls: Vec<RustIRDecl>,
 }
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct RustIRMacro {}
+
+#[derive(Debug, Clone, PartialEq)]
+pub struct RustIRMod {
+    pub is_pub: bool,
+    pub name: Arc<str>,
+}

@@ -1,0 +1,5 @@
+use ::fe::print
+
+pub fn outer_action()
+	print("OUTER ACTION")
+;

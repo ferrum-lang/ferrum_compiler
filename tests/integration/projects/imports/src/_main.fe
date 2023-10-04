@@ -1,12 +1,21 @@
 use ::fe
 use ::fe::print
 
+use ./outer
+use ./outer::outer_action
+
+use ./utils
+
 pub fn main()
-	::fe::print("Hello from ::fe::print")
+	outer::outer_action()
+	::outer_action()
 
-	fe::print("Hello from fe::print")
+	utils::pkg_action()
+	utils::inner_action()
+	utils::inner::inner_action()
 
-	::print("Hello from ::print")
-
-	print("Hello from print")
+	::fe::print("::fe::print")
+	fe::print("fe::print")
+	::print("::print")
+	print("print")
 ;

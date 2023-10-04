@@ -80,7 +80,8 @@ impl StaticVisitor<Option<FeType>, Result<bool>> for FeTypeResolver {
                 static_path.resolved_type = Some(typ.typ.clone());
                 changed = true;
             } else {
-                todo!("Check scope for imported type: {name}");
+                // crate::log::trace!(&scope);
+                // todo!("Check scope for imported type: {name}");
             }
         }
 

@@ -1,4 +1,9 @@
-Hello from ::fe::print
-Hello from fe::print
-Hello from ::print
-Hello from print
+OUTER ACTION
+OUTER ACTION
+PKG_ACTION
+INNER_ACTION
+INNER_ACTION
+::fe::print
+fe::print
+::print
+print

@@ -132,11 +132,11 @@ impl SourceReader {
         let main_content = std::fs::read_to_string(main)?;
 
         let source = FeSourcePackage::Dir(FeSourceDir {
-            name: SourcePackageName("src".into()),
-            path: "src/".into(),
+            name: SourcePackageName(".".into()),
+            path: ".".into(),
             entry_file: FeSourceFile {
                 name: SourcePackageName("_main".into()),
-                path: "src/_main.fe".into(),
+                path: "./_main.fe".into(),
                 content: main_content.into(),
             },
             local_packages,
