@@ -1,6 +1,15 @@
 use ::fe::print
 
+use ./outer
+use ./utils
+
 pub fn main()
 	print("Hello world")
-;
 
+	outer::outer_action()
+
+	utils::pkg_action()
+
+	utils::inner_action()
+	utils::inner::inner_action()
+;

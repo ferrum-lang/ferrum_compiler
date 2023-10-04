@@ -82,6 +82,14 @@ impl RustProjectGen {
 
         for file in &self.entry.lock().unwrap().files {
             let path = src.join(&file.path);
+            let parent = path.parent().unwrap();
+
+            if !parent.is_dir() {
+                fs::create_dir_all(&parent)?;
+            }
+
+            let filename = path.file_name().unwrap().to_string_lossy();
+            let path = parent.join(filename.into_owned());
 
             fs::write(&path, file.content.as_bytes())?;
 

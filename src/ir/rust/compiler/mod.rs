@@ -39,26 +39,40 @@ impl RustSyntaxCompiler {
         return Self {
             cfg,
             entry,
-            out: ir::RustIR {
-                files: vec![ir::RustIRFile {
-                    path: "./main.rs".into(), // TODO
-                    mods: vec![],
-                    uses: vec![],
-                    decls: vec![],
-                }],
-            },
+            out: ir::RustIR { files: vec![] },
         };
     }
 
     fn compile(mut self) -> Result<ir::RustIR> {
-        self.internal_compile_package(&mut Arc::clone(&self.entry).try_lock().unwrap())?;
+        self.internal_compile_package(
+            &mut Arc::clone(&self.entry).try_lock().unwrap(),
+            "".into(),
+            true,
+        )?;
 
         return Ok(self.out);
     }
 
-    fn internal_compile_package(&mut self, package: &mut FeSyntaxPackage<FeType>) -> Result {
+    fn internal_compile_package(
+        &mut self,
+        package: &mut FeSyntaxPackage<FeType>,
+        parent_dir: Arc<str>,
+        is_main: bool,
+    ) -> Result {
         match package {
             FeSyntaxPackage::File(file) => {
+                self.out.files.push(ir::RustIRFile {
+                    path: format!(
+                        "{}{}.rs",
+                        parent_dir,
+                        if is_main { "main" } else { &file.name.0 }
+                    )
+                    .into(),
+                    mods: vec![],
+                    uses: vec![],
+                    decls: vec![],
+                });
+
                 self.compile_file(file)?;
             }
 
@@ -71,16 +85,24 @@ impl RustSyntaxCompiler {
                     }
                 }
 
+                let parent_dir: Arc<str> = format!("{}{}/", parent_dir, dir.name.0).into();
+
+                self.out.files.push(ir::RustIRFile {
+                    path: format!("{}{}.rs", parent_dir, if is_main { "main" } else { "mod" })
+                        .into(),
+                    mods: vec![],
+                    uses: vec![],
+                    decls: vec![],
+                });
+
                 self.compile_file(&mut dir.entry_file)?;
 
-                for (name, package) in &dir.local_packages {
-                    self.out.files.push(ir::RustIRFile {
-                        path: format!("./{}.rs", name.0).into(),
-                        mods: vec![],
-                        uses: vec![],
-                        decls: vec![],
-                    });
-                    self.internal_compile_package(&mut package.try_lock().unwrap())?;
+                for (_name, package) in &dir.local_packages {
+                    self.internal_compile_package(
+                        &mut package.try_lock().unwrap(),
+                        parent_dir.clone(),
+                        false,
+                    )?;
                 }
             }
         };
@@ -96,7 +118,10 @@ impl RustSyntaxCompiler {
             let mods = &mut self.out.files[file_idx].mods;
 
             for mod_decl in &syntax.mods {
-                mods.push(mod_decl.0.clone());
+                mods.push(ir::RustIRMod {
+                    name: mod_decl.0.clone(),
+                    is_pub: false, // updated when resolving uses
+                });
             }
         }
 

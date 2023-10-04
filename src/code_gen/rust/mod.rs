@@ -67,8 +67,15 @@ impl RustCodeGen {
                 "#![allow(unreachable_code, while_true, unused_labels)]\n\n".to_string();
 
             for mod_decl in &mut file.mods {
-                let code = format!("mod {};", mod_decl);
+                let mut code = String::new();
+
+                if mod_decl.is_pub {
+                    code.push_str("pub ");
+                }
+
+                code.push_str(&format!("mod {};", mod_decl.name));
                 content.push_str(&code);
+
                 content.push_str(&self.new_line());
                 content.push_str(&self.new_line());
             }

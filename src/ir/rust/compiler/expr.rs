@@ -255,9 +255,13 @@ impl ExprVisitor<FeType, Result<ir::RustIRExpr>> for RustSyntaxCompiler {
         &mut self,
         expr: Arc<Mutex<StaticRefExpr<FeType>>>,
     ) -> Result<ir::RustIRExpr> {
-        let _expr = &mut *expr.try_lock().unwrap();
+        let expr = &mut *expr.try_lock().unwrap();
 
-        todo!()
+        let path = Self::translate_static_path(&mut expr.static_path);
+
+        return Ok(ir::RustIRExpr::StaticRef(ir::RustIRStaticRefExpr {
+            static_ref: path,
+        }));
     }
 
     fn visit_construct_expr(

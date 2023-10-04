@@ -1,0 +1,8 @@
+use ::fe::print
+
+pub use ./inner
+pub use ./inner::inner_action
+
+pub fn pkg_action()
+	print("PKG_ACTION")
+;

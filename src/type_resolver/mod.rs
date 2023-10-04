@@ -187,6 +187,11 @@ impl FeTypeResolver {
     }
 
     fn resolve_file(&mut self, file: &mut FeSyntaxFile<Option<FeType>>) -> Result<bool> {
+        crate::log::info!(&file.name.0);
+        // if file.name.0.as_ref() == "outer" {
+        //     todo!();
+        // }
+
         self.fill_scope_with_global_imports()?;
 
         let mut changed = None;
