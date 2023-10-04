@@ -85,7 +85,7 @@ impl RustProjectGen {
             let parent = path.parent().unwrap();
 
             if !parent.is_dir() {
-                fs::create_dir_all(&parent)?;
+                fs::create_dir_all(parent)?;
             }
 
             let filename = path.file_name().unwrap().to_string_lossy();

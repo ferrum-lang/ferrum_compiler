@@ -28,7 +28,7 @@ impl UseVisitor<FeType, Result> for RustSyntaxCompiler {
 
             if path.next.is_none() {
                 for idx in 0..file.mods.len() {
-                    if &file.mods[idx].name == &path.name {
+                    if file.mods[idx].name == path.name {
                         should_add = false;
 
                         if let Some(ir::RustIRUseMod::Pub) = use_mod {

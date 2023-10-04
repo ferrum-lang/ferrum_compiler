@@ -1,7 +1,5 @@
 use super::*;
 
-use crate::log;
-
 impl UseVisitor<Option<FeType>, Result<bool>> for FeTypeResolver {
     fn visit_use(&mut self, shared_use_decl: Arc<Mutex<Use<Option<FeType>>>>) -> Result<bool> {
         let use_decl = &mut *shared_use_decl.try_lock().unwrap();

@@ -97,7 +97,7 @@ impl RustSyntaxCompiler {
 
                 self.compile_file(&mut dir.entry_file)?;
 
-                for (_name, package) in &dir.local_packages {
+                for package in dir.local_packages.values() {
                     self.internal_compile_package(
                         &mut package.try_lock().unwrap(),
                         parent_dir.clone(),
