@@ -12,39 +12,42 @@ use lazy_static;
 lazy_static::lazy_static! {
     static ref KEYWORDS: HashMap<String, TokenType> = {
         let mut keywords = HashMap::new();
-        // keywords.insert("and".to_string(), TokenType::And);
-        // keywords.insert("as".to_string(), TokenType::As);
+        keywords.insert("and".to_string(), TokenType::And);
+        keywords.insert("as".to_string(), TokenType::As);
         keywords.insert("break".to_string(), TokenType::Break);
-        keywords.insert("const".to_string(), TokenType::Const);
-        // keywords.insert("CRASH!".to_string(), TokenType::Crash);
         keywords.insert("else".to_string(), TokenType::Else);
-        keywords.insert("false".to_string(), TokenType::False);
         keywords.insert("fn".to_string(), TokenType::Fn);
-        // keywords.insert("for".to_string(), TokenType::For);
+        keywords.insert("for".to_string(), TokenType::For);
         keywords.insert("if".to_string(), TokenType::If);
-        // keywords.insert("impl".to_string(), TokenType::Impl);
-        // keywords.insert("in".to_string(), TokenType::In);
+        keywords.insert("impl".to_string(), TokenType::Impl);
+        keywords.insert("in".to_string(), TokenType::In);
         keywords.insert("loop".to_string(), TokenType::Loop);
-        // keywords.insert("match".to_string(), TokenType::Match);
-        keywords.insert("mut".to_string(), TokenType::Mut);
-        // keywords.insert("norm".to_string(), TokenType::Norm);
+        keywords.insert("match".to_string(), TokenType::Match);
         keywords.insert("not".to_string(), TokenType::Not);
-        // keywords.insert("or".to_string(), TokenType::Or);
+        keywords.insert("or".to_string(), TokenType::Or);
         keywords.insert("pub".to_string(), TokenType::Pub);
-        // keywords.insert("pure".to_string(), TokenType::Pure);
         keywords.insert("return".to_string(), TokenType::Return);
-        // keywords.insert("risk".to_string(), TokenType::Risk);
-        // keywords.insert("safe".to_string(), TokenType::Safe);
-        // keywords.insert("self".to_string(), TokenType::SelfVal);
-        // keywords.insert("Self".to_string(), TokenType::SelfType);
         keywords.insert("struct".to_string(), TokenType::Struct);
         keywords.insert("then".to_string(), TokenType::Then);
-        // keywords.insert("trait".to_string(), TokenType::Trait);
-        keywords.insert("true".to_string(), TokenType::True);
-        // keywords.insert("type".to_string(), TokenType::Type);
+        keywords.insert("trait".to_string(), TokenType::Trait);
         keywords.insert("use".to_string(), TokenType::Use);
         keywords.insert("while".to_string(), TokenType::While);
-        // keywords.insert("yield".to_string(), TokenType::Yield);
+
+        keywords.insert("const".to_string(), TokenType::Const);
+        keywords.insert("mut".to_string(), TokenType::Mut);
+
+        keywords.insert("norm".to_string(), TokenType::Norm);
+        keywords.insert("pure".to_string(), TokenType::Pure);
+        keywords.insert("risk".to_string(), TokenType::Risk);
+        keywords.insert("safe".to_string(), TokenType::Safe);
+
+        keywords.insert("self".to_string(), TokenType::SelfVal);
+        keywords.insert("Self".to_string(), TokenType::SelfType);
+
+        keywords.insert("false".to_string(), TokenType::False);
+        keywords.insert("true".to_string(), TokenType::True);
+
+        keywords.insert("CRASH!".to_string(), TokenType::Crash);
 
         keywords
     };
@@ -189,14 +192,14 @@ impl FeSourceScanner {
             ',' => Some(TokenType::Comma),
             ';' => Some(TokenType::Semicolon),
 
-            '(' => Some(TokenType::OpenParen),
-            ')' => Some(TokenType::CloseParen),
+            '(' => Some(TokenType::ParenLeft),
+            ')' => Some(TokenType::ParenRight),
 
-            '{' => Some(TokenType::OpenSquirlyBrace),
-            '}' => Some(TokenType::CloseSquirlyBrace),
+            '{' => Some(TokenType::SquirlyBraceLeft),
+            '}' => Some(TokenType::SquirlyBraceClose),
 
-            '[' => Some(TokenType::OpenSquareBracket),
-            ']' => Some(TokenType::CloseSquareBracket),
+            '[' => Some(TokenType::SquareBracketLeft),
+            ']' => Some(TokenType::SquareBracketRight),
 
             '\n' => Some(TokenType::Newline),
 
@@ -242,7 +245,7 @@ impl FeSourceScanner {
             ':' => {
                 if self.peek_next() == Some(':') {
                     self.advance_col();
-                    Some(TokenType::DoubleColon)
+                    Some(TokenType::ColonColon)
                 } else {
                     Some(TokenType::Colon)
                 }
@@ -332,15 +335,15 @@ impl FeSourceScanner {
         }
 
         match (is_continuing_fmt_str, is_starting_fmt_str) {
-            (false, false) => return TokenType::PlainString,
+            (false, false) => return TokenType::String,
             (false, true) => {
                 self.format_string_nest += 1;
-                return TokenType::OpenFmtString;
+                return TokenType::StringFmtStart;
             }
-            (true, true) => return TokenType::MidFmtString,
+            (true, true) => return TokenType::StringFmtMid,
             (true, false) => {
                 self.format_string_nest -= 1;
-                return TokenType::CloseFmtString;
+                return TokenType::StringFmtEnd;
             }
             //
             // _ => todo!(),
@@ -409,12 +412,12 @@ impl FeSourceScanner {
                         self.advance_col();
                     }
 
-                    return TokenType::DecimalNumber;
+                    return TokenType::NumberDecimal;
                 }
             }
         }
 
-        return TokenType::IntegerNumber;
+        return TokenType::NumberInteger;
     }
 
     fn identifier(&mut self) -> TokenType {
@@ -435,7 +438,7 @@ impl FeSourceScanner {
             // return TokenType::Crash;
         }
 
-        return KEYWORDS.get(text).cloned().unwrap_or(TokenType::Ident);
+        return KEYWORDS.get(text).cloned().unwrap_or(TokenType::Identifier);
     }
 
     fn add_token(&mut self, token_type: TokenType) {
@@ -486,6 +489,8 @@ mod tests {
     use super::*;
     use TokenType::*;
 
+    use std::result::Result::Ok;
+
     macro_rules! input_matches_output_tests {
         ($($name:ident: $value:expr,)*) => {
         $(
@@ -530,10 +535,10 @@ pub fn main()
 ;
         "#, vec![
             Newline,
-            Use, DoubleColon, Ident, DoubleColon, Ident, Newline,
+            Use, ColonColon, Identifier, ColonColon, Identifier, Newline,
             Newline,
-            Pub, Fn, Ident, OpenParen, CloseParen, Newline,
-            Ident, OpenParen, PlainString, CloseParen, Newline,
+            Pub, Fn, Identifier, ParenLeft, ParenRight, Newline,
+            Identifier, ParenLeft, String, ParenRight, Newline,
             Semicolon, Newline,
         ]),
 
@@ -549,7 +554,7 @@ pub fn main()
 ;
         "#, vec![
             Newline,
-            Pub, Fn, Ident, OpenParen, CloseParen, Newline,
+            Pub, Fn, Identifier, ParenLeft, ParenRight, Newline,
             If, Label, True, Newline,
             Return, Newline,
             Else, If, Label, True, Newline,

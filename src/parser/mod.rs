@@ -216,7 +216,7 @@ impl FeTokenSyntaxParser {
     }
 
     fn use_static_path(&mut self) -> Result<UseStaticPath> {
-        let pre = if let Some(token) = self.match_any(&[TokenType::DoubleColon], WithNewlines::None)
+        let pre = if let Some(token) = self.match_any(&[TokenType::ColonColon], WithNewlines::None)
         {
             Some(UseStaticPathPre::DoubleColon(token))
         } else if let Some(token) = self.match_any(&[TokenType::DotSlash], WithNewlines::None) {
@@ -226,10 +226,10 @@ impl FeTokenSyntaxParser {
                 .map(UseStaticPathPre::RootDir)
         };
 
-        let name = self.consume(&TokenType::Ident, "Expect name of import")?;
+        let name = self.consume(&TokenType::Identifier, "Expect name of import")?;
 
         let details = if let Some(double_colon_token) =
-            self.match_any(&[TokenType::DoubleColon], WithNewlines::None)
+            self.match_any(&[TokenType::ColonColon], WithNewlines::None)
         {
             // TODO: Handle case of 'many'
 
@@ -294,16 +294,16 @@ impl FeTokenSyntaxParser {
     ) -> Result<FnDecl> {
         // TODO: Generics?
 
-        let name = self.consume(&TokenType::Ident, "Expect function name")?;
+        let name = self.consume(&TokenType::Identifier, "Expect function name")?;
 
         let open_paren_token =
-            self.consume(&TokenType::OpenParen, "Expect '(' after function name")?;
+            self.consume(&TokenType::ParenLeft, "Expect '(' after function name")?;
 
         let mut params = vec![];
 
         let pre_comma_token = self.match_any(&[TokenType::Comma], WithNewlines::Many);
 
-        while self.check(&TokenType::Ident) {
+        while self.check(&TokenType::Identifier) {
             // TODO: Do I care about this ??
             if params.len() >= 255 {
                 let t = self.peek().ok_or_else(|| self.eof_err())?;
@@ -314,7 +314,7 @@ impl FeTokenSyntaxParser {
             }
 
             let mut try_parse_field = |params: &mut Vec<FnDeclParam>| {
-                let name = self.consume(&TokenType::Ident, "Expect parameter name")?;
+                let name = self.consume(&TokenType::Identifier, "Expect parameter name")?;
                 let colon_token = self.consume(&TokenType::Colon, "Expect ':' after param name")?;
 
                 let static_type_ref = self.static_type_ref()?;
@@ -348,7 +348,7 @@ impl FeTokenSyntaxParser {
         self.allow_many_newlines();
 
         let close_paren_token =
-            self.consume(&TokenType::CloseParen, "Expect ')' after parameters")?;
+            self.consume(&TokenType::ParenRight, "Expect ')' after parameters")?;
 
         let return_type =
             if let Some(colon_token) = self.match_any(&[TokenType::Colon], WithNewlines::One) {
@@ -393,10 +393,10 @@ impl FeTokenSyntaxParser {
     ) -> Result<StructDecl> {
         // TODO: generics
 
-        let name = self.consume(&TokenType::Ident, "Expected struct name")?;
+        let name = self.consume(&TokenType::Identifier, "Expected struct name")?;
 
         let open_squirly_brace_token = self.consume(
-            &TokenType::OpenSquirlyBrace,
+            &TokenType::SquirlyBraceLeft,
             "Expected '{' after struct name",
         )?;
 
@@ -404,7 +404,7 @@ impl FeTokenSyntaxParser {
 
         let mut fields = vec![];
         let close_squirly_brace_token = loop {
-            if let Some(token) = self.match_any(&[TokenType::CloseSquirlyBrace], WithNewlines::Many)
+            if let Some(token) = self.match_any(&[TokenType::SquirlyBraceClose], WithNewlines::Many)
             {
                 break token;
             }
@@ -415,7 +415,7 @@ impl FeTokenSyntaxParser {
                 .match_any(&[TokenType::Pub], WithNewlines::Many)
                 .map(StructFieldMod::Pub);
 
-            let name = self.consume(&TokenType::Ident, "Expected field name")?;
+            let name = self.consume(&TokenType::Identifier, "Expected field name")?;
 
             self.allow_one_newline();
             let colon_token = self.consume(&TokenType::Colon, "Expected ':'")?;
@@ -434,7 +434,7 @@ impl FeTokenSyntaxParser {
             });
 
             if is_done {
-                break self.consume(&TokenType::CloseSquirlyBrace, "Expected comma or '}'")?;
+                break self.consume(&TokenType::SquirlyBraceClose, "Expected comma or '}'")?;
             }
         };
 
@@ -482,9 +482,9 @@ impl FeTokenSyntaxParser {
     }
 
     fn static_path(&mut self) -> Result<StaticPath> {
-        let double_colon_token = self.match_any(&[TokenType::DoubleColon], WithNewlines::None);
+        let double_colon_token = self.match_any(&[TokenType::ColonColon], WithNewlines::None);
 
-        let mut name = self.consume(&TokenType::Ident, "Expect type reference")?;
+        let mut name = self.consume(&TokenType::Identifier, "Expect type reference")?;
         let mut path = StaticPath {
             double_colon_token,
             root: None,
@@ -493,9 +493,9 @@ impl FeTokenSyntaxParser {
         };
 
         while let Some(double_colon_token) =
-            self.match_any(&[TokenType::DoubleColon], WithNewlines::None)
+            self.match_any(&[TokenType::ColonColon], WithNewlines::None)
         {
-            name = self.consume(&TokenType::Ident, "Expect type reference")?;
+            name = self.consume(&TokenType::Identifier, "Expect type reference")?;
             path = StaticPath {
                 double_colon_token: Some(double_colon_token),
                 root: Some(Box::new(path)),
@@ -851,7 +851,7 @@ impl FeTokenSyntaxParser {
         return Ok(VarDeclTarget::Ident(Arc::new(Mutex::new(IdentExpr {
             id: self.node_id_gen.next(),
             ident: self.consume(
-                &TokenType::Ident,
+                &TokenType::Identifier,
                 "TODO: Handle more complicated assignment patterns",
             )?,
             resolved_type: (),
@@ -1520,11 +1520,11 @@ impl FeTokenSyntaxParser {
 
         loop {
             if let Some(open_paren_token) =
-                self.match_any(&[TokenType::OpenParen], WithNewlines::None)
+                self.match_any(&[TokenType::ParenLeft], WithNewlines::None)
             {
                 expr = self.finish_call(expr, open_paren_token)?;
             } else if let Some(dot_token) = self.match_any(&[TokenType::Dot], WithNewlines::One) {
-                let name = self.consume(&TokenType::Ident, "Expect property name '.'")?;
+                let name = self.consume(&TokenType::Identifier, "Expect property name '.'")?;
 
                 expr = Arc::new(Mutex::new(Expr::Get(Arc::new(Mutex::new(GetExpr {
                     id: self.node_id_gen.next(),
@@ -1551,7 +1551,7 @@ impl FeTokenSyntaxParser {
         let pre_comma_token = self.match_any(&[TokenType::Comma], WithNewlines::Many);
         self.allow_many_newlines();
 
-        if !self.check(&TokenType::CloseParen) {
+        if !self.check(&TokenType::ParenRight) {
             loop {
                 // TODO: Do I care?
                 if args.len() >= 255 {
@@ -1580,7 +1580,7 @@ impl FeTokenSyntaxParser {
         }
 
         let close_paren_token = self.consume(
-            &TokenType::CloseParen,
+            &TokenType::ParenRight,
             "Expect ')' after arguments".to_string(),
         )?;
 
@@ -1598,12 +1598,12 @@ impl FeTokenSyntaxParser {
     }
 
     fn ident(&mut self) -> Result<Arc<Mutex<Expr>>> {
-        let ident_expr = if self.check(&TokenType::DoubleColon)
-            || (self.check(&TokenType::Ident) && self.check_offset(1, &TokenType::DoubleColon))
+        let ident_expr = if self.check(&TokenType::ColonColon)
+            || (self.check(&TokenType::Identifier) && self.check_offset(1, &TokenType::ColonColon))
         {
             Some(ConstructTarget::StaticPath(self.static_path()?))
         } else {
-            self.match_any(&[TokenType::Ident], WithNewlines::None)
+            self.match_any(&[TokenType::Identifier], WithNewlines::None)
                 .map(|ident| {
                     ConstructTarget::Ident(Arc::new(Mutex::new(IdentExpr {
                         id: self.node_id_gen.next(),
@@ -1615,19 +1615,19 @@ impl FeTokenSyntaxParser {
 
         if let Some(ident_expr) = ident_expr {
             if let Some(open_squirly_brace) =
-                self.match_any(&[TokenType::OpenSquirlyBrace], WithNewlines::One)
+                self.match_any(&[TokenType::SquirlyBraceLeft], WithNewlines::One)
             {
                 let mut args = vec![];
                 let close_squirly_brace = loop {
                     if let Some(token) =
-                        self.match_any(&[TokenType::CloseSquirlyBrace], WithNewlines::One)
+                        self.match_any(&[TokenType::SquirlyBraceClose], WithNewlines::One)
                     {
                         break token;
                     }
 
                     self.allow_many_newlines();
 
-                    let name = self.consume(&TokenType::Ident, "Expected field name")?;
+                    let name = self.consume(&TokenType::Identifier, "Expected field name")?;
                     let colon_token = self.consume(&TokenType::Colon, "Expected ':'")?;
 
                     self.allow_many_newlines();
@@ -1645,7 +1645,7 @@ impl FeTokenSyntaxParser {
                     }));
 
                     if is_done {
-                        break self.consume(&TokenType::CloseSquirlyBrace, "Expected '}'")?;
+                        break self.consume(&TokenType::SquirlyBraceClose, "Expected '}'")?;
                     }
                 };
 
@@ -1680,7 +1680,7 @@ impl FeTokenSyntaxParser {
 
     fn primary(&mut self) -> Result<Arc<Mutex<Expr>>> {
         match self.advance().as_ref().map(|t| (t.clone(), &t.token_type)) {
-            Some((t, TokenType::PlainString)) => {
+            Some((t, TokenType::String)) => {
                 return Ok(Arc::new(Mutex::new(Expr::PlainStringLiteral(Arc::new(
                     Mutex::new(PlainStringLiteralExpr {
                         id: self.node_id_gen.next(),
@@ -1690,7 +1690,7 @@ impl FeTokenSyntaxParser {
                 )))))
             }
 
-            Some((t, TokenType::OpenFmtString)) => {
+            Some((t, TokenType::StringFmtStart)) => {
                 let mut rest = vec![];
                 loop {
                     let mut done = false;
@@ -1698,12 +1698,12 @@ impl FeTokenSyntaxParser {
                     let expr = NestedExpr(self.expression()?);
 
                     let string =
-                        match self.match_any(&[TokenType::MidFmtString], WithNewlines::None) {
+                        match self.match_any(&[TokenType::StringFmtMid], WithNewlines::None) {
                             Some(t) => t.lexeme.clone(),
                             None => {
                                 done = true;
                                 self.consume(
-                                    &TokenType::CloseFmtString,
+                                    &TokenType::StringFmtEnd,
                                     "Expected format string to be closed",
                                 )?
                                 .lexeme
@@ -1728,7 +1728,7 @@ impl FeTokenSyntaxParser {
                 )))));
             }
 
-            Some((t, TokenType::IntegerNumber)) => {
+            Some((t, TokenType::NumberInteger)) => {
                 return Ok(Arc::new(Mutex::new(Expr::NumberLiteral(Arc::new(
                     Mutex::new(NumberLiteralExpr {
                         id: self.node_id_gen.next(),
@@ -1738,7 +1738,7 @@ impl FeTokenSyntaxParser {
                     }),
                 )))));
             }
-            Some((t, TokenType::DecimalNumber)) => {
+            Some((t, TokenType::NumberDecimal)) => {
                 return Ok(Arc::new(Mutex::new(Expr::NumberLiteral(Arc::new(
                     Mutex::new(NumberLiteralExpr {
                         id: self.node_id_gen.next(),
@@ -2086,25 +2086,25 @@ mod tests {
                 Token::zero(TokenType::Newline, "\n"),
 
                 Token::zero(TokenType::Use, "use"),
-                Token::zero(TokenType::DoubleColon, "::"),
-                Token::zero(TokenType::Ident, "fe"),
-                Token::zero(TokenType::DoubleColon, "::"),
-                Token::zero(TokenType::Ident, "print"),
+                Token::zero(TokenType::ColonColon, "::"),
+                Token::zero(TokenType::Identifier, "fe"),
+                Token::zero(TokenType::ColonColon, "::"),
+                Token::zero(TokenType::Identifier, "print"),
                 Token::zero(TokenType::Newline, "\n"),
 
                 Token::zero(TokenType::Newline, "\n"),
 
                 Token::zero(TokenType::Pub, "pub"),
                 Token::zero(TokenType::Fn, "fn"),
-                Token::zero(TokenType::Ident, "main"),
-                Token::zero(TokenType::OpenParen, "("),
-                Token::zero(TokenType::CloseParen, ")"),
+                Token::zero(TokenType::Identifier, "main"),
+                Token::zero(TokenType::ParenLeft, "("),
+                Token::zero(TokenType::ParenRight, ")"),
                 Token::zero(TokenType::Newline, "\n"),
 
-                Token::zero(TokenType::Ident, "print"),
-                Token::zero(TokenType::OpenParen, "("),
-                Token::zero(TokenType::PlainString, "\"Hello, world!\""),
-                Token::zero(TokenType::CloseParen, ")"),
+                Token::zero(TokenType::Identifier, "print"),
+                Token::zero(TokenType::ParenLeft, "("),
+                Token::zero(TokenType::String, "\"Hello, world!\""),
+                Token::zero(TokenType::ParenRight, ")"),
                 Token::zero(TokenType::Newline, "\n"),
 
                 Token::zero(TokenType::Semicolon, ";"),
@@ -2117,13 +2117,13 @@ mod tests {
                     use_token: Token::zero(TokenType::Use, "use"),
                     use_mod: None,
                     path: UseStaticPath {
-                        pre: Some(UseStaticPathPre::DoubleColon(Token::zero(TokenType::DoubleColon, "::"))),
-                        name: Token::zero(TokenType::Ident, "fe"),
+                        pre: Some(UseStaticPathPre::DoubleColon(Token::zero(TokenType::ColonColon, "::"))),
+                        name: Token::zero(TokenType::Identifier, "fe"),
                         details: Either::A(UseStaticPathNext::Single(UseStaticPathNextSingle {
-                            double_colon_token: Token::zero(TokenType::DoubleColon, "::"),
+                            double_colon_token: Token::zero(TokenType::ColonColon, "::"),
                             path: Box::new(UseStaticPath {
                                 pre: None,
-                                name: Token::zero(TokenType::Ident, "print"),
+                                name: Token::zero(TokenType::Identifier, "print"),
                                 details: Either::B(()),
                             }),
                         })),
@@ -2134,12 +2134,12 @@ mod tests {
                     decl_mod: Some(DeclMod::Pub(Token::zero(TokenType::Pub, "pub"))),
                     fn_mod: None,
                     fn_token: Token::zero(TokenType::Fn, "fn"),
-                    name: Token::zero(TokenType::Ident, "main"),
+                    name: Token::zero(TokenType::Identifier, "main"),
                     generics: None,
-                    open_paren_token: Token::zero(TokenType::OpenParen, "("),
+                    open_paren_token: Token::zero(TokenType::ParenLeft, "("),
                     pre_comma_token: None,
                     params: vec![],
-                    close_paren_token: Token::zero(TokenType::CloseParen, ")"),
+                    close_paren_token: Token::zero(TokenType::ParenRight, ")"),
                     return_type: None,
                     body: FnDeclBody::Block(CodeBlock {
                         stmts: vec![
@@ -2149,22 +2149,22 @@ mod tests {
                                     id: NodeId::zero(),
                                     callee: NestedExpr(Arc::new(Mutex::new(Expr::Ident(Arc::new(Mutex::new(IdentExpr {
                                         id: NodeId::zero(),
-                                        ident: Token::zero(TokenType::Ident, "print"),
+                                        ident: Token::zero(TokenType::Identifier, "print"),
                                         resolved_type: (),
                                     })))))),
-                                    open_paren_token: Token::zero(TokenType::OpenParen, "("),
+                                    open_paren_token: Token::zero(TokenType::ParenLeft, "("),
                                     pre_comma_token: None,
                                     args: vec![CallArg {
                                         param_name: None,
                                         value: NestedExpr(Arc::new(Mutex::new(Expr::PlainStringLiteral(Arc::new(Mutex::new(PlainStringLiteralExpr {
                                             id: NodeId::zero(),
-                                            literal: Token::zero(TokenType::PlainString, "\"Hello, world!\""),
+                                            literal: Token::zero(TokenType::String, "\"Hello, world!\""),
                                             resolved_type: (),
                                         })))))),
                                         post_comma_token: None,
                                         resolved_type: (),
                                     }],
-                                    close_paren_token: Token::zero(TokenType::CloseParen, ")"),
+                                    close_paren_token: Token::zero(TokenType::ParenRight, ")"),
                                     resolved_type: None,
                                 }))))),
                             }))))),

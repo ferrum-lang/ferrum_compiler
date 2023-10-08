@@ -96,55 +96,83 @@ impl Token {
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub enum TokenType {
     // Symbols
-    Comma,     // ,
+    Comma, // ,
+
     Semicolon, // ;
 
-    OpenParen,  // (
-    CloseParen, // )
+    ParenLeft,  // (
+    ParenRight, // )
 
-    OpenSquirlyBrace,  // {
-    CloseSquirlyBrace, // }
+    SquirlyBraceLeft,  // {
+    SquirlyBraceClose, // }
 
-    OpenSquareBracket,  // [
-    CloseSquareBracket, // ]
+    SquareBracketLeft,  // [
+    SquareBracketRight, // ]
 
     Plus,      // +
     PlusEqual, // +=
 
-    Minus,      // -
-    MinusEqual, // -=
+    Minus,        // -
+    MinusEqual,   // -=
+    MinusGreater, // ->
 
-    Equal, // =
+    Equal,        // =
+    EqualEqual,   // ==
+    EqualGreater, // =>
+
+    Asterisk,      // *
+    AsteriskEqual, // *=
+
+    Slash,      // /
+    SlashEqual, // /=
+
+    BackSlash, // \
 
     Amp, // &
 
+    At, // @
+
     Question, // ?
+
+    Exclamation, // !
 
     Less,      // <
     LessEqual, // <=
 
-    Greater,      // >
-    GreaterEqual, // >=
+    Greater,        // >
+    GreaterGreater, // >>
+    GreaterEqual,   // >=
 
-    Colon,       // :
-    DoubleColon, // ::
+    Colon,      // :
+    ColonColon, // ::
 
     Dot,      // .
+    DotDot,   // ..
     DotSlash, // ./
 
     Tilde,      // ~
     TildeSlash, // ~/
 
     // Keywords
+    And,
+    As,
     Break,
     Const,
+    Do,
     Else,
     Fn,
+    For,
     If,
+    In,
+    Is,
+    Impl,
     Loop,
+    Match,
     Mut,
+    Noop,
     Norm,
     Not,
+    Or,
     Pub,
     Pure,
     Return,
@@ -152,6 +180,7 @@ pub enum TokenType {
     Safe,
     Struct,
     Then,
+    Trait,
     Use,
     While,
 
@@ -159,21 +188,26 @@ pub enum TokenType {
     True,
     False,
 
-    PlainString,
+    String,
 
-    OpenFmtString,
-    MidFmtString,
-    CloseFmtString,
+    StringFmtStart,
+    StringFmtMid,
+    StringFmtEnd,
 
     Char,
 
-    IntegerNumber,
-    DecimalNumber,
+    NumberInteger,
+    NumberDecimal,
     // TODO: other numbers? scientific notation?
 
     // Other
-    Ident,
+    Identifier,
     Label,
+
+    SelfVal,
+    SelfType,
+
+    Crash,
 
     Newline,
 }
