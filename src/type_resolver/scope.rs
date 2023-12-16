@@ -147,9 +147,9 @@ impl Scope {
     //     }
     // }
 
-    pub fn search(&self, name: &str) -> Option<&ScopedType> {
-        for data in self.stack.iter().rev() {
-            if let Some(found) = data.name_lookup.get(name) {
+    pub fn search(&mut self, name: &str) -> Option<&mut ScopedType> {
+        for data in self.stack.iter_mut().rev() {
+            if let Some(found) = data.name_lookup.get_mut(name) {
                 return Some(found);
             }
         }

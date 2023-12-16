@@ -1,5 +1,6 @@
 #![allow(clippy::needless_return)]
 
+pub mod borrow_checker;
 pub mod code_gen;
 pub mod config;
 pub mod executor;

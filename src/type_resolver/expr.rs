@@ -5,7 +5,7 @@ impl ExprVisitor<Option<FeType>, Result<bool>> for FeTypeResolver {
         &mut self,
         shared_expr: Arc<Mutex<BoolLiteralExpr<Option<FeType>>>>,
     ) -> Result<bool> {
-        let mut expr = shared_expr.try_lock().unwrap();
+        let expr = &mut *shared_expr.try_lock().unwrap();
 
         if expr.is_resolved() {
             return Ok(false);
@@ -26,7 +26,7 @@ impl ExprVisitor<Option<FeType>, Result<bool>> for FeTypeResolver {
         &mut self,
         shared_expr: Arc<Mutex<NumberLiteralExpr<Option<FeType>>>>,
     ) -> Result<bool> {
-        let mut expr = shared_expr.try_lock().unwrap();
+        let expr = &mut *shared_expr.try_lock().unwrap();
 
         if expr.is_resolved() {
             return Ok(false);
@@ -44,7 +44,7 @@ impl ExprVisitor<Option<FeType>, Result<bool>> for FeTypeResolver {
         &mut self,
         shared_expr: Arc<Mutex<PlainStringLiteralExpr<Option<FeType>>>>,
     ) -> Result<bool> {
-        let mut expr = shared_expr.try_lock().unwrap();
+        let expr = &mut *shared_expr.try_lock().unwrap();
 
         if expr.is_resolved() {
             return Ok(false);
@@ -59,7 +59,7 @@ impl ExprVisitor<Option<FeType>, Result<bool>> for FeTypeResolver {
         &mut self,
         shared_expr: Arc<Mutex<FmtStringLiteralExpr<Option<FeType>>>>,
     ) -> Result<bool> {
-        let mut expr = shared_expr.try_lock().unwrap();
+        let expr = &mut *shared_expr.try_lock().unwrap();
 
         if expr.is_resolved() {
             return Ok(false);
@@ -88,7 +88,7 @@ impl ExprVisitor<Option<FeType>, Result<bool>> for FeTypeResolver {
         &mut self,
         shared_expr: Arc<Mutex<IdentExpr<Option<FeType>>>>,
     ) -> Result<bool> {
-        let mut expr = shared_expr.try_lock().unwrap();
+        let expr = &mut *shared_expr.try_lock().unwrap();
 
         if expr.is_resolved() {
             return Ok(false);
@@ -437,7 +437,7 @@ impl ExprVisitor<Option<FeType>, Result<bool>> for FeTypeResolver {
         &mut self,
         shared_expr: Arc<Mutex<ConstructExpr<Option<FeType>>>>,
     ) -> Result<bool> {
-        let mut expr = shared_expr.try_lock().unwrap();
+        let expr = &mut *shared_expr.try_lock().unwrap();
 
         if expr.is_resolved() {
             return Ok(false);

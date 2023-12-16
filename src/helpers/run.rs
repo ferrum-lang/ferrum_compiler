@@ -1,3 +1,4 @@
+use crate::borrow_checker::FeBorrowChecker;
 use crate::code_gen::RustCodeGen;
 use crate::config::Config;
 use crate::executor::RustExecutor;
@@ -41,6 +42,9 @@ pub fn run_full(cfg: Config) -> Result<process::Output> {
         cfg.clone(),
         pkg,
     )?));
+
+    // Check ownership / borrowing
+    FeBorrowChecker::check_package(cfg.clone(), typed_pkg.clone())?;
 
     log::debug!(&typed_pkg);
 

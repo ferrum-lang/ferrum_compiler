@@ -23,6 +23,7 @@ lazy_static::lazy_static! {
         keywords.insert("in".to_string(), TokenType::In);
         keywords.insert("loop".to_string(), TokenType::Loop);
         keywords.insert("match".to_string(), TokenType::Match);
+        keywords.insert("noop".to_string(), TokenType::Noop);
         keywords.insert("not".to_string(), TokenType::Not);
         keywords.insert("or".to_string(), TokenType::Or);
         keywords.insert("pub".to_string(), TokenType::Pub);
