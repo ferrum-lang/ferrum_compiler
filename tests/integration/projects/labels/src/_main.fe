@@ -1,13 +1,13 @@
 use ::fe::print
 
-pub fn main()
+fn main()
     then_labels(false, true)
 
     break_labels()
 ;
 
 fn then_labels(is_live: Bool, use_mocks: Bool)
-    const config = if' is_live
+    config := if' is_live
 
         if use_mocks
             print("Warning: Using mocks in a live environment")
@@ -27,12 +27,13 @@ fn then_labels(is_live: Bool, use_mocks: Bool)
 
         then "LOCAL,INTEGRATIONS"
     ;
+
     print("Config: {config}")
 ;
 
 fn break_labels()
     loop'a
-        mut i = 0
+        mut i := 0
 
         while'b i < 10
             loop

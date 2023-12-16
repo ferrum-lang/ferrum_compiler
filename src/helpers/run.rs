@@ -44,7 +44,7 @@ pub fn run_full(cfg: Config) -> Result<process::Output> {
     )?));
 
     // Check ownership / borrowing
-    FeBorrowChecker::check_package(cfg.clone(), typed_pkg.clone())?;
+    // FeBorrowChecker::check_package(cfg.clone(), typed_pkg.clone())?;
 
     log::debug!(&typed_pkg);
 

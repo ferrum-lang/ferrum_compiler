@@ -145,6 +145,7 @@ pub enum TokenType {
 
     Colon,      // :
     ColonColon, // ::
+    ColonEqual, // :=
 
     Dot,      // .
     DotDot,   // ..
@@ -169,15 +170,16 @@ pub enum TokenType {
     Loop,
     Match,
     Mut,
+    NewType,
     Noop,
-    Norm,
+    // Norm,
     Not,
     Or,
     Pub,
-    Pure,
+    // Pure,
     Return,
     Risk,
-    Safe,
+    // Safe,
     Struct,
     Then,
     Trait,

@@ -98,7 +98,7 @@ impl From<token::FeTokenFile> for FeSyntaxFile {
             name: value.name.into(),
             path: value.path,
             syntax: Arc::new(Mutex::new(SyntaxTree {
-                mods: vec![],
+                // mods: vec![],
                 uses: vec![],
                 decls: vec![],
             })),
@@ -223,7 +223,7 @@ impl From<token::TokenPackageName> for SyntaxPackageName {
 
 #[derive(Debug, Clone)]
 pub struct SyntaxTree<T: ResolvedType = ()> {
-    pub mods: Vec<Mod>,
+    // pub mods: Vec<Mod>,
     pub uses: Vec<Arc<Mutex<Use<T>>>>,
     pub decls: Vec<Arc<Mutex<Decl<T>>>>,
 }
@@ -231,7 +231,7 @@ pub struct SyntaxTree<T: ResolvedType = ()> {
 impl<T: ResolvedType> From<SyntaxTree<()>> for SyntaxTree<Option<T>> {
     fn from(value: SyntaxTree<()>) -> Self {
         return Self {
-            mods: value.mods,
+            // mods: value.mods,
             uses: value.uses.into_iter().map(fe_from).collect(),
             decls: value.decls.into_iter().map(fe_from).collect(),
         };
@@ -261,7 +261,7 @@ impl<T: ResolvedType> TryFrom<SyntaxTree<Option<T>>> for SyntaxTree<T> {
 
     fn try_from(value: SyntaxTree<Option<T>>) -> Result<Self, Self::Error> {
         return Ok(Self {
-            mods: value.mods,
+            // mods: value.mods,
             uses: value
                 .uses
                 .into_iter()

@@ -255,9 +255,9 @@ impl FeTokenSyntaxParser {
 
         {
             let fn_mod = match self.peek().as_ref().map(|t| (t.clone(), &t.token_type)) {
-                Some((token, TokenType::Pure)) => Some(FnMod::Pure(token)),
-                Some((token, TokenType::Safe)) => Some(FnMod::Safe(token)),
-                Some((token, TokenType::Norm)) => Some(FnMod::Norm(token)),
+                // Some((token, TokenType::Pure)) => Some(FnMod::Pure(token)),
+                // Some((token, TokenType::Safe)) => Some(FnMod::Safe(token)),
+                // Some((token, TokenType::Norm)) => Some(FnMod::Norm(token)),
                 Some((token, TokenType::Risk)) => Some(FnMod::Risk(token)),
                 _ => None,
             };
@@ -581,14 +581,6 @@ impl FeTokenSyntaxParser {
             ))))));
         }
 
-        /*
-        if self.match_any(&[token::TokenType::Mut], WithNewlines::Many) {
-            return Ok(ast::Stmt::VarDecl(
-                self.var_decl_statement(ast::VarDeclType::Mut)?,
-            ));
-        }
-        */
-
         if let Some(token) = self.match_any(&[TokenType::If], WithNewlines::Many) {
             return Ok(Arc::new(Mutex::new(Stmt::If(Arc::new(Mutex::new(
                 self.if_statement(token)?,
@@ -827,9 +819,15 @@ impl FeTokenSyntaxParser {
 
         // TODO: parse explicit type
 
-        let value = if let Some(token) = self.match_any(&[TokenType::Equal], WithNewlines::One) {
+        let explicit_type = self
+            .static_type_ref()
+            .ok()
+            .map(|et| VarDeclExplicitType { static_ref: et });
+
+        let value = if let Some(token) = self.match_any(&[TokenType::ColonEqual], WithNewlines::One)
+        {
             Some(VarDeclValue {
-                eq_token: token,
+                colon_eq_token: token,
                 value: NestedExpr(self.break_expr()?),
             })
         } else {
@@ -838,9 +836,9 @@ impl FeTokenSyntaxParser {
 
         return Ok(VarDeclStmt {
             id: self.node_id_gen.next(),
-            var_mut,
+            var_mut: Some(var_mut),
             target,
-            explicit_type: None,
+            explicit_type,
             value,
         });
     }
@@ -1154,6 +1152,30 @@ impl FeTokenSyntaxParser {
 
     fn expr_or_assign_statement(&mut self) -> Result<Arc<Mutex<Stmt>>> {
         let expr = self.expression()?;
+
+        if let Ok(Expr::Ident(e)) = expr.try_lock().as_deref().as_ref() {
+            let explicit_type = self.static_type_ref().ok();
+
+            if let Some(op_token) = self.match_any(&[TokenType::ColonEqual], WithNewlines::One) {
+                let target = VarDeclTarget::Ident(e.clone());
+
+                let value = VarDeclValue {
+                    colon_eq_token: op_token,
+                    value: NestedExpr(self.break_expr()?),
+                };
+
+                return Ok(Arc::new(Mutex::new(Stmt::VarDecl(Arc::new(Mutex::new(
+                    VarDeclStmt {
+                        id: self.node_id_gen.next(),
+                        var_mut: None,
+                        target,
+                        explicit_type: explicit_type
+                            .map(|et| VarDeclExplicitType { static_ref: et }),
+                        value: Some(value),
+                    },
+                ))))));
+            }
+        }
 
         if let Some(op_token) = self.match_any(
             &[
@@ -2040,16 +2062,16 @@ mod tests {
 
                 let ast = &*ast.syntax.try_lock().unwrap();
 
-                assert_eq!(ast.mods.len(), expected.mods.len());
+                // assert_eq!(ast.mods.len(), expected.mods.len());
                 assert_eq!(ast.uses.len(), expected.uses.len());
                 assert_eq!(ast.decls.len(), expected.decls.len());
 
-                for idx in 0..ast.mods.len() {
-                    let actual = &ast.mods[idx];
-                    let expected = &expected.mods[idx];
+                // for idx in 0..ast.mods.len() {
+                //     let actual = &ast.mods[idx];
+                //     let expected = &expected.mods[idx];
 
-                    assert_eq!(actual.0.as_ref(), expected.0.as_ref());
-                }
+                //     assert_eq!(actual.0.as_ref(), expected.0.as_ref());
+                // }
 
                 for idx in 0..ast.uses.len() {
                     let actual = &mut *ast.uses[idx].try_lock().unwrap();
@@ -2075,7 +2097,7 @@ mod tests {
         test_empty: (
             vec![],
             SyntaxTree {
-                mods: vec![],
+                // mods: vec![],
                 uses: vec![],
                 decls: vec![],
             }
@@ -2111,7 +2133,7 @@ mod tests {
                 Token::zero(TokenType::Newline, "\n"),
             ],
             SyntaxTree {
-                mods: vec![],
+                // mods: vec![],
                 uses: vec![Arc::new(Mutex::new(Use {
                     id: NodeId::zero(),
                     use_token: Token::zero(TokenType::Use, "use"),

@@ -196,9 +196,9 @@ impl<T: ResolvedType> TryFrom<FnDecl<Option<T>>> for FnDecl<T> {
 
 #[derive(Debug, Clone, PartialEq)]
 pub enum FnMod {
-    Pure(Arc<Token>),
-    Safe(Arc<Token>),
-    Norm(Arc<Token>),
+    // Pure(Arc<Token>),
+    // Safe(Arc<Token>),
+    // Norm(Arc<Token>),
     Risk(Arc<Token>),
 }
 

@@ -23,6 +23,7 @@ lazy_static::lazy_static! {
         keywords.insert("in".to_string(), TokenType::In);
         keywords.insert("loop".to_string(), TokenType::Loop);
         keywords.insert("match".to_string(), TokenType::Match);
+        keywords.insert("newtype".to_string(), TokenType::NewType);
         keywords.insert("noop".to_string(), TokenType::Noop);
         keywords.insert("not".to_string(), TokenType::Not);
         keywords.insert("or".to_string(), TokenType::Or);
@@ -37,10 +38,10 @@ lazy_static::lazy_static! {
         keywords.insert("const".to_string(), TokenType::Const);
         keywords.insert("mut".to_string(), TokenType::Mut);
 
-        keywords.insert("norm".to_string(), TokenType::Norm);
-        keywords.insert("pure".to_string(), TokenType::Pure);
+        // keywords.insert("norm".to_string(), TokenType::Norm);
+        // keywords.insert("pure".to_string(), TokenType::Pure);
         keywords.insert("risk".to_string(), TokenType::Risk);
-        keywords.insert("safe".to_string(), TokenType::Safe);
+        // keywords.insert("safe".to_string(), TokenType::Safe);
 
         keywords.insert("self".to_string(), TokenType::SelfVal);
         keywords.insert("Self".to_string(), TokenType::SelfType);
@@ -247,6 +248,9 @@ impl FeSourceScanner {
                 if self.peek_next() == Some(':') {
                     self.advance_col();
                     Some(TokenType::ColonColon)
+                } else if self.peek_next() == Some('=') {
+                    self.advance_col();
+                    Some(TokenType::ColonEqual)
                 } else {
                     Some(TokenType::Colon)
                 }

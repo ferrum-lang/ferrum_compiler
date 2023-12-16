@@ -35,8 +35,8 @@ impl StmtVisitor<FeType, Result<Vec<ir::RustIRStmt>>> for RustSyntaxCompiler {
             VarDeclTarget::Ident(ident) => {
                 return Ok(vec![ir::RustIRStmt::Let(ir::RustIRLetStmt {
                     is_mut: match &stmt.var_mut {
-                        VarDeclMut::Const(_) => false,
-                        VarDeclMut::Mut(_) => true,
+                        None | Some(VarDeclMut::Const(_)) => false,
+                        Some(VarDeclMut::Mut(_)) => true,
                     },
                     name: ident.try_lock().unwrap().ident.lexeme.clone(),
                     explicit_type: None,

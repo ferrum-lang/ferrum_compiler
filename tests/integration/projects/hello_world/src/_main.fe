@@ -1,5 +1,8 @@
 use ::fe::print
 
-pub fn main()
-	print("Hello, world!")
+fn main()
+	name String := "world"
+
+	print("Hello, {name}!")
 ;
+

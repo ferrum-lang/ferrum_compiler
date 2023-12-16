@@ -33,7 +33,31 @@ impl StmtVisitor<Option<FeType>, Result<bool>> for FeTypeResolver {
 
         // TODO: check explicit types
 
-        if let Some(typ) = typ {
+        let explicit = if let Some(explicit) = &mut stmt.explicit_type {
+            changed |= explicit.static_ref.accept(self)?;
+
+            explicit.static_ref.resolved_type.clone()
+        } else {
+            None
+        };
+
+        if let Some(mut typ) = typ {
+            if stmt.explicit_type.is_some() {
+                let Some(explicit) = explicit else {
+                    return Ok(changed);
+                };
+
+                if !Self::can_implicit_cast(&typ, &explicit) {
+                    todo!(
+                        "Can't assign types!\nFrom: {:#?}\nTo: {:#?}",
+                        typ,
+                        explicit.actual_type()
+                    );
+                }
+
+                typ = explicit;
+            }
+
             match &mut stmt.target {
                 VarDeclTarget::Ident(ident) => {
                     self.scope.try_lock().unwrap().insert(
@@ -42,8 +66,8 @@ impl StmtVisitor<Option<FeType>, Result<bool>> for FeTypeResolver {
                             is_pub: false,
                             typ: FeType::Owned(FeOwnedOf {
                                 owned_mut: match stmt.var_mut {
-                                    VarDeclMut::Const(_) => FeOwnedMut::Const,
-                                    VarDeclMut::Mut(_) => FeOwnedMut::Mut,
+                                    None | Some(VarDeclMut::Const(_)) => FeOwnedMut::Const,
+                                    Some(VarDeclMut::Mut(_)) => FeOwnedMut::Mut,
                                 },
                                 of: Box::new(typ),
                             }),

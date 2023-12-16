@@ -45,7 +45,10 @@ impl RustSyntaxCompiler {
 
     fn compile(mut self) -> Result<ir::RustIR> {
         self.internal_compile_package(
-            &mut Arc::clone(&self.entry).try_lock().unwrap(),
+            (
+                &mut vec![],
+                &mut Arc::clone(&self.entry).try_lock().unwrap(),
+            ),
             "".into(),
             true,
         )?;
@@ -55,11 +58,11 @@ impl RustSyntaxCompiler {
 
     fn internal_compile_package(
         &mut self,
-        package: &mut FeSyntaxPackage<FeType>,
+        package: (&mut Vec<Mod>, &mut FeSyntaxPackage<FeType>),
         parent_dir: Arc<str>,
         is_main: bool,
     ) -> Result {
-        match package {
+        match package.1 {
             FeSyntaxPackage::File(file) => {
                 self.out.files.push(ir::RustIRFile {
                     path: format!(
@@ -73,16 +76,12 @@ impl RustSyntaxCompiler {
                     decls: vec![],
                 });
 
-                self.compile_file(file)?;
+                self.compile_file(&package.0, file)?;
             }
 
             FeSyntaxPackage::Dir(dir) => {
-                {
-                    let mut syntax = dir.entry_file.syntax.try_lock().unwrap();
-
-                    for name in dir.local_packages.keys() {
-                        syntax.mods.push(Mod(name.0.clone()));
-                    }
+                for name in dir.local_packages.keys() {
+                    package.0.push(Mod(name.0.clone()));
                 }
 
                 let parent_dir: Arc<str> = format!("{}{}/", parent_dir, dir.name.0).into();
@@ -95,11 +94,11 @@ impl RustSyntaxCompiler {
                     decls: vec![],
                 });
 
-                self.compile_file(&mut dir.entry_file)?;
+                self.compile_file(&package.0, &mut dir.entry_file)?;
 
                 for package in dir.local_packages.values() {
                     self.internal_compile_package(
-                        &mut package.try_lock().unwrap(),
+                        (&mut vec![], &mut package.try_lock().unwrap()),
                         parent_dir.clone(),
                         false,
                     )?;
@@ -110,14 +109,14 @@ impl RustSyntaxCompiler {
         return Ok(());
     }
 
-    fn compile_file(&mut self, file: &mut FeSyntaxFile<FeType>) -> Result {
+    fn compile_file(&mut self, file_mods: &Vec<Mod>, file: &mut FeSyntaxFile<FeType>) -> Result {
         let mut syntax = file.syntax.try_lock().unwrap();
 
         {
             let file_idx = self.out.files.len() - 1;
             let mods = &mut self.out.files[file_idx].mods;
 
-            for mod_decl in &syntax.mods {
+            for mod_decl in file_mods {
                 mods.push(ir::RustIRMod {
                     name: mod_decl.0.clone(),
                     is_pub: false, // updated when resolving uses
