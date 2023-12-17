@@ -20,7 +20,7 @@ fn main() -> Result {
 
     let root_dir = get_root_dir();
 
-    let out = helpers::run_full(root_dir.into())?;
+    let out = helpers::run_full_go(root_dir.into())?;
 
     println!("{}", String::from_utf8(out.stderr)?);
     println!("Output:\n------\n");

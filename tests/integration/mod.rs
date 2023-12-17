@@ -1,3 +1,4 @@
+use anyhow::Context;
 use ferrum_compiler::helpers::run_full;
 use ferrum_compiler::result::Result;
 
@@ -19,7 +20,8 @@ fn test_examples() -> Result {
             let project_dir = project_dir.path();
 
             // Run
-            let out = run_full((&project_dir).into())?;
+            let out = run_full((&project_dir).into())
+                .with_context(|| format!("Error running {:#?}", project_dir))?;
 
             let actual_stdout = String::from_utf8(out.stdout)?;
             let actual_stderr = String::from_utf8(out.stderr)?;

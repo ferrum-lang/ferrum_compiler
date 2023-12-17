@@ -1,8 +1,8 @@
-use crate::borrow_checker::FeBorrowChecker;
+// use crate::borrow_checker::FeBorrowChecker;
 use crate::code_gen::RustCodeGen;
 use crate::config::Config;
 use crate::executor::RustExecutor;
-use crate::ir::RustSyntaxCompiler;
+use crate::ir::{GoSyntaxCompiler, RustSyntaxCompiler};
 use crate::lexer::FeLexer;
 use crate::parser::FeSyntaxParser;
 use crate::project_gen::RustProjectGen;
@@ -71,4 +71,57 @@ pub fn run_full(cfg: Config) -> Result<process::Output> {
     let out = RustExecutor::cargo_run(cfg.clone())?;
 
     return Ok(out);
+}
+
+pub fn run_full_go(cfg: Config) -> Result<process::Output> {
+    let cfg = Arc::new(cfg);
+
+    // let dev_build_dir = builds_dir.join("dev");
+    // let test_build_dir = builds_dir.join("test");
+    // let release_build_dir = builds_dir.join("release");
+
+    // Read source files
+    let source = Arc::new(Mutex::new(SourceReader::read_src_files(cfg.clone())?));
+
+    // Scan to tokens
+    let tokens = Arc::new(Mutex::new(FeLexer::scan_package(cfg.clone(), source)?));
+
+    log::debug!(&tokens);
+
+    // Parse to AST
+    let pkg = FeSyntaxParser::parse_package(cfg.clone(), tokens)?;
+
+    // Resolve AST types
+    let typed_pkg = Arc::new(Mutex::new(FeTypeResolver::resolve_package(
+        cfg.clone(),
+        pkg,
+    )?));
+
+    // Check ownership / borrowing
+    // FeBorrowChecker::check_package(cfg.clone(), typed_pkg.clone())?;
+
+    log::debug!(&typed_pkg);
+
+    // Compile to Go IR
+    let go_ir = Arc::new(Mutex::new(GoSyntaxCompiler::compile_package(
+        cfg.clone(),
+        typed_pkg,
+    )?));
+
+    todo!("{go_ir:#?}");
+
+    // // Generate Go code
+    // let go_code = Arc::new(Mutex::new(GoCodeGen::generate_code(cfg.clone(), go_ir)?));
+
+    // log::debug!(&go_code);
+
+    // // Write Go output source files
+    // let generated = GoProjectGen::generate_project_files(cfg.clone(), go_code)?;
+
+    // log::debug!(&generated);
+
+    // // Run generated Go project
+    // let out = GoExecutor::go_run(cfg.clone())?;
+
+    // return Ok(out);
 }

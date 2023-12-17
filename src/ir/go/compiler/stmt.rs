@@ -1,21 +1,18 @@
 use super::*;
 
-impl StmtVisitor<FeType, Result<Vec<ir::RustIRStmt>>> for RustSyntaxCompiler {
-    fn visit_expr_stmt(
-        &mut self,
-        stmt: Arc<Mutex<ExprStmt<FeType>>>,
-    ) -> Result<Vec<ir::RustIRStmt>> {
+impl StmtVisitor<FeType, Result<Vec<ir::GoIRStmt>>> for GoSyntaxCompiler {
+    fn visit_expr_stmt(&mut self, stmt: Arc<Mutex<ExprStmt<FeType>>>) -> Result<Vec<ir::GoIRStmt>> {
         let stmt = &mut *stmt.try_lock().unwrap();
 
         let expr = stmt.expr.try_lock().unwrap().accept(self)?;
 
-        return Ok(vec![ir::RustIRStmt::Expr(ir::RustIRExprStmt { expr })]);
+        return Ok(vec![ir::GoIRStmt::Expr(ir::GoIRExprStmt { expr })]);
     }
 
     fn visit_var_decl_stmt(
         &mut self,
         stmt: Arc<Mutex<VarDeclStmt<FeType>>>,
-    ) -> Result<Vec<ir::RustIRStmt>> {
+    ) -> Result<Vec<ir::GoIRStmt>> {
         let mut stmt = stmt.try_lock().unwrap();
 
         let value = invert(stmt.value.as_mut().map(|value| {
@@ -28,25 +25,12 @@ impl StmtVisitor<FeType, Result<Vec<ir::RustIRStmt>>> for RustSyntaxCompiler {
                 Err(e) => return Err(e),
             };
 
-            // FIXME: This is awful, but is temp fix for shared immut ownership
-            let expr = ir::RustIRExpr::Call(ir::RustIRCallExpr {
-                callee: Box::new(ir::RustIRExpr::Get(ir::RustIRGetExpr {
-                    target: Box::new(expr),
-                    name: "clone".into(),
-                })),
-                args: vec![],
-            });
-
-            Ok(ir::RustIRLetValue { expr })
+            Ok(ir::GoIRVarDeclValue { expr })
         }))?;
 
         match &stmt.target {
             VarDeclTarget::Ident(ident) => {
-                return Ok(vec![ir::RustIRStmt::Let(ir::RustIRLetStmt {
-                    is_mut: match &stmt.var_mut {
-                        None | Some(VarDeclMut::Const(_)) => false,
-                        Some(VarDeclMut::Mut(_)) => true,
-                    },
+                return Ok(vec![ir::GoIRStmt::VarDecl(ir::GoIRVarDeclStmt {
                     name: ident.try_lock().unwrap().ident.lexeme.clone(),
                     explicit_type: None,
                     value,
@@ -58,31 +42,29 @@ impl StmtVisitor<FeType, Result<Vec<ir::RustIRStmt>>> for RustSyntaxCompiler {
     fn visit_assign_stmt(
         &mut self,
         stmt: Arc<Mutex<AssignStmt<FeType>>>,
-    ) -> Result<Vec<ir::RustIRStmt>> {
+    ) -> Result<Vec<ir::GoIRStmt>> {
         let stmt = &mut *stmt.try_lock().unwrap();
 
         let lhs = stmt.target.0.try_lock().unwrap().accept(self)?;
         let rhs = stmt.value.0.try_lock().unwrap().accept(self)?;
 
         let op = match &stmt.op {
-            AssignOp::Eq(_) => ir::RustIRAssignOp::Eq,
-            AssignOp::PlusEq(_) => ir::RustIRAssignOp::PlusEq,
-            AssignOp::MinusEq(_) => ir::RustIRAssignOp::MinusEq,
+            AssignOp::Eq(_) => ir::GoIRAssignOp::Eq,
+            AssignOp::PlusEq(_) => ir::GoIRAssignOp::PlusEq,
+            AssignOp::MinusEq(_) => ir::GoIRAssignOp::MinusEq,
         };
 
-        return Ok(vec![ir::RustIRStmt::Expr(ir::RustIRExprStmt {
-            expr: ir::RustIRExpr::Assign(ir::RustIRAssignExpr {
-                lhs: Box::new(lhs),
-                op,
-                rhs: Box::new(rhs),
-            }),
+        return Ok(vec![ir::GoIRStmt::Assign(ir::GoIRAssignStmt {
+            lhs: Box::new(lhs),
+            op,
+            rhs: Box::new(rhs),
         })]);
     }
 
     fn visit_return_stmt(
         &mut self,
         stmt: Arc<Mutex<ReturnStmt<FeType>>>,
-    ) -> Result<Vec<ir::RustIRStmt>> {
+    ) -> Result<Vec<ir::GoIRStmt>> {
         let mut stmt = stmt.try_lock().unwrap();
 
         let expr = if let Some(value) = &mut stmt.value {
@@ -91,10 +73,10 @@ impl StmtVisitor<FeType, Result<Vec<ir::RustIRStmt>>> for RustSyntaxCompiler {
             None
         };
 
-        return Ok(vec![ir::RustIRStmt::Return(ir::RustIRReturnStmt { expr })]);
+        return Ok(vec![ir::GoIRStmt::Return(ir::GoIRReturnStmt { expr })]);
     }
 
-    fn visit_if_stmt(&mut self, stmt: Arc<Mutex<IfStmt<FeType>>>) -> Result<Vec<ir::RustIRStmt>> {
+    fn visit_if_stmt(&mut self, stmt: Arc<Mutex<IfStmt<FeType>>>) -> Result<Vec<ir::GoIRStmt>> {
         let mut stmt = stmt.try_lock().unwrap();
 
         let condition = Box::new(stmt.condition.0.try_lock().unwrap().accept(self)?);
@@ -117,7 +99,7 @@ impl StmtVisitor<FeType, Result<Vec<ir::RustIRStmt>>> for RustSyntaxCompiler {
                 then.extend(stmts);
             }
 
-            let else_if = ir::RustIRElseIf { condition, then };
+            let else_if = ir::GoIRElseIf { condition, then };
 
             else_ifs.push(else_if);
         }
@@ -130,27 +112,20 @@ impl StmtVisitor<FeType, Result<Vec<ir::RustIRStmt>>> for RustSyntaxCompiler {
                 then.extend(stmts);
             }
 
-            Some(ir::RustIRElse { then })
+            Some(ir::GoIRElse { then })
         } else {
             None
         };
 
-        let expr = ir::RustIRExpr::If(ir::RustIRIfExpr {
+        return Ok(vec![ir::GoIRStmt::If(ir::GoIRIfStmt {
             condition,
             then,
             else_ifs,
             else_,
-        });
-
-        return Ok(vec![ir::RustIRStmt::ImplicitReturn(
-            ir::RustIRImplicitReturnStmt { expr },
-        )]);
+        })]);
     }
 
-    fn visit_loop_stmt(
-        &mut self,
-        stmt: Arc<Mutex<LoopStmt<FeType>>>,
-    ) -> Result<Vec<ir::RustIRStmt>> {
+    fn visit_loop_stmt(&mut self, stmt: Arc<Mutex<LoopStmt<FeType>>>) -> Result<Vec<ir::GoIRStmt>> {
         let mut stmt = stmt.try_lock().unwrap();
 
         let label = self.map_label(stmt.node_id().to_string(), &stmt.label);
@@ -161,17 +136,18 @@ impl StmtVisitor<FeType, Result<Vec<ir::RustIRStmt>>> for RustSyntaxCompiler {
             stmts.extend(ir_stmts);
         }
 
-        return Ok(vec![ir::RustIRStmt::ImplicitReturn(
-            ir::RustIRImplicitReturnStmt {
-                expr: ir::RustIRExpr::Loop(ir::RustIRLoopExpr { label, stmts }),
-            },
-        )]);
+        todo!();
+        // return Ok(vec![ir::GoIRStmt::ImplicitReturn(
+        //     ir::GoIRImplicitReturnStmt {
+        //         expr: ir::GoIRExpr::Loop(ir::GoIRLoopExpr { label, stmts }),
+        //     },
+        // )]);
     }
 
     fn visit_while_stmt(
         &mut self,
         stmt: Arc<Mutex<WhileStmt<FeType>>>,
-    ) -> Result<Vec<ir::RustIRStmt>> {
+    ) -> Result<Vec<ir::GoIRStmt>> {
         let mut stmt = stmt.try_lock().unwrap();
 
         let label = self.map_label(stmt.node_id().to_string(), &stmt.label);
@@ -185,20 +161,21 @@ impl StmtVisitor<FeType, Result<Vec<ir::RustIRStmt>>> for RustSyntaxCompiler {
         }
 
         if stmt.label.is_some() {
-            return Ok(vec![ir::RustIRStmt::ImplicitReturn(
-                ir::RustIRImplicitReturnStmt {
-                    expr: ir::RustIRExpr::Loop(ir::RustIRLoopExpr {
-                        label: label.clone(),
-                        stmts: vec![
-                            ir::RustIRStmt::While(ir::RustIRWhileStmt { condition, stmts }),
-                            ir::RustIRStmt::Break(ir::RustIRBreakStmt { label, expr: None }),
-                        ],
-                    }),
-                },
-            )]);
+            todo!();
+            // return Ok(vec![ir::GoIRStmt::ImplicitReturn(
+            //     ir::GoIRImplicitReturnStmt {
+            //         expr: ir::GoIRExpr::Loop(ir::GoIRLoopExpr {
+            //             label: label.clone(),
+            //             stmts: vec![
+            //                 ir::GoIRStmt::While(ir::GoIRWhileStmt { condition, stmts }),
+            //                 ir::GoIRStmt::Break(ir::GoIRBreakStmt { label, expr: None }),
+            //             ],
+            //         }),
+            //     },
+            // )]);
         }
 
-        return Ok(vec![ir::RustIRStmt::While(ir::RustIRWhileStmt {
+        return Ok(vec![ir::GoIRStmt::While(ir::GoIRWhileStmt {
             condition,
             stmts,
         })]);
@@ -207,7 +184,7 @@ impl StmtVisitor<FeType, Result<Vec<ir::RustIRStmt>>> for RustSyntaxCompiler {
     fn visit_break_stmt(
         &mut self,
         stmt: Arc<Mutex<BreakStmt<FeType>>>,
-    ) -> Result<Vec<ir::RustIRStmt>> {
+    ) -> Result<Vec<ir::GoIRStmt>> {
         let stmt = &mut *stmt.try_lock().unwrap();
 
         let label = self.map_label(
@@ -224,16 +201,10 @@ impl StmtVisitor<FeType, Result<Vec<ir::RustIRStmt>>> for RustSyntaxCompiler {
             None
         };
 
-        return Ok(vec![ir::RustIRStmt::Break(ir::RustIRBreakStmt {
-            label,
-            expr,
-        })]);
+        return Ok(vec![ir::GoIRStmt::Break(ir::GoIRBreakStmt { label, expr })]);
     }
 
-    fn visit_then_stmt(
-        &mut self,
-        stmt: Arc<Mutex<ThenStmt<FeType>>>,
-    ) -> Result<Vec<ir::RustIRStmt>> {
+    fn visit_then_stmt(&mut self, stmt: Arc<Mutex<ThenStmt<FeType>>>) -> Result<Vec<ir::GoIRStmt>> {
         let stmt = &mut *stmt.try_lock().unwrap();
 
         let expr = stmt.value.0.try_lock().unwrap().accept(self)?;
@@ -247,7 +218,7 @@ impl StmtVisitor<FeType, Result<Vec<ir::RustIRStmt>>> for RustSyntaxCompiler {
         );
 
         if label.is_some() {
-            return Ok(vec![ir::RustIRStmt::Break(ir::RustIRBreakStmt {
+            return Ok(vec![ir::GoIRStmt::Break(ir::GoIRBreakStmt {
                 label,
                 expr: Some(expr),
             })]);
@@ -273,15 +244,16 @@ impl StmtVisitor<FeType, Result<Vec<ir::RustIRStmt>>> for RustSyntaxCompiler {
             };
 
             if label.is_some() {
-                return Ok(vec![ir::RustIRStmt::Break(ir::RustIRBreakStmt {
+                return Ok(vec![ir::GoIRStmt::Break(ir::GoIRBreakStmt {
                     label,
                     expr: Some(expr),
                 })]);
             }
         }
 
-        return Ok(vec![ir::RustIRStmt::ImplicitReturn(
-            ir::RustIRImplicitReturnStmt { expr },
-        )]);
+        todo!();
+        // return Ok(vec![ir::GoIRStmt::ImplicitReturn(
+        //     ir::GoIRImplicitReturnStmt { expr },
+        // )]);
     }
 }
